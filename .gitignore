@@ -1,0 +1,45 @@
+# Byte-compiled / optimized / compiled Python files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Poetry virtual environment (if created inside the project)
+# (Poetry defaults to ~/.cache/pypoetry for venvs unless configured otherwise)
+.venv/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Test results
+htmlcov/
+.coverage
+.tox/
+.nox/
+.cache/
+.pytest_cache/
+*.cover
+*.log
+
+# Sphinx documentation
+docs/_build/
+
+# PyCharm and IDE-specific files
+.idea/
+.vscode/
+
+# macOS system files
+.DS_Store
+
+# Environment variables and secrets
+.env
+.env.*
+
+# Poetry lock file for debugging or reinstallation (optional, if you don't want to commit lock files)
+# poetry.lock

@@ -1,0 +1,32 @@
+# General definition of tools. To be available for LLM, tool reference has to be included in
+# LLM definition as well.
+custom_tools:
+  - metacritic_monkey:
+    type: LLM
+    description: >
+      Finds the Metacritic score for a given movie title and year. Returns either a single number or "N/A" if the movie is not found.
+    params:
+      movie_title:
+        description: Movie title
+        type: str
+        optional: false
+      movie_year:
+        description: Movie release year
+        type: int
+        optional: false
+    tool_refs:
+        - fetch_url_text
+    instructions: >
+      Your job is to find the Metacritic score for a movie {movie_title} released in year {movie_year}.
+      To do so:
+      - Fetch page text from `https://www.metacritic.com/search/{movie_title}/?page=1&category=2` 
+      - From the list of (movie title, release year, metacritic score), chose the one best matching the title and year
+      and return metacritic score as single number
+      - If the movie is not found, return "N/A" (without quotes)
+
+main:
+  instructions: >
+    Your job is to find metacritic score for movie "Soul" (2020).
+  interactive: false
+  tool_refs:
+    - metacritic_monkey
