@@ -44,6 +44,6 @@ main:
   instructions: >
     Your job is to find metacritic score for the movie "Soul" (2020).
   interactive: false
-  debug: false
+  debug: true
   tool_refs:
     - metacritic_monkey
