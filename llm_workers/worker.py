@@ -13,5 +13,6 @@ def build_worker(config_filename: str):
     set_verbose(config.main.debug)
     set_debug(config.main.debug)
     tool_registry = ToolRegistry()
+    tool_registry.register_custom_tools(config.custom_tools)
     llm = init_chat_model(config.main.model, model_provider=config.main.provider, temperature=0)
     return create_react_agent(llm, tools=tool_registry.resolve_tool_refs(config.main.tool_refs), state_modifier=SystemMessage(config.main.instructions))

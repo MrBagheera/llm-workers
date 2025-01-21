@@ -1,33 +1,41 @@
 # General definition of tools. To be available for LLM, tool reference has to be included in
 # LLM definition as well.
 custom_tools:
-  metacritic_monkey:
+  # stub implementation of metacritic_monkey
+  - name: metacritic_monkey
     tool_type: debug
     description: >
       Finds the Metacritic score for a given movie title and year. Returns either a single number or "N/A" if the movie is not found.
     params:
-      movie_title:
+      - name: movie_title
         description: Movie title
         type: str
-        optional: false
-      movie_year:
+      - name: movie_year
         description: Movie release year
-        type: int
-        optional: false
-    result_text: "94"
-  metacritic_monkeyz:
+        type: str
+    match_value: "{movie_title} ({movie_year})"
+    matchers:
+      - case: "Soul (2020)"
+        result: 83
+      - case: "Wallace & Gromit: The Curse of the Were-Rabbit (2005)"
+        result: 87
+      - case: "The Incredibles (2004)"
+        result: 90
+      - case: "Finding Nemo (2003)"
+        result: 90
+    default_result: "N/A"
+  # just an example for future
+  - name: metacritic_monkeyz
     tool_type: LLM
     description: >
       Finds the Metacritic score for a given movie title and year. Returns either a single number or "N/A" if the movie is not found.
     params:
-      movie_title:
+      - name: movie_title
         description: Movie title
         type: str
-        optional: false
-      movie_year:
+      - name: movie_year
         description: Movie release year
         type: int
-        optional: false
     tool_refs:
         - fetch_url_text
     instructions: >
@@ -44,6 +52,6 @@ main:
   instructions: >
     Your job is to find metacritic score for the movie "Soul" (2020).
   interactive: false
-  debug: true
+  verbose: true
   tool_refs:
     - metacritic_monkey

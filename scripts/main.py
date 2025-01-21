@@ -28,7 +28,7 @@ async def print_model_output(stream: Iterator[dict[str, Any]]):
                 text.append("Human: ", style="bold blue")
                 text.append(message.content)
             elif isinstance(message, ToolMessage):
-                text.append(f"Tool Call({message.name}): ", style="bold white")
+                text.append(f"Tool Call ({message.name}): ", style="bold white")
                 text.append(message.content)
             elif isinstance(message, AIMessage):
                 text.append("AI: ", style="bold green")

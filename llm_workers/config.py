@@ -1,28 +1,13 @@
-from typing import List, Union, Literal, Annotated
+from typing import List, Union, Annotated
 
+import yaml
 from pydantic import BaseModel, Field
 
-
-class ToolParam(BaseModel):
-    description: str
-    type: str
-    optional: bool
-
-class CustomToolBase(BaseModel):
-    description: str
-    params: dict[str, ToolParam]
-
-class DebugTool(CustomToolBase):
-    tool_type: Literal['debug']
-    result_text: str
-
-class LLMTool(CustomToolBase):
-    tool_type: Literal['LLM']
-    tool_refs: List[str] = ()
-    instructions: str
+from llm_workers.tools.debug_tool import DebugToolConfig
+from llm_workers.tools.llm_tool import LLMToolConfig
 
 CustomTool = Annotated[
-    Union[DebugTool, LLMTool],
+    Union[DebugToolConfig, LLMToolConfig],
     Field(discriminator='tool_type')
 ]
 
@@ -35,12 +20,9 @@ class Main(BaseModel):
     verbose: bool = False
     debug: bool = False
 
-
 class WorkerConfig(BaseModel):
-    custom_tools: dict[str, CustomTool]
+    custom_tools: list[CustomTool]
     main: Main
-
-import yaml
 
 def load_config(file_path: str) -> WorkerConfig:
     with open(file_path, 'r') as file:
