@@ -1,8 +1,22 @@
 # General definition of tools. To be available for LLM, tool reference has to be included in
 # LLM definition as well.
 custom_tools:
-  - metacritic_monkey:
-    type: LLM
+  metacritic_monkey:
+    tool_type: debug
+    description: >
+      Finds the Metacritic score for a given movie title and year. Returns either a single number or "N/A" if the movie is not found.
+    params:
+      movie_title:
+        description: Movie title
+        type: str
+        optional: false
+      movie_year:
+        description: Movie release year
+        type: int
+        optional: false
+    result_text: "94"
+  metacritic_monkeyz:
+    tool_type: LLM
     description: >
       Finds the Metacritic score for a given movie title and year. Returns either a single number or "N/A" if the movie is not found.
     params:
@@ -25,8 +39,11 @@ custom_tools:
       - If the movie is not found, return "N/A" (without quotes)
 
 main:
+  provider: ollama
+  model: llama3.1
   instructions: >
-    Your job is to find metacritic score for movie "Soul" (2020).
+    Your job is to find metacritic score for the movie "Soul" (2020).
   interactive: false
+  debug: false
   tool_refs:
     - metacritic_monkey
