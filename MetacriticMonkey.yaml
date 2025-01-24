@@ -1,6 +1,29 @@
 # General definition of tools. To be available for LLM, tool reference has to be included in
 # LLM definition as well.
 custom_tools:
+  # stub implementation of metacritic_monkey
+#  - name: metacritic_monkey
+#    tool_type: debug
+#    description: >
+#      Finds the Metacritic score for a given movie title and year. Returns either a single number or "N/A" if the movie is not found.
+#    params:
+#      - name: movie_title
+#        description: Movie title
+#        type: str
+#      - name: movie_year
+#        description: Movie release year
+#        type: str
+#    match_value: "{movie_title} ({movie_year})"
+#    matchers:
+#      - case: "Soul (2020)"
+#        result: 83
+#      - case: "Wallace & Gromit: The Curse of the Were-Rabbit (2005)"
+#        result: 87
+#      - case: "The Incredibles (2004)"
+#        result: 90
+#      - case: "Finding Nemo (2003)"
+#        result: 90
+#    default_result: "N/A"
   # stub implementation of search_movie_on_metacritic
   - name: search_movie_on_metacritic
     tool_type: debug
@@ -575,28 +598,22 @@ custom_tools:
     model: llama3.1
     tool_refs:
         - search_movie_on_metacritic
-    system_prompt: >
+    system_message: >
       Your job is to find the Metacritic score for a movie by title and release year.
       To do so:
-      - Fetch page text from `https://www.metacritic.com/search/{movie_title}/?page=1&category=2` 
-      - From the list of (movie title, release year, metacritic score), chose the one best matching the title and year
+        - Search for movie on Metacritic site using provided tool
+        - From the list of (movie title, release year, metacritic score), chose the one matching the title and year
       and return metacritic score as single number
-      - If the movie is not found, return "N/A" (without quotes)
+        - If no matching movie is found, you MUST respond with just "N/A" (without quotes)
+        - DO NOT provide any additional information in the response
     prompt: >
-      Find Metacritic score for movie "{movie_title}" released in year {movie_year}.
+      Find Metacritic score for movie "{movie_title}" released in {movie_year}.
 
 main:
   provider: ollama
   model: llama3.1
-  system_prompt: >
-    Your job is to find the Metacritic score for a movie by title and release year.
-    To do so:
-    - Search movie score on Metacritic site using provided tool 
-    - From the list of (movie title, release year, metacritic score), chose the one best matching the title and year
-    and return metacritic score as single number
-    - If the movie is not found, return "N/A" (without quotes)
   default_prompt: >
-    Find Metacritic score for movie "Soul" released in year 2020.
+    Your job is to find metacritic score for the movie "Soul" (2020).
   verbose: true
   tool_refs:
-    - search_movie_on_metacritic
+    - metacritic_monkey

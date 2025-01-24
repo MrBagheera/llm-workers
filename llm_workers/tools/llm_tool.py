@@ -19,9 +19,6 @@ def build_llm_tool(tool_config: LLMToolConfig, tools_lookup: callable) -> BaseTo
 
     def llm_tool_logic(validated_input: BaseModel):
         rendered_prompt = prompt.format(**validated_input.model_dump())
-        agent.invoke(input={"messages": [rendered_prompt]})
-        raise ToolException("LLMTool is not implemented")
-
-
+        return agent.invoke(input={"messages": [rendered_prompt]})["messages"][-1]
 
     return build_dynamic_tool(tool_config, llm_tool_logic)
