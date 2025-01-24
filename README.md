@@ -43,6 +43,36 @@ Envisioned workflow:
 - Follow-up first few iterations of actual research execution to verify it is producing the expected results
 - Run actual research until it finishes (which may take considerable amount of time)
 
+Library comes with two scripts that can be used to run LLM scripts: `llm-workers-cli` and `llm-workers-chat`.
+
+To run LLM script with default prompt:
+```shell
+llm-workers-cli [--verbose] [--debug] <script_file>
+```
+
+To run LLM script with prompt(s) as command-line arguments:
+```shell
+llm-workers-cli [--verbose] [--debug] <script_file> [<prompt1> ... <promptN>]
+```
+
+To run LLM script with prompt(s) read from `stdin`, each line as separate prompt:
+```shell
+llm-workers-cli [--verbose] [--debug] <script_file> --
+```
+
+Results of LLM script execution will be printed to the `stdout` without any
+extra formatting. 
+
+To chat with LLM script:
+```shell
+llm-workers-chat [--verbose] [--debug] <script_file>
+```
+The tools provides terminal chat interface where user can interact with LLM script.
+Before asking first user input, tool runs LLM script with default prompt (if defined).
+
+Common flags:
+- `--verbose` flag triggers some debug prints to stderr
+- `--debug` - enables LlangChain's debug mode, which prints additional information about script execution
 
 # To Do
 
@@ -51,9 +81,9 @@ Envisioned workflow:
 - [x] Specifying LLM provider and model (ollama/open-ai/claude)
 - [x] Specifying custom tools
 - [x] Write introduction for README.md
+- [x] Reorganize scripts
 - [ ] `LLM` tool
 - [ ] `fetch_url_text` tool
 - [ ] `search` tools
-- [ ] Improve execution presentation
 - [ ] Add support for interactive mode
 - [ ] Add audit trail

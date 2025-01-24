@@ -1,19 +1,27 @@
-from typing import Literal, List
+from typing import Literal
 
+from langchain_core.prompts import PromptTemplate
 from langchain_core.tools import BaseTool, ToolException
 from pydantic import BaseModel
 
+from llm_workers.llm import BaseLLMConfig, build_tool_calling_llm
 from llm_workers.tools.custom_tools_base import CustomToolBaseConfig, build_dynamic_tool
 
 
-class LLMToolConfig(CustomToolBaseConfig):
+class LLMToolConfig(CustomToolBaseConfig, BaseLLMConfig):
     tool_type: Literal['LLM']
-    tool_refs: List[str] = ()
-    instructions: str
+    prompt: str
 
 
-def build_llm_tool(tool_config: LLMToolConfig, tool_lookup: callable) -> BaseTool:
+def build_llm_tool(tool_config: LLMToolConfig, tools_lookup: callable) -> BaseTool:
+    prompt = PromptTemplate.from_template(tool_config.prompt)
+    agent = build_tool_calling_llm(tool_config, tools_lookup)
+
     def llm_tool_logic(validated_input: BaseModel):
+        rendered_prompt = prompt.format(**validated_input.model_dump())
+        agent.invoke(input={"messages": [rendered_prompt]})
         raise ToolException("LLMTool is not implemented")
+
+
 
     return build_dynamic_tool(tool_config, llm_tool_logic)
