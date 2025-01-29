@@ -1,34 +1,15 @@
-# General definition of tools. To be available for LLM, tool reference has to be included in
-# LLM definition as well.
+models:
+  - name: default
+    provider: ollama
+    model: llama3.1
+
+# Custom tools. Custom tool is a reference to built-in tool with custom parameters exposed and tool parameters pre-configured.
+# To be available for LLM, reference to custom tool has to be included in tool_refs section of LLM definition.
 custom_tools:
-  # stub implementation of metacritic_monkey
-#  - name: metacritic_monkey
-#    tool_type: debug
-#    description: >
-#      Finds the Metacritic score for a given movie title and year. Returns either a single number or "N/A" if the movie is not found.
-#    params:
-#      - name: movie_title
-#        description: Movie title
-#        type: str
-#      - name: movie_year
-#        description: Movie release year
-#        type: str
-#    match_value: "{movie_title} ({movie_year})"
-#    matchers:
-#      - case: "Soul (2020)"
-#        result: 83
-#      - case: "Wallace & Gromit: The Curse of the Were-Rabbit (2005)"
-#        result: 87
-#      - case: "The Incredibles (2004)"
-#        result: 90
-#      - case: "Finding Nemo (2003)"
-#        result: 90
-#    default_result: "N/A"
-  # stub implementation of search_movie_on_metacritic
-  - name: search_movie_on_metacritic
-    tool_type: debug
+
+  - name: search_movie_on_metacritic_stub
     description: >
-      Searches for movies at Metcratic site, returns list of possible matches
+      Searches for movies at Metacritic site, returns list of possible matches
     params:
       - name: movie_title
         description: Movie title
@@ -36,6 +17,7 @@ custom_tools:
       - name: movie_year
         description: Movie release year
         type: str
+    type: stub
     match_value: "{movie_title} ({movie_year})"
     matchers:
       - case: "Soul (2020)"
@@ -582,9 +564,22 @@ custom_tools:
             2021
             67
     default_result: "N/A"
+
+  - name: search_movie_on_metacritic
+    description: >
+      Searches for the Metacritic score for a given movie title. Returns text from Metasritics web site,
+      containing the list of possible matches (movie title, release year, score).
+    params:
+      - name: movie_title
+        description: Movie title
+        type: str
+    tool_ref: fetch_page_text
+    tool_params:
+      url: "https://www.metacritic.com/search/{movie_title}/?page=1&category=2"
+      xpath: "//*[@class=\"c-pageSiteSearch-results\"]"
+
   # LLM tool as a generic way to call specific tool and parse result
   - name: metacritic_monkey
-    tool_type: LLM
     description: >
       Finds the Metacritic score for a given movie title and year. Returns either a single number or "N/A" if the movie is not found.
     params:
@@ -594,26 +589,20 @@ custom_tools:
       - name: movie_year
         description: Movie release year
         type: int
-    provider: ollama
-    model: llama3.1
-    tool_refs:
-        - search_movie_on_metacritic
+    type: LLM
     system_message: >
       Your job is to find the Metacritic score for a movie by title and release year.
       To do so:
         - Search for movie on Metacritic site using provided tool
-        - From the list of (movie title, release year, metacritic score), chose the one matching the title and year
-      and return metacritic score as single number
+        - From the tool output, chose the one matching movie title and year and return metacritic score as single number
         - If no matching movie is found, you MUST respond with just "N/A" (without quotes)
         - DO NOT provide any additional information in the response
     prompt: >
       Find Metacritic score for movie "{movie_title}" released in {movie_year}.
+    tool_refs:
+      - search_movie_on_metacritic
 
 main:
-  provider: ollama
-  model: llama3.1
-  default_prompt: >
-    Your job is to find metacritic score for the movie "Soul" (2020).
-  verbose: true
+  default_prompt: Your job is to find metacritic score for the movie "Soul" (2020).
   tool_refs:
     - metacritic_monkey

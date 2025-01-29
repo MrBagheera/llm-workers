@@ -1,0 +1,144 @@
+import os
+from typing import Optional, Literal, Annotated
+
+import html_text
+from urllib.parse import urlparse
+
+import requests
+from langchain_core.tools import StructuredTool, tool, ToolException, InjectedToolArg
+from pydantic import BaseModel, Field
+from requests import RequestException
+
+from llm_workers.tools.custom_tools_base import Json
+
+
+def _fetch_content(url, headers: Optional[dict[str, str]]) -> str:
+    if headers is None:
+        headers = {}
+    if not 'User-Agent' in headers:
+        # read the user-agent from USER_AGENT environment variable
+        useragent = os.getenv('USER_AGENT', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3')
+        headers['User-Agent'] = useragent
+
+    response = requests.get(url, headers=headers)
+
+    # Check for a valid response (HTTP Status Code 200)
+    if response.status_code != 200:
+        raise RequestException(f"HTTP status code {response.status_code}")
+
+    return response.content.decode('utf-8')
+
+
+def _handle_error(e: IOError, on_error: Literal['raise_exception', 'return_error', 'return_empty'], empty: Json) -> Json:
+    if on_error == "raise_exception":
+        raise e
+    elif on_error == "return_error":
+        return {'error': str(e)}
+    else:
+        return empty
+
+def _handle_no_content(xpath: str, on_no_content: Literal['raise_exception', 'return_error', 'return_empty'], empty: Json) -> Json:
+    if on_no_content == "raise_exception":
+        raise ToolException(f"No content matching '{xpath}' found")
+    elif on_no_content == "return_error":
+        return {'error': f"No content matching '{xpath}' found"}
+    else:
+        return empty
+
+
+def _fetch_page_text(
+    url: str,
+    xpath: Annotated[str, InjectedToolArg] = None,
+    headers: Annotated[dict[str, str], InjectedToolArg] = None,
+    on_no_content: Annotated[Literal['raise_exception', 'return_error', 'return_empty'], InjectedToolArg] = 'return_empty',
+    on_error: Annotated[Literal['raise_exception', 'return_error', 'return_empty'], InjectedToolArg] = 'raise_exception'
+) -> str:
+    """Fetches the text from a page or page element.
+
+    Args:
+        url: The URL of the page.
+        xpath: The xpath to the element containing the text; if not specified the entire page will be returned.
+        headers: Extra headers to use for the request.
+        on_no_content: What to do if no matching content is found.
+        on_error: What to do if an error occurs.
+    """
+    try:
+        html = _fetch_content(url, headers)
+    except IOError as e:
+        return _handle_error(e, on_error, empty = "")
+
+    tree = html_text.parse_html(html)
+    cleaned_tree = html_text.cleaner.clean_html(tree)
+
+    if xpath is None:
+        return html_text.etree_to_text(cleaned_tree)
+    else:
+        texts = []
+        for element in cleaned_tree.xpath(xpath):
+            texts.append(html_text.etree_to_text(element))
+        if len(texts) == 0:
+            return _handle_no_content(xpath, on_no_content, empty="")
+        return '\n'.join(texts)
+
+fetch_page_text = StructuredTool.from_function(
+    _fetch_page_text,
+    name="fetch_page_text",
+    parse_docstring=True,
+    error_on_invalid_docstring=True
+)
+
+
+class LinkTextPair(BaseModel):
+    link: str
+    text: Optional[str] = None
+
+def _fetch_page_links(
+        url: str,
+        xpath: Annotated[str, InjectedToolArg] = None,
+        headers: Annotated[dict[str, str], InjectedToolArg] = None,
+        on_no_content: Annotated[Literal['raise_exception', 'return_error', 'return_empty'], InjectedToolArg] = 'return_empty',
+        on_error: Annotated[Literal['raise_exception', 'return_error', 'return_empty'], InjectedToolArg] = 'raise_exception'
+) -> list[LinkTextPair] | Json:
+    """Fetches the links from a page or page element.
+
+    Args:
+        url: The URL of the page.
+        xpath: The xpath to the element containing the links; if not specified the entire page will be searched.
+        headers: Extra headers to use for the request.
+        on_no_content: What to do if no matching content is found.
+        on_error: What to do if an error occurs.
+    """
+    try:
+        html = _fetch_content(url, headers)
+    except IOError as e:
+        return _handle_error(e, on_error, empty = [])
+
+    tree = html_text.parse_html(html)
+    cleaned_tree = html_text.cleaner.clean_html(tree)
+
+    links = []
+    found = False
+    if xpath is None:
+        docs = [cleaned_tree]
+    else:
+        docs = cleaned_tree.xpath(xpath)
+    for doc in docs:
+        found = True
+        for link in doc.xpath('.//a[@href]'):
+            href = link.get('href')
+            parsed = urlparse(href)
+            if parsed.scheme in ['http', 'https'] and parsed.netloc:
+                text = link.text_content().strip()
+                if len(text) == 0:
+                    text = None
+                links.append(LinkTextPair(link=href, text=text))
+    if not found:
+        return _handle_no_content(xpath, on_no_content, empty = [])
+    return links
+
+fetch_page_links = StructuredTool.from_function(
+    _fetch_page_links,
+    name="fetch_page_links",
+    parse_docstring=True,
+    error_on_invalid_docstring=True
+)

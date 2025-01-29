@@ -1,21 +1,35 @@
-from typing import List, Union, Annotated, Any, Self
+from typing import Annotated, Any, Self
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, Tag, Discriminator
 
 from llm_workers.llm import BaseLLMConfig
-from llm_workers.tools.debug_tool import DebugToolConfig
-from llm_workers.tools.llm_tool import LLMToolConfig
+from llm_workers.tools.llm_tool import LLMToolDefinition
+from llm_workers.tools.stub_tool import StubToolDefinition
+from llm_workers.tools.tool_binding import ToolBindingDefinition
 
-CustomToolConfig = Annotated[
-    Union[DebugToolConfig, LLMToolConfig],
-    Field(discriminator='tool_type')
+
+def custom_tool_discriminator_value(v: Any) -> str:
+    if isinstance(v, dict):
+        result = v.get('type')
+    else:
+        result = getattr(v, 'type')
+    return 'tool_binding' if result is None else result
+
+CustomToolDefinition = Annotated[
+    Annotated[ToolBindingDefinition, Tag('tool_binding')] |
+    Annotated[StubToolDefinition, Tag('stub')] |
+    Annotated[LLMToolDefinition, Tag('LLM')],
+    Field(discriminator=Discriminator(custom_tool_discriminator_value))
 ]
+
+class ModelConfig(BaseModel):
+    name: str
+    provider: str
+    model: str
 
 class MainConfig(BaseLLMConfig):
     default_prompt: str | None = None
-    verbose: bool = False
-    debug: bool = False
 
     @classmethod
     def model_validate(
@@ -33,7 +47,8 @@ class MainConfig(BaseLLMConfig):
         return obj
 
 class WorkerConfig(BaseModel):
-    custom_tools: list[CustomToolConfig]
+    models: list[ModelConfig]
+    custom_tools: list[CustomToolDefinition]
     main: MainConfig
 
 def load_config(file_path: str) -> WorkerConfig:

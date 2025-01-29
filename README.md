@@ -67,7 +67,7 @@ To chat with LLM script:
 ```shell
 llm-workers-chat [--verbose] [--debug] <script_file>
 ```
-The tools provides terminal chat interface where user can interact with LLM script.
+The tool provides terminal chat interface where user can interact with LLM script.
 Before asking first user input, tool runs LLM script with default prompt (if defined).
 
 Common flags:
@@ -82,8 +82,11 @@ Common flags:
 - [x] Specifying custom tools
 - [x] Write introduction for README.md
 - [x] Reorganize scripts
-- [ ] `LLM` tool
+- [x] `LLM` tool
+- [ ] reorganize tools
 - [ ] `fetch_url_text` tool
+- [ ] expand `LLM` tool with pre-processing
+- [ ] support toolkits
 - [ ] `search` tools
 - [ ] Add support for interactive mode
 - [ ] Add audit trail
