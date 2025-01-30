@@ -1,4 +1,5 @@
 import importlib
+import logging
 from typing import Callable
 
 from langchain_core.language_models import BaseChatModel
@@ -9,6 +10,8 @@ from llm_workers.tools.stub_tool import StubToolDefinition, build_stub_tool
 from llm_workers.tools.llm_tool import build_llm_tool, LLMToolDefinition
 from llm_workers.tools.tool_binding import ToolBindingDefinition, build_tool_binding
 
+logger = logging.getLogger(__name__)
+
 
 class ToolRegistry:
 
@@ -17,6 +20,7 @@ class ToolRegistry:
     _predefined_tools_factories = {
         'fetch_page_text': lambda x: importlib.import_module('llm_workers.tools.fetch_tools').fetch_page_text,
         'fetch_page_links': lambda x: importlib.import_module('llm_workers.tools.fetch_tools').fetch_page_links,
+        'whisper_cpp': lambda x: importlib.import_module('llm_workers.tools.whisper_cpp').make_transcript,
     }
 
     def __init__(self):
@@ -41,7 +45,7 @@ class ToolRegistry:
 
     def _register_tool(self, tool: BaseTool):
         if tool.name in self.tools:
-            raise ValueError(f"Tool {tool.name} already registered")
+            logger.info(f"Redefining tool {tool.name}")
         self.tools[tool.name] = tool
 
     def _get_tool(self, name: str) -> BaseTool:

@@ -2,6 +2,7 @@ import argparse
 import sys
 from collections.abc import Iterator
 from typing import List
+import logging
 
 from dotenv import load_dotenv
 from langchain.globals import set_verbose, set_debug
@@ -46,6 +47,8 @@ if __name__ == "__main__":
         set_verbose(True)
     if args.debug:
         set_debug(True)
+    if args.verbose or args.debug:
+        logging.basicConfig(level=logging.DEBUG)
 
     # Determine the input mode
     if '--' in sys.argv:

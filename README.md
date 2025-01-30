@@ -83,10 +83,14 @@ Common flags:
 - [x] Write introduction for README.md
 - [x] Reorganize scripts
 - [x] `LLM` tool
-- [ ] reorganize tools
-- [ ] `fetch_url_text` tool
-- [ ] expand `LLM` tool with pre-processing
+- [x] reorganize tools
+- [x] Add support for interactive mode
+- [x] `fetch_url_text` tool
+- [x] `whisper.cpp` tool
+- [ ] support `pyannote.audio` for speaker diarization
+- [ ] tool chaining
+- [ ] better use of prompts and command-line args
+- [ ] async versions for all tools
 - [ ] support toolkits
 - [ ] `search` tools
-- [ ] Add support for interactive mode
 - [ ] Add audit trail

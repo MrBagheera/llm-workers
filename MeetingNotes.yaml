@@ -1,0 +1,28 @@
+models:
+  - name: default
+    provider: ollama
+    model: llama3.1
+
+# Custom tools. To be available for LLM, reference to custom tool
+# must be included in tool_refs section of LLM definition.
+custom_tools:
+
+  - name: make_transcript
+    description: >
+      Makes transcript from video or audio file.
+    params:
+      - name: file
+        description: File name
+        type: str
+    tool_ref: whisper_cpp
+    tool_params:
+      file: "{file}"
+      model: "/Users/dmikhaylov/Private/whisper.cpp/models/ggml-large-v3-turbo.bin"
+      diarization: true
+
+main:
+  default_prompt: >
+    Use provided tool to make transcript of following files:
+    /Users/dmikhaylov/Downloads/GMT20250127-082755_Recording.m4a
+  tool_refs:
+    - make_transcript

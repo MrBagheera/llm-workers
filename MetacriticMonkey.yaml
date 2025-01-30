@@ -3,8 +3,8 @@ models:
     provider: ollama
     model: llama3.1
 
-# Custom tools. Custom tool is a reference to built-in tool with custom parameters exposed and tool parameters pre-configured.
-# To be available for LLM, reference to custom tool has to be included in tool_refs section of LLM definition.
+# Custom tools. To be available for LLM, reference to custom tool
+# must be included in tool_refs section of LLM definition.
 custom_tools:
 
   - name: search_movie_on_metacritic_stub
