@@ -43,3 +43,6 @@ docs/_build/
 
 # Poetry lock file for debugging or reinstallation (optional, if you don't want to commit lock files)
 # poetry.lock
+
+# test files
+test.ipynb
