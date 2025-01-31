@@ -14,15 +14,24 @@ custom_tools:
       - name: file
         description: File name
         type: str
+      - name: skip_seconds
+        description: Number of seconds to skip at the beginning of the file
+        type: int
     tool_ref: whisper_cpp
     tool_params:
       file: "{file}"
       model: "/Users/dmikhaylov/Private/whisper.cpp/models/ggml-large-v3-turbo.bin"
-      diarization: true
+      skip_seconds: "{skip_seconds}"
+      extra_args": "--entropy-thold 3.2"
 
 main:
   default_prompt: >
     Use provided tool to make transcript of following files:
-    /Users/dmikhaylov/Downloads/GMT20250127-082755_Recording.m4a
+    /Users/dmikhaylov/Downloads/GMT20250127-082755_Recording.m4a, skip first 3 minutes
+    
+    Once you have meeting notes, your task is to summarize the meeting as follows:
+        -Overall summary of discussion
+        -Action items (what needs to be done and who is doing it)
+        -If applicable, a list of topics that need to be discussed more fully in the next meeting.
   tool_refs:
     - make_transcript

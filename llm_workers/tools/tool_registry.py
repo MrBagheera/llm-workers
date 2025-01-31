@@ -20,7 +20,7 @@ class ToolRegistry:
     _predefined_tools_factories = {
         'fetch_page_text': lambda x: importlib.import_module('llm_workers.tools.fetch_tools').fetch_page_text,
         'fetch_page_links': lambda x: importlib.import_module('llm_workers.tools.fetch_tools').fetch_page_links,
-        'whisper_cpp': lambda x: importlib.import_module('llm_workers.tools.whisper_cpp').make_transcript,
+        'whisper_cpp': lambda x: importlib.import_module('llm_workers.tools.transcribe_whisper_cpp').make_transcript,
     }
 
     def __init__(self):

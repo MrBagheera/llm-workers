@@ -87,8 +87,8 @@ Common flags:
 - [x] Add support for interactive mode
 - [x] `fetch_url_text` tool
 - [x] `whisper.cpp` tool
-- [ ] support `pyannote.audio` for speaker diarization
-- [ ] support cutting audio files
+- [x] support `pyannote.audio` for speaker diarization
+- [x] support cutting audio files
 - [ ] tool chaining
 - [ ] better use of prompts and command-line args
 - [ ] configuration and debugging
@@ -96,3 +96,9 @@ Common flags:
 - [ ] support toolkits
 - [ ] `search` tools
 - [ ] Add audit trail
+
+# Further Ideas
+
+- Pre-made modes for transcript audio
+- Enable/disable tools on-the fly
+- fetch_page_markdown tool
