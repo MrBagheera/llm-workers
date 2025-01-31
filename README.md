@@ -88,8 +88,10 @@ Common flags:
 - [x] `fetch_url_text` tool
 - [x] `whisper.cpp` tool
 - [ ] support `pyannote.audio` for speaker diarization
+- [ ] support cutting audio files
 - [ ] tool chaining
 - [ ] better use of prompts and command-line args
+- [ ] configuration and debugging
 - [ ] async versions for all tools
 - [ ] support toolkits
 - [ ] `search` tools
