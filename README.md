@@ -89,7 +89,13 @@ Common flags:
 - [x] `whisper.cpp` tool
 - [x] support `pyannote.audio` for speaker diarization
 - [x] support cutting audio files
+- [x] `fetch_markdown` tool
+- [x] basic execution stats
+- [x] investigate effect of original content vs. simple HTML vs. text
+- [x] investigate HTML cleanup - not much effect
+- [ ] report currently running tool with parameter(s)
 - [ ] tool chaining
+- [ ] `switch` tool
 - [ ] better use of prompts and command-line args
 - [ ] configuration and debugging
 - [ ] async versions for all tools
@@ -101,4 +107,8 @@ Common flags:
 
 - Pre-made modes for transcript audio
 - Enable/disable tools on-the fly
-- fetch_page_markdown tool
+- build-int commands for chat
+  - `reload [config.yaml]` - reloads config, redefines tools
+  - `reset` - resets the conversation to default prompt
+  - `rewind [N]` - rewinds the conversation the previous message
+  - `retry` - retries the last human message (usually after config reload)

@@ -1,0 +1,22 @@
+models:
+  - name: default
+#    provider: ollama
+#    model: llama3.3
+#    model: deepseek-r1:70b
+    provider: openai
+    model: gpt-4o
+
+main:
+  system_message: >
+    You are an assistant to a navigation expert.
+    
+    Your job is to read the page from provided URL and write in English a summary of the information using the following format:
+       - title
+       - coordinates
+       - services and docking information (for marinas) or anchoring recommendations and protection offered (for anchorages
+       - navigational hazards
+       - other information relevant to boating
+
+       You MUST use ONLY the information from the page. Format using markdown with headers starting form level 3.
+  tool_refs:
+    - fetch_page_markdown

@@ -6,6 +6,7 @@ import logging
 
 from dotenv import load_dotenv
 from langchain.globals import set_verbose, set_debug
+from langchain_community.callbacks import get_openai_callback
 from langchain_core.messages import AIMessage, BaseMessage
 
 from llm_workers.worker import LlmWorker
@@ -51,17 +52,26 @@ if __name__ == "__main__":
         logging.basicConfig(level=logging.DEBUG)
 
     # Determine the input mode
-    if '--' in sys.argv:
-        if args.prompts:
-            parser.error("Cannot use both command-line prompts and '--'.")
-        for line in sys.stdin:
-            print_model_output(worker.stream(line.strip()))
-    else:
-        if args.prompts:
-            for prompt in args.prompts:
-                print_model_output(worker.stream(prompt))
+    with get_openai_callback() as cb:
+        if '--' in sys.argv:
+            if args.prompts:
+                parser.error("Cannot use both command-line prompts and '--'.")
+            for line in sys.stdin:
+                line = line.strip()
+                final_prompt = line if worker.default_prompt is None else f"{worker.default_prompt} {line}"
+                print_model_output(worker.stream(final_prompt))
         else:
-            if worker.default_prompt is not None:
-                print_model_output(worker.stream(worker.default_prompt))
+            if args.prompts:
+                for prompt in args.prompts:
+                    final_prompt = prompt if worker.default_prompt is None else f"{worker.default_prompt} {prompt}"
+                    print_model_output(worker.stream(final_prompt))
             else:
-                parser.error(f"No prompts provided and no default prompt set in {args.script_file}.")
+                if worker.default_prompt is not None:
+                    print_model_output(worker.stream(worker.default_prompt))
+                else:
+                    parser.error(f"No prompts provided and no default prompt set in {args.script_file}.")
+
+    print(f"Total Tokens: {cb.total_tokens}", file=sys.stderr)
+    print(f"Prompt Tokens: {cb.prompt_tokens}", file=sys.stderr)
+    print(f"Completion Tokens: {cb.completion_tokens}", file=sys.stderr)
+    print(f"Total Cost (USD): ${cb.total_cost}", file=sys.stderr)

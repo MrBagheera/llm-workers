@@ -48,7 +48,7 @@ class MainConfig(BaseLLMConfig):
 
 class WorkerConfig(BaseModel):
     models: list[ModelConfig]
-    custom_tools: list[CustomToolDefinition]
+    custom_tools: list[CustomToolDefinition] = ()
     main: MainConfig
 
 def load_config(file_path: str) -> WorkerConfig:

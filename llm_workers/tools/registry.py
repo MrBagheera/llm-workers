@@ -18,8 +18,10 @@ class ToolRegistry:
     # Factory methods for predefined tools, used for resolving tool references
     # with dependencies only if the tool is actually used
     _predefined_tools_factories = {
-        'fetch_page_text': lambda x: importlib.import_module('llm_workers.tools.fetch_tools').fetch_page_text,
-        'fetch_page_links': lambda x: importlib.import_module('llm_workers.tools.fetch_tools').fetch_page_links,
+        'fetch_content': lambda x: importlib.import_module('llm_workers.tools.fetch').fetch_content,
+        'fetch_page_markdown': lambda x: importlib.import_module('llm_workers.tools.fetch').fetch_page_markdown,
+        'fetch_page_text': lambda x: importlib.import_module('llm_workers.tools.fetch').fetch_page_text,
+        'fetch_page_links': lambda x: importlib.import_module('llm_workers.tools.fetch').fetch_page_links,
         'whisper_cpp': lambda x: importlib.import_module('llm_workers.tools.transcribe_whisper_cpp').make_transcript,
     }
 

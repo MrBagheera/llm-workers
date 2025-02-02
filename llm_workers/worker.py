@@ -10,7 +10,7 @@ from langchain_core.runnables.utils import Input
 
 from llm_workers.config import load_config, WorkerConfig
 from llm_workers.llm import build_tool_calling_llm
-from llm_workers.tools.tool_registry import ToolRegistry
+from llm_workers.tools.registry import ToolRegistry
 
 
 class LlmWorker(Runnable[str, List[BaseMessage]]):
