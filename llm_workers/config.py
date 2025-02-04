@@ -4,6 +4,7 @@ import yaml
 from pydantic import BaseModel, Field, Tag, Discriminator
 
 from llm_workers.llm import BaseLLMConfig
+from llm_workers.tools.custom_tools_base import Json
 from llm_workers.tools.llm_tool import LLMToolDefinition
 from llm_workers.tools.stub_tool import StubToolDefinition
 from llm_workers.tools.tool_binding import ToolBindingDefinition
@@ -27,6 +28,7 @@ class ModelConfig(BaseModel):
     name: str
     provider: str
     model: str
+    model_params: Json = None
 
 class MainConfig(BaseLLMConfig):
     default_prompt: str | None = None

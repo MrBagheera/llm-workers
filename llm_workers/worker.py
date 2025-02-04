@@ -18,7 +18,8 @@ class LlmWorker(Runnable[str, List[BaseMessage]]):
         self._config = load_config(config_filename)
         self._model_registry = dict[str, BaseChatModel]()
         for model in self._config.models:
-            self._model_registry[model.name] = init_chat_model(model.model, model_provider=model.provider, configurable_fields=None, temperature=0)
+            model_params = model.model_params or {}
+            self._model_registry[model.name] = init_chat_model(model.model, model_provider=model.provider, configurable_fields=None, **model_params)
         self._tool_registry = ToolRegistry()
         self._tool_registry.register_custom_tools(self._model_lookup, self._config.custom_tools)
         self._llm = build_tool_calling_llm(self._config.main, models_lookup = self._model_lookup, tools_lookup=self._tool_registry.resolve_tool_refs)
