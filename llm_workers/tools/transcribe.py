@@ -45,20 +45,35 @@ class Segment:
     def brief(self):
         return f"{self.text}"
 
-    def full(self):
+    def medium(self):
         if self.speaker is None:
             return f"{self.text}\n"
         return f"SPEAKER {self.speaker}:\n{self.text}\n"
 
+    def full(self):
+        # print start time in [hh:]mm:ss format
+        start_h = int(self.start // 3600)
+        start_m = int((self.start % 3600) // 60)
+        start_s = int(self.start % 60)
+        if start_h == 0:
+            start_time = f"{start_m:02}:{start_s:02}"
+        else:
+            start_time = f"{start_h:02}:{start_m:02}:{start_s:02}"
+        if self.speaker is None:
+            return f"[{start_time}]:\n{self.text}\n"
+        return f"[{start_time}] SPEAKER {self.speaker}:\n{self.text}\n"
+
 
 # noinspection PyShadowingBuiltins
-def write_segments(segments: List[Segment], output_filename: str, type: Literal['raw', 'brief', 'full']):
+def write_segments(segments: List[Segment], output_filename: str, type: Literal['raw', 'brief', 'medium', 'full']):
     with open(output_filename, "w", encoding="utf-8") as f:
         for segment in segments:
             if type == 'raw':
                 f.write(str(segment))
             elif type == 'brief':
                 f.write(segment.brief())
+            elif type == 'medium':
+                f.write(segment.medium())
             else:
                 f.write(segment.full())
             f.write('\n')

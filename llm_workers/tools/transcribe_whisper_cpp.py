@@ -1,11 +1,11 @@
 import logging
 from typing import Annotated, List
 
-from langchain_core.tools import InjectedToolArg, StructuredTool
+from langchain_core.tools import InjectedToolArg, StructuredTool, ToolException
 
 from llm_workers.tools.transcribe import Segment, merge_segments, write_segments, read_segments, assign_speakers, \
     build_phrases
-from llm_workers.tools.transcribe_pyannote import is_pyannote_initialized, prepare_pyannote, diarize_and_write
+from llm_workers.tools.transcribe_pyannote import prepare_pyannote, diarize_and_write
 from llm_workers.tools.utils import run_process, cached, multi_cached
 
 logger = logging.getLogger(__name__)
@@ -17,10 +17,12 @@ def _make_transcript(
     model: Annotated[str, InjectedToolArg],
     skip_seconds: int = None,
     length_seconds: int = None,
-    no_speakers: bool = False,
+    detect_speakers: Annotated[bool, InjectedToolArg] = True,
+    prompt: Annotated[str, InjectedToolArg] = None,
     extra_args: Annotated[str, InjectedToolArg] = None,
     max_delay: Annotated[float, InjectedToolArg] = 1,
     max_length: Annotated[int, InjectedToolArg] = 400,
+    write_timestamps: Annotated[bool, InjectedToolArg] = False,
 ) -> str:
     """
     Transcribe an audio file to text using ffmpeg and whisper.cpp (must be pre-installed).
@@ -30,10 +32,12 @@ def _make_transcript(
         model: model to use for whisper.cpp
         skip_seconds: (optional) number of seconds to skip from the beginning of the audio file
         length_seconds: (optional) length of audio segment in seconds
-        no_speakers: (optional) if True, do not provide speaker information
+        detect_speakers: (optional) if True, use pyannote to provide speaker information
+        prompt: (optional) prompt to use for whisper, defaults to "Split text into individual sentences. Use capital letters and punctuation."
         extra_args: additional arguments to pass to whisper-cli
-        max_delay: maximum delay between segments to merge them
-        max_length: maximum length of segment
+        max_delay: maximum delay between segments that can still be merged
+        max_length: maximum length of merged segment
+        write_timestamps: (optional) if True, write start timestamps at the beginning of each segment
     """
 
     # convert to WAV
@@ -45,7 +49,9 @@ def _make_transcript(
     )
 
     # run pyannote
-    if not no_speakers and prepare_pyannote():
+    if detect_speakers:
+        if not prepare_pyannote():
+            raise ToolException("pyannote.audio initialization failed, speakers information not available")
         speakers_path = cached(
             wav_path,
             ".speakers.txt",
@@ -54,7 +60,12 @@ def _make_transcript(
         speakers_path = None
 
     # run whisper
-    whisper_args = [] if speakers_path is None else ["--max-len", "1"]
+    whisper_args = []
+    if prompt is None:
+        prompt = "Split text into individual sentences. Use capital letters and punctuation."
+    if len(prompt) > 0:
+        whisper_args.append("--prompt")
+        whisper_args.append(prompt)
     if extra_args is not None:
         whisper_args.extend(extra_args.split())
     raw_transcript_path = cached(
@@ -75,8 +86,8 @@ def _make_transcript(
         transcript_path = multi_cached(
             [raw_transcript_path, speakers_path],
             ".final.txt",
-            lambda output_file: _build_final_result_with_speakers(raw_transcript_path, speakers_path, max_delay, max_length, output_file),
-            discriminator=f"{max_delay}/{max_length}")
+            lambda output_file: _build_final_result_with_speakers(raw_transcript_path, speakers_path, whisper_args, max_delay, max_length, write_timestamps, output_file),
+            discriminator=f"{max_delay}/{max_length}/{write_timestamps}")
 
     # read final transcript
     with open(transcript_path, 'r') as file:
@@ -137,16 +148,21 @@ def _convert_whisper_output_to_segment(line):
     return None
 
 
-def _build_final_result_with_speakers(raw_transcript_path: str, speakers_path: str, max_delay: float, max_length: int, output_path: str):
+def _build_final_result_with_speakers(raw_transcript_path: str, speakers_path: str, whisper_args: List[str] | None, max_delay: float, max_length: int, write_timestamps: bool, output_path: str):
     whisper_segments = _read_whisper_segments(raw_transcript_path)
     speaker_segments = read_segments(speakers_path)
-    whisper_segments = build_phrases(whisper_segments, max_delay, max_length)
+    # if extra_whisper_args contains "--max-len", then we need to merge sentences
+    if "--max-len" in whisper_args:
+        whisper_segments = build_phrases(whisper_segments, max_delay, max_length)
     whisper_segments = assign_speakers(whisper_segments, speaker_segments)
     whisper_segments = merge_segments(whisper_segments, max_delay, max_length, merge_sentences=True)
     for segment in whisper_segments:
         if segment.speaker is None:
             segment.speaker = "UNKNOWN"
-    write_segments(whisper_segments, output_path, 'full')
+    if write_timestamps:
+        write_segments(whisper_segments, output_path, 'full')
+    else:
+        write_segments(whisper_segments, output_path, 'medium')
 
 
 def _build_final_result_no_speakers(raw_transcript_path: str, max_delay: float, max_length: int, output_path: str):

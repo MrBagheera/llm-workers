@@ -1,5 +1,5 @@
 import unittest
-from llm_workers.tools.transcribe import Segment, merge_segments
+from llm_workers.tools.transcribe import Segment, merge_segments, build_phrases
 
 
 class TestSegment(unittest.TestCase):
@@ -20,7 +20,7 @@ class TestSegment(unittest.TestCase):
         self.assertEqual(str(segment), "0.000-1.000::Hello world")
 
     def test_segment_read_valid(self):
-        line = "0-1:A:Hello world"
+        line = "0.0-1.0:A:Hello world"
         segment = Segment.read(line)
         self.assertEqual(segment.start, 0.0)
         self.assertEqual(segment.end, 1.0)
@@ -34,11 +34,11 @@ class TestSegment(unittest.TestCase):
 
     def test_segment_format_no_speaker(self):
         segment = Segment(0.0, 1.0, "Hello world")
-        self.assertEqual(segment.txt(), "Hello world\n\n")
+        self.assertEqual("Hello world\n", segment.full())
 
     def test_segment_format_with_speaker(self):
         segment = Segment(0.0, 1.0, "Hello world", "A")
-        self.assertEqual(segment.txt(), "SPEAKER A:\nHello world\n\n")
+        self.assertEqual("SPEAKER A:\nHello world\n", segment.full())
 
 
 class TestSegmentsMerge(unittest.TestCase):
@@ -78,7 +78,7 @@ class TestSegmentsMerge(unittest.TestCase):
                 "4.000-9.000::How are you?",
                 "10.000-15.000::I am perfectly fine.",
             ],
-            [str(s) for s in merge_segments(segments, 1.5, 100, False)]
+            [str(s) for s in build_phrases(segments, 1.5, 100)]
         )
         self.assertEqual(
             [
@@ -87,7 +87,7 @@ class TestSegmentsMerge(unittest.TestCase):
                 "6.000-9.000::are you?",
                 "10.000-15.000::I am perfectly fine.",
             ],
-            [str(s) for s in merge_segments(segments, 0.5, 100, False)]
+            [str(s) for s in build_phrases(segments, 0.5, 100)]
         )
 
     def test_segments_merge_for_diarization2(self):

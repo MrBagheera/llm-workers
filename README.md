@@ -93,11 +93,14 @@ Common flags:
 - [x] basic execution stats
 - [x] investigate effect of original content vs. simple HTML vs. text
 - [x] investigate HTML cleanup - not much effect
+- [x] Improve `whisper.cpp` tool: add prompt, adapt to `--max-len` automatically
+- [ ] proper chat interface
 - [ ] report currently running tool with parameter(s)
 - [ ] tool chaining
 - [ ] `switch` tool
 - [ ] better use of prompts and command-line args
 - [ ] configuration and debugging
+- [ ] cache cleanup
 - [ ] async versions for all tools
 - [ ] support toolkits
 - [ ] `search` tools
@@ -105,10 +108,12 @@ Common flags:
 
 # Further Ideas
 
-- Pre-made modes for transcript audio
 - Enable/disable tools on-the fly
 - build-int commands for chat
   - `reload [config.yaml]` - reloads config, redefines tools
   - `reset` - resets the conversation to default prompt
   - `rewind [N]` - rewinds the conversation the previous message
   - `retry` - retries the last human message (usually after config reload)
+- read/write/list files
+- shell commands
+- running python scripts

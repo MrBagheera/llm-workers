@@ -1,15 +1,19 @@
 models:
   - name: default
     provider: ollama
-    model: llama3.1
+    model: llama3.3
+    model_params:
+      temperature: 0
+      num_ctx: 32768
+      num_predict: 32768
 
 # Custom tools. To be available for LLM, reference to custom tool
 # must be included in tool_refs section of LLM definition.
 custom_tools:
 
-  - name: make_transcript
+  - name: make_meeting_transcript
     description: >
-      Makes transcript from video or audio file.
+      Makes transcript from video or audio file. Use it for a meeting (multiple frequently changing speakers).
     params:
       - name: file
         description: File name
@@ -22,16 +26,44 @@ custom_tools:
       file: "{file}"
       model: "/Users/dmikhaylov/Private/whisper.cpp/models/ggml-large-v3-turbo.bin"
       skip_seconds: "{skip_seconds}"
-      extra_args": "--entropy-thold 3.2"
+      extra_args": "--entropy-thold 2.8 --max-context 64"
+      write_timestamps: false
+
+  - name: make_presentation_transcript
+    description: >
+      Makes transcript from video or audio file. Use it for a meeting (there is primary speaker, longer chunks of text).
+    params:
+      - name: file
+        description: File name
+        type: str
+      - name: skip_seconds
+        description: Number of seconds to skip at the beginning of the file
+        type: int
+    tool_ref: whisper_cpp
+    tool_params:
+      file: "{file}"
+      model: "/Users/dmikhaylov/Private/whisper.cpp/models/ggml-large-v3-turbo.bin"
+      skip_seconds: "{skip_seconds}"
+      extra_args": "--entropy-thold 2.8 --max-context 64"
+      max_length: 1000
+      write_timestamps: true
 
 main:
-  default_prompt: >
-    Use provided tool to make transcript of following files:
-    /Users/dmikhaylov/Downloads/GMT20250127-082755_Recording.m4a, skip first 3 minutes
+  system_message: >
+    You are secretary in Small Giant Games Oy, small Finnish mobile game company. The company is fully owned
+    by Zynga Inc., which is now part of Take Two Interactive.
     
-    Once you have meeting notes, your task is to summarize the meeting as follows:
-        -Overall summary of discussion
-        -Action items (what needs to be done and who is doing it)
-        -If applicable, a list of topics that need to be discussed more fully in the next meeting.
+    The company has two primary titles in production: Empires & Puzzles and Puzzle Combat. 
+    Third title, called Tower or "Castle Defense", is currently in development. 
+    
+    Your task is to make a transcripts from audio/video files at user request. Use appropriate
+    tool to make transcript depending on the kind of an event recorded - meeting or presentation. If event type
+    is not obvious from the context, ask user.
+    
+    After getting transcript show it to the user. If transcription tool failed, show tool error message.
+  default_prompt: >
+    Please make transcript of following record of weekly meeting:
+    /Users/dmikhaylov/Private/video-to-summary/GMT20250127-082755_Recording.m4a, skip first 3 minutes
   tool_refs:
-    - make_transcript
+    - make_meeting_transcript
+    - make_presentation_transcript
