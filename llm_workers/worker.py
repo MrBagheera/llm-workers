@@ -40,8 +40,13 @@ class LlmWorker(Runnable[str, List[BaseMessage]]):
 
     @staticmethod
     # noinspection PyShadowingBuiltins
-    def _transform_input(input: str) -> Input:
-        return {"messages": [HumanMessage(input)]}
+    def _transform_input(input: str| List[BaseMessage]) -> Input:
+        if isinstance(input, str):
+            return {"messages": [HumanMessage(input)]}
+        elif isinstance(input, list):
+            return {"messages": input}
+        else:
+            raise ValueError(f"Input '{input}' not supported.")
 
     @staticmethod
     def _transform_invoke_output(output: Dict[str, Any]) -> List[BaseMessage]:
@@ -64,23 +69,23 @@ class LlmWorker(Runnable[str, List[BaseMessage]]):
             yield LlmWorker._transform_stream_output(item)
 
     # noinspection PyShadowingBuiltins
-    def invoke(self, input: str, config: Optional[RunnableConfig] = None, **kwargs: Any) -> List[BaseMessage]:
+    def invoke(self, input: str | List[BaseMessage], config: Optional[RunnableConfig] = None, **kwargs: Any) -> List[BaseMessage]:
         llm_output = self._llm.invoke(input=LlmWorker._transform_input(input), config=config, streamMode = "values", **kwargs)
         return LlmWorker._transform_invoke_output(llm_output)
 
     # noinspection PyShadowingBuiltins
-    def stream(self, input: str, config: Optional[RunnableConfig] = None, **kwargs: Optional[Any]) -> Iterator[
+    def stream(self, input: str | List[BaseMessage], config: Optional[RunnableConfig] = None, **kwargs: Optional[Any]) -> Iterator[
         List[BaseMessage]]:
         llm_output = self._llm.stream(input=LlmWorker._transform_input(input), config=config, stream_mode = "values", **kwargs)
         return map(LlmWorker._transform_stream_output, llm_output)
 
     # noinspection PyShadowingBuiltins
-    async def ainvoke(self, input: str, config: Optional[RunnableConfig] = None, **kwargs: Any) -> List[BaseMessage]:
+    async def ainvoke(self, input: str | List[BaseMessage], config: Optional[RunnableConfig] = None, **kwargs: Any) -> List[BaseMessage]:
         llm_output = await self._llm.ainvoke(input=LlmWorker._transform_input(input), config=config, streamMode = "values", **kwargs)
         return LlmWorker._transform_invoke_output(llm_output)
 
     # noinspection PyShadowingBuiltins
-    async def astream(self, input: str, config: Optional[RunnableConfig] = None, **kwargs: Optional[Any]) -> \
+    async def astream(self, input: str | List[BaseMessage], config: Optional[RunnableConfig] = None, **kwargs: Optional[Any]) -> \
     AsyncIterator[List[BaseMessage]]:
         llm_output = self._llm.astream(input=LlmWorker._transform_input(input), config=config, stream_mode = "values", **kwargs)
         return LlmWorker._transform_async_iterator(llm_output)

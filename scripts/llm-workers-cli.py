@@ -49,7 +49,7 @@ if __name__ == "__main__":
     if args.debug:
         set_debug(True)
     if args.verbose or args.debug:
-        logging.basicConfig(level=logging.DEBUG)
+        logging.basicConfig(level=logging.DEBUG, stream=sys.stderr)
 
     # Determine the input mode
     with get_openai_callback() as cb:
