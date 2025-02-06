@@ -2,8 +2,9 @@ import os
 import logging
 import hashlib
 import subprocess
-from typing import Callable, Any, List
+from typing import Callable, Any, List, Union
 
+from langchain_core.messages import ToolCall
 from langchain_core.tools import ToolException
 
 logger =  logging.getLogger(__name__)
@@ -104,6 +105,7 @@ def run_process(cmd: List[str], stdout_transform: Callable[[str], Any] = None):
     except Exception as e:
         raise ToolException(f"Running sub-process [{cmd_str}] failed with error: {e}")
 
+
 def get_environment_variable(name: str, default: str | None) -> str | None:
     return os.environ.get(name, default)
 
@@ -112,3 +114,21 @@ def ensure_environment_variable(name: str) -> str:
     if var is None:
         raise ToolException(f"Environment variable {name} not set")
     return var
+
+
+def format_tool(tc: ToolCall) -> str:
+    name = tc.get('name', '<tool>')
+    args = tc.get("args")
+    if isinstance(args, dict):
+        arg = next(iter(args.values()), None)
+        if arg is None:
+            return name
+        else:
+            args = str(arg)
+    else:
+        args = str(args)
+    limit = 80
+    if len(args) > limit:
+        return f"{name} \"{args[:limit]}...\""
+    else:
+        return f"{name} \"{args}\""

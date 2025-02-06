@@ -12,6 +12,7 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
 from rich.console import Console
 
+from llm_workers.utils import format_tool
 from llm_workers.worker import LlmWorker
 
 logger = getLogger(__name__)
@@ -58,7 +59,7 @@ class ChatSession:
                         self._iteration = self._iteration + 1
                     if len(message.tool_calls) > 0:
                         for tool_call in message.tool_calls:
-                            console.print(f"Running tool {tool_call["name"]}", style="bold white")
+                            console.print(f"Running tool {format_tool(tool_call)}", style="bold white")
                 elif isinstance(message, ToolMessage):
                     console.print(f"Tool {message.name} has finished", style="bold white")
                 else:

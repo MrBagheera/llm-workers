@@ -60,7 +60,7 @@ class LlmWorker(Runnable[str, List[BaseMessage]]):
     def _transform_stream_output(output: Dict[str, Any]) -> List[BaseMessage]:
         message = output["messages"][-1]
         if get_verbose():
-            message.pretty_print()
+            print(message.pretty_repr(), file=sys.stderr)
         return [message]
 
     @staticmethod

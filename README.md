@@ -94,8 +94,8 @@ Common flags:
 - [x] investigate effect of original content vs. simple HTML vs. text
 - [x] investigate HTML cleanup - not much effect
 - [x] Improve `whisper.cpp` tool: add prompt, adapt to `--max-len` automatically
-- [ ] proper chat interface
-- [ ] report currently running tool with parameter(s)
+- [x] working chat interface
+- [x] report currently running tool with first parameter
 - [ ] tool chaining
 - [ ] `switch` tool
 - [ ] better use of prompts and command-line args

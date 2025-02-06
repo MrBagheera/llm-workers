@@ -6,7 +6,7 @@ from langchain_core.tools import InjectedToolArg, StructuredTool, ToolException
 from llm_workers.tools.transcribe import Segment, merge_segments, write_segments, read_segments, assign_speakers, \
     build_phrases
 from llm_workers.tools.transcribe_pyannote import prepare_pyannote, diarize_and_write
-from llm_workers.tools.utils import run_process, cached, multi_cached
+from llm_workers.utils import run_process, cached, multi_cached
 
 logger = logging.getLogger(__name__)
 
