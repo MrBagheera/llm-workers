@@ -7,12 +7,13 @@ from typing import List
 
 from dotenv import load_dotenv
 from langchain.globals import set_verbose, set_debug
+from langchain_community.callbacks import get_openai_callback
 from langchain_core.messages import ToolMessage, AIMessage, BaseMessage, HumanMessage
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
 from rich.console import Console
 
-from llm_workers.utils import format_tool
+from llm_workers.utils import format_tool, setup_logging
 from llm_workers.worker import LlmWorker
 
 logger = getLogger(__name__)
@@ -93,6 +94,7 @@ class ChatSession:
             return
 
         self._console.print(f"(Re)loading LLM script from {script_file}", style="bold white")
+        self._worker.close()
         self._script_file = script_file
         self._worker = LlmWorker(script_file)
 
@@ -115,6 +117,8 @@ class ChatSession:
             target_iteration = min(self._iteration, target_iteration)
         if target_iteration == self._iteration:
             return
+        logger.debug(f"Rewinding session to {target_iteration}")
+        self._iteration = target_iteration
         i = 0
         iteration = 1
         while i < len(self._messages):
@@ -153,8 +157,10 @@ class ChatSession:
                     self._console.print(f"#{self._iteration} Unknown({message.type}):", style="bold red")
                     self._console.print(message.content)
                 self._messages.append(message)
-                logger.debug(f"Appending {message} to session history")
+                logger.debug(f"Appending {repr(message)} to session history")
 
+    def close(self):
+        self._worker.close()
 
 
 if __name__ == "__main__":
@@ -172,8 +178,20 @@ if __name__ == "__main__":
         set_verbose(True)
     if args.debug:
         set_debug(True)
-    if args.verbose or args.debug:
-        logging.basicConfig(level=logging.DEBUG, stream=sys.stderr)
+    if args.debug:
+        setup_logging(console_level=logging.DEBUG)
+    else:
+        setup_logging(console_level=logging.WARN)
 
     chat_session = ChatSession(_console, args.script_file)
-    chat_session.run()
+
+    with get_openai_callback() as cb:
+        try:
+            chat_session.run()
+        finally:
+            chat_session.close()
+
+    print(f"Total Tokens: {cb.total_tokens}", file=sys.stderr)
+    print(f"Prompt Tokens: {cb.prompt_tokens}", file=sys.stderr)
+    print(f"Completion Tokens: {cb.completion_tokens}", file=sys.stderr)
+    print(f"Total Cost (USD): ${cb.total_cost}", file=sys.stderr)

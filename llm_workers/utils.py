@@ -2,6 +2,7 @@ import os
 import logging
 import hashlib
 import subprocess
+import sys
 from typing import Callable, Any, List, Union
 
 from langchain_core.messages import ToolCall
@@ -132,3 +133,17 @@ def format_tool(tc: ToolCall) -> str:
         return f"{name} \"{args[:limit]}...\""
     else:
         return f"{name} \"{args}\""
+
+
+def setup_logging(console_level: int = logging.INFO, file_level: int = logging.DEBUG) -> None:
+    """Configures logging to console and file"""
+    logging.basicConfig(
+        filename="llm-workers.log",
+        filemode="w",
+        format="%(asctime)s: %(name)s - %(levelname)s - %(message)s",
+        level=file_level
+    )
+    console_handler = logging.StreamHandler(sys.stderr)
+    console_handler.setLevel(console_level)
+    formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+    console_handler.setFormatter(formatter)

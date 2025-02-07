@@ -96,24 +96,26 @@ Common flags:
 - [x] Improve `whisper.cpp` tool: add prompt, adapt to `--max-len` automatically
 - [x] working chat interface
 - [x] report currently running tool with first parameter
+- [x] `/rewind` command
+- [x] `/reload` command
+- [x] improve logging for chat (log only warns and above to stderr, debug to file)
+- [x] improve logging for CLI (log only info and above to stderr, debug to file)
+- [ ] `t2-ai-wrapper` tool
 - [ ] tool chaining
 - [ ] `switch` tool
 - [ ] better use of prompts and command-line args
-- [ ] configuration and debugging
+- [ ] restrict file access only to `cwd`
+- [ ] better names in cache, remove big files
 - [ ] cache cleanup
 - [ ] async versions for all tools
-- [ ] support toolkits
 - [ ] `search` tools
 - [ ] Add audit trail
 
 # Further Ideas
 
-- Enable/disable tools on-the fly
-- build-int commands for chat
-  - `reload [config.yaml]` - reloads config, redefines tools
-  - `reset` - resets the conversation to default prompt
-  - `rewind [N]` - rewinds the conversation the previous message
-  - `retry` - retries the last human message (usually after config reload)
 - read/write/list files
 - shell commands
 - running python scripts
+- support LangChain toolkits(?)
+- support acting as MCP server (expose `custom_tools`)
+- support acting as MCP host (use tools from configured MCP servers)

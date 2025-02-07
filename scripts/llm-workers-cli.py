@@ -9,6 +9,7 @@ from langchain.globals import set_verbose, set_debug
 from langchain_community.callbacks import get_openai_callback
 from langchain_core.messages import AIMessage, BaseMessage
 
+from llm_workers.utils import setup_logging
 from llm_workers.worker import LlmWorker
 
 load_dotenv()
@@ -43,33 +44,42 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    worker = LlmWorker(args.script_file)
     if args.verbose:
         set_verbose(True)
     if args.debug:
         set_debug(True)
-    if args.verbose or args.debug:
-        logging.basicConfig(level=logging.DEBUG, stream=sys.stderr)
 
-    # Determine the input mode
+    if args.debug:
+        setup_logging(console_level=logging.DEBUG)
+    elif args.verbose:
+        setup_logging(console_level=logging.INFO)
+    else:
+        setup_logging(console_level=logging.WARNING)
+
+    worker = LlmWorker(args.script_file)
+
     with get_openai_callback() as cb:
-        if '--' in sys.argv:
-            if args.prompts:
-                parser.error("Cannot use both command-line prompts and '--'.")
-            for line in sys.stdin:
-                line = line.strip()
-                final_prompt = line if worker.default_prompt is None else f"{worker.default_prompt} {line}"
-                print_model_output(worker.stream(final_prompt))
-        else:
-            if args.prompts:
-                for prompt in args.prompts:
-                    final_prompt = prompt if worker.default_prompt is None else f"{worker.default_prompt} {prompt}"
+        try:
+            # Determine the input mode
+            if '--' in sys.argv:
+                if args.prompts:
+                    parser.error("Cannot use both command-line prompts and '--'.")
+                for line in sys.stdin:
+                    line = line.strip()
+                    final_prompt = line if worker.default_prompt is None else f"{worker.default_prompt} {line}"
                     print_model_output(worker.stream(final_prompt))
             else:
-                if worker.default_prompt is not None:
-                    print_model_output(worker.stream(worker.default_prompt))
+                if args.prompts:
+                    for prompt in args.prompts:
+                        final_prompt = prompt if worker.default_prompt is None else f"{worker.default_prompt} {prompt}"
+                        print_model_output(worker.stream(final_prompt))
                 else:
-                    parser.error(f"No prompts provided and no default prompt set in {args.script_file}.")
+                    if worker.default_prompt is not None:
+                        print_model_output(worker.stream(worker.default_prompt))
+                    else:
+                        parser.error(f"No prompts provided and no default prompt set in {args.script_file}.")
+        finally:
+            worker.close()
 
     print(f"Total Tokens: {cb.total_tokens}", file=sys.stderr)
     print(f"Prompt Tokens: {cb.prompt_tokens}", file=sys.stderr)

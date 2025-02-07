@@ -1,8 +1,10 @@
+import logging
 import sys
 from typing import Optional, Any, List, Iterator, Dict, AsyncIterator
 
 from langchain.chat_models import init_chat_model
 from langchain.globals import get_verbose
+from langchain_community.callbacks import get_openai_callback
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, BaseMessage
 from langchain_core.runnables import Runnable, RunnableConfig
@@ -13,8 +15,11 @@ from llm_workers.llm import build_tool_calling_llm
 from llm_workers.tools.registry import ToolRegistry
 
 
+logger = logging.getLogger(__name__)
+
 class LlmWorker(Runnable[str, List[BaseMessage]]):
     def __init__(self, config_filename: str):
+        logger.info(f"Loading from {config_filename}")
         self._config = load_config(config_filename)
         self._model_registry = dict[str, BaseChatModel]()
         for model in self._config.models:
@@ -23,6 +28,8 @@ class LlmWorker(Runnable[str, List[BaseMessage]]):
         self._tool_registry = ToolRegistry()
         self._tool_registry.register_custom_tools(self._model_lookup, self._config.custom_tools)
         self._llm = build_tool_calling_llm(self._config.main, models_lookup = self._model_lookup, tools_lookup=self._tool_registry.resolve_tool_refs)
+        self._openai_callback_generator = get_openai_callback()
+        self._openai_callback = self._openai_callback_generator.__enter__()
 
     @property
     def config(self) -> WorkerConfig:
@@ -90,3 +97,7 @@ class LlmWorker(Runnable[str, List[BaseMessage]]):
         llm_output = self._llm.astream(input=LlmWorker._transform_input(input), config=config, stream_mode = "values", **kwargs)
         return LlmWorker._transform_async_iterator(llm_output)
 
+    def close(self) -> None:
+        """Prints final statistics."""
+        logger.info("Closing")
+        # nothing here yet
