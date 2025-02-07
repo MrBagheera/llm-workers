@@ -24,39 +24,116 @@ class ChatSession:
         self._iteration = 1
         self._messages = list[BaseMessage]()
         self._history = InMemoryHistory()
+        self.commands = {
+            "help": self._print_help,
+            "reload": self._reload,
+            "rewind": self._rewind,
+            "bye": self._bye,
+        }
+        self._finished = False
+        self._pre_input = ""
 
     def run(self):
         if worker.default_prompt is not None:
-            console.print(f"#{self._iteration} Prompt:", style="bold green")
-            prompt = worker.default_prompt.strip()
-            console.print(prompt)
-            self._history.append_string(prompt)
-            self._process_model_output(worker.stream(prompt))
+            self._pre_input = worker.default_prompt
 
         session = PromptSession(history = self._history)
         try:
-            while True:
+            while not self._finished:
+                if len(self._messages) > 0:
+                    print()
                 console.print(f"[bold green]#{self._iteration} Your input: [/bold green] [grey69 italic](Meta+Enter or Escape,Enter to submit, /help for commands list)[/grey69 italic]")
-                text = session.prompt(multiline=True)
-                if text.lower().strip() == "/bye":
-                    return
+                text = session.prompt(default=self._pre_input, multiline=True)
+                self._pre_input = ""
+                if self._parse_and_run_command(text):
+                    continue
+                # submitting input to the worker
                 i = self._messages.copy()
                 i.append(text)
                 logger.debug(f"Running new prompt for #{self._iteration}:\n{i}")
                 self._process_model_output(worker.stream(i))
+        except KeyboardInterrupt:
+            self._finished = True
         except EOFError:
             pass
+
+    def _parse_and_run_command(self, input: str) -> bool:
+        input = input.strip()
+        if len(input) == 0:
+            return False
+        if input[0] != "/":
+            return False
+        input = input[1:].split()
+        command = input[0]
+        params = input[1:]
+        if command in self.commands:
+            self.commands[command](params)
+        else:
+            print(f"Unknown command: {command}.")
+            self._print_help()
+        return True
+
+    # noinspection PyUnusedLocal
+    def _print_help(self, params: list[str] = None):
+        """-                 Shows this message"""
+        print("Available commands:")
+        for cmd, func in self.commands.items():
+            doc = func.__doc__.strip()
+            print(f"  /{cmd} {doc}")
+
+    def _reload(self, params: list[str] = None):
+        """[<script.yaml>] - Reloads given LLM script (defaults to current)"""
+        print("Reloading not implemented yet...")
+
+    def _rewind(self, params: list[str] = None):
+        """[N] - Rewinds chat session to input N (default to previous)"""
+        if len(params) == 0:
+            target_iteration = -1
+        elif len(params) == 1:
+            try:
+                target_iteration = int(params[0])
+            except ValueError:
+                self._print_help(params)
+                return
+        else:
+            self._print_help(params)
+            return
+        if target_iteration < 0:
+            target_iteration = max(self._iteration + target_iteration, 1)
+        else:
+            target_iteration = min(self._iteration, target_iteration)
+        if target_iteration == self._iteration:
+            return
+        i = 0
+        iteration = 1
+        while i < len(self._messages):
+            message = self._messages[i]
+            if isinstance(message, HumanMessage):
+                if iteration == target_iteration:
+                    # truncate history
+                    self._messages = self._messages[:i]
+                    self._iteration = target_iteration
+                    self._pre_input = str(message.content)
+                    return
+                iteration = iteration + 1
+            i = i + 1
+
+
+    # noinspection PyUnusedLocal
+    def _bye(self, params: list[str] = None):
+        """- Ends chat session"""
+        self._finished = True
 
     def _process_model_output(self, chunks: Iterator[List[BaseMessage]]):
         for chunk in chunks:
             for message in chunk:
                 if isinstance(message, HumanMessage):
+                    self._iteration = self._iteration + 1
                     pass
                 elif isinstance(message, AIMessage):
                     if message.content != "":
                         console.print(f"#{self._iteration} AI:", style="bold green")
                         console.print(message.content)
-                        self._iteration = self._iteration + 1
                     if len(message.tool_calls) > 0:
                         for tool_call in message.tool_calls:
                             console.print(f"Running tool {format_tool(tool_call)}", style="bold white")

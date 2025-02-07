@@ -17,7 +17,7 @@ main:
        - services and docking information (for marinas) or anchoring recommendations and protection offered (for anchorages
        - navigational hazards
        - other information relevant to boating
-  default_prompt: >
-    Please fetch the page from https://www.coastguidetr.com/tr/korfez/1009/yesilova-korfezi-kadirga-burnu-arasi and list links under section "KOY"
+#  default_prompt: >
+#/    Please fetch the page from https://www.coastguidetr.com/tr/korfez/1009/yesilova-korfezi-kadirga-burnu-arasi and list links under section "KOY"
   tool_refs:
     - fetch_page_markdown
