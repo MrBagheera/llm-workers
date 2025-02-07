@@ -18,9 +18,10 @@ from llm_workers.worker import LlmWorker
 logger = getLogger(__name__)
 
 class ChatSession:
-    def __init__(self, console: Console, worker: LlmWorker):
+    def __init__(self, console: Console, script_file: str):
+        self._script_file = script_file
         self._console = console
-        self._worker = worker
+        self._worker = LlmWorker(script_file)
         self._iteration = 1
         self._messages = list[BaseMessage]()
         self._history = InMemoryHistory()
@@ -34,15 +35,15 @@ class ChatSession:
         self._pre_input = ""
 
     def run(self):
-        if worker.default_prompt is not None:
-            self._pre_input = worker.default_prompt
+        if self._worker.default_prompt is not None:
+            self._pre_input = self._worker.default_prompt
 
         session = PromptSession(history = self._history)
         try:
             while not self._finished:
                 if len(self._messages) > 0:
                     print()
-                console.print(f"[bold green]#{self._iteration} Your input: [/bold green] [grey69 italic](Meta+Enter or Escape,Enter to submit, /help for commands list)[/grey69 italic]")
+                self._console.print(f"[bold green]#{self._iteration} Your input: [/bold green] [grey69 italic](Meta+Enter or Escape,Enter to submit, /help for commands list)[/grey69 italic]")
                 text = session.prompt(default=self._pre_input, multiline=True)
                 self._pre_input = ""
                 if self._parse_and_run_command(text):
@@ -51,41 +52,51 @@ class ChatSession:
                 i = self._messages.copy()
                 i.append(text)
                 logger.debug(f"Running new prompt for #{self._iteration}:\n{i}")
-                self._process_model_output(worker.stream(i))
+                self._process_model_output(self._worker.stream(i))
         except KeyboardInterrupt:
             self._finished = True
         except EOFError:
             pass
 
-    def _parse_and_run_command(self, input: str) -> bool:
-        input = input.strip()
-        if len(input) == 0:
+    def _parse_and_run_command(self, message: str) -> bool:
+        message = message.strip()
+        if len(message) == 0:
             return False
-        if input[0] != "/":
+        if message[0] != "/":
             return False
-        input = input[1:].split()
-        command = input[0]
-        params = input[1:]
+        message = message[1:].split()
+        command = message[0]
+        params = message[1:]
         if command in self.commands:
             self.commands[command](params)
         else:
             print(f"Unknown command: {command}.")
-            self._print_help()
+            self._print_help([])
         return True
 
     # noinspection PyUnusedLocal
-    def _print_help(self, params: list[str] = None):
+    def _print_help(self, params: list[str]):
         """-                 Shows this message"""
         print("Available commands:")
         for cmd, func in self.commands.items():
             doc = func.__doc__.strip()
             print(f"  /{cmd} {doc}")
 
-    def _reload(self, params: list[str] = None):
+    def _reload(self, params: list[str]):
         """[<script.yaml>] - Reloads given LLM script (defaults to current)"""
-        print("Reloading not implemented yet...")
+        if len(params) == 0:
+            script_file = self._script_file
+        elif len(params) == 1:
+            script_file = params[0]
+        else:
+            self._print_help(params)
+            return
 
-    def _rewind(self, params: list[str] = None):
+        self._console.print(f"(Re)loading LLM script from {script_file}", style="bold white")
+        self._script_file = script_file
+        self._worker = LlmWorker(script_file)
+
+    def _rewind(self, params: list[str]):
         """[N] - Rewinds chat session to input N (default to previous)"""
         if len(params) == 0:
             target_iteration = -1
@@ -118,9 +129,8 @@ class ChatSession:
                 iteration = iteration + 1
             i = i + 1
 
-
     # noinspection PyUnusedLocal
-    def _bye(self, params: list[str] = None):
+    def _bye(self, params: list[str]):
         """- Ends chat session"""
         self._finished = True
 
@@ -132,16 +142,16 @@ class ChatSession:
                     pass
                 elif isinstance(message, AIMessage):
                     if message.content != "":
-                        console.print(f"#{self._iteration} AI:", style="bold green")
-                        console.print(message.content)
+                        self._console.print(f"#{self._iteration} AI:", style="bold green")
+                        self._console.print(message.content)
                     if len(message.tool_calls) > 0:
                         for tool_call in message.tool_calls:
-                            console.print(f"Running tool {format_tool(tool_call)}", style="bold white")
+                            self._console.print(f"Running tool {format_tool(tool_call)}", style="bold white")
                 elif isinstance(message, ToolMessage):
-                    console.print(f"Tool {message.name} has finished", style="bold white")
+                    self._console.print(f"Tool {message.name} has finished", style="bold white")
                 else:
-                    console.print(f"#{self._iteration} Unknown({message.type}):", style="bold red")
-                    console.print(message.content)
+                    self._console.print(f"#{self._iteration} Unknown({message.type}):", style="bold red")
+                    self._console.print(message.content)
                 self._messages.append(message)
                 logger.debug(f"Appending {message} to session history")
 
@@ -157,7 +167,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     load_dotenv()
-    worker = LlmWorker(args.script_file)
+    _console = Console()
     if args.verbose:
         set_verbose(True)
     if args.debug:
@@ -165,6 +175,5 @@ if __name__ == "__main__":
     if args.verbose or args.debug:
         logging.basicConfig(level=logging.DEBUG, stream=sys.stderr)
 
-    console = Console()
-    chat_session = ChatSession(console, worker)
+    chat_session = ChatSession(_console, args.script_file)
     chat_session.run()
