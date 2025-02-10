@@ -18,6 +18,7 @@ class CustomToolBaseDefinition(BaseModel):
     name: str
     description: str
     params: list[CustomToolParamsDefinition]
+    return_direct: bool = False
 
 
 def json_custom_error_validator(
@@ -75,7 +76,8 @@ def build_dynamic_tool(
         coroutine=async_wrapped_tool_logic,
         name=definition.name,
         description=definition.description,
-        args_schema=schema
+        args_schema=schema,
+        return_direct=definition.return_direct
     )
 
 
