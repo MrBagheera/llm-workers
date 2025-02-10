@@ -1,19 +1,26 @@
 models:
   - name: default
-    provider: ollama
-    model: llama3.3
+    provider: bedrock
+    model: us.anthropic.claude-3-5-sonnet-20241022-v2:0
     model_params:
       temperature: 0
-      num_ctx: 32768
-      num_predict: 32768
+
+#  - name: default
+#    provider: ollama
+#    model: llama3.3
+#    model_params:
+#      temperature: 0
+#      num_ctx: 16384
+#      num_predict: 16384
 
 # Custom tools. To be available for LLM, reference to custom tool
 # must be included in tool_refs section of LLM definition.
 custom_tools:
 
-  - name: make_meeting_transcript
+  - name: generate_meeting_transcript
     description: >
-      Makes transcript from video or audio file. Use it for a meeting (multiple frequently changing speakers).
+      Generates transcript from video or audio file. Use it for a meeting (multiple frequently changing speakers).
+      Transcript is returned as text string, not saved anywhere.
     params:
       - name: file
         description: File name
@@ -28,10 +35,12 @@ custom_tools:
       skip_seconds: "{skip_seconds}"
       extra_args": "--entropy-thold 2.8 --max-context 64"
       write_timestamps: false
+    return_direct: true
 
-  - name: make_presentation_transcript
+  - name: generate_presentation_transcript
     description: >
-      Makes transcript from video or audio file. Use it for a meeting (there is primary speaker, longer chunks of text).
+      Generates transcript from video or audio file. Use it for a presentation (there is primary speaker, longer chunks of text).
+      Transcript is returned as text string, not saved anywhere.
     params:
       - name: file
         description: File name
@@ -47,6 +56,51 @@ custom_tools:
       extra_args": "--entropy-thold 2.8 --max-context 64"
       max_length: 1000
       write_timestamps: true
+    return_direct: true
+
+  - name: summarize_meeting_transcript
+    description: >
+      Generates summary for meeting transcript (multiple frequently changing speakers).
+    params:
+      - name: transcript
+        description: Transcript text
+        type: str
+    type: t2-ai-wrapper
+    endpoint: https://api-relay.applied-ai.zynga.com/v0/text/complete
+    payload:
+      text: >
+        You will be provided with meeting transcript, and your task is to summarize it as follows:
+
+            -Overall summary of discussion
+            -Action items (what needs to be done and who is doing it)
+            -If applicable, a list of topics that need to be discussed more fully in the next meeting.
+        
+        Meeting transcript:
+        {transcript}
+      model: claude-3-haiku
+    return_direct: true
+
+  - name: summarize_presentation_transcript
+    description: >
+      Generates summary for presentation transcript (there is primary speaker, longer chunks of text).
+    params:
+      - name: transcript
+        description: Transcript text
+        type: str
+    type: t2-ai-wrapper
+    endpoint: https://api-relay.applied-ai.zynga.com/v0/text/complete
+    payload:
+      text: >
+        You will be provided with presentation transcript, and your task is to summarize it as follows:
+        
+            -Topics presented
+            -Discussions, if any
+            -If applicable, a list of topics that need to be discussed more fully in the next meeting.
+        
+        Presentation transcript:
+        {transcript}
+      model: claude-3-haiku
+    return_direct: true
 
 main:
   system_message: >
@@ -60,10 +114,12 @@ main:
     tool to make transcript depending on the kind of an event recorded - meeting or presentation. If event type
     is not obvious from the context, ask user.
     
-    After getting transcript show it to the user. If transcription tool failed, show tool error message.
+    After getting transcript make a summary of it using appropriate tool. If any has tool failed, show tool error message.
   default_prompt: >
-    Please make transcript of following record of weekly meeting:
-    /Users/dmikhaylov/Private/video-to-summary/GMT20250127-082755_Recording.m4a, skip first 3 minutes
+    Please make and print transcript of following presentation:
+    /Users/dmikhaylov/Private/video-to-summary/GMT20250127-082755_Recording.m4a, start from 3 minutes
   tool_refs:
-    - make_meeting_transcript
-    - make_presentation_transcript
+    - generate_meeting_transcript
+    - generate_presentation_transcript
+    - summarize_meeting_transcript
+    - summarize_presentation_transcript

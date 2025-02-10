@@ -4,7 +4,7 @@ from re import Pattern
 from typing import List
 
 from llm_workers.tools.transcribe import Segment, write_segments
-from llm_workers.tools.utils import get_environment_variable
+from llm_workers.utils import get_environment_variable
 
 logger =  logging.getLogger(__name__)
 

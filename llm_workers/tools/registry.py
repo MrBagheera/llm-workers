@@ -8,6 +8,7 @@ from langchain_core.tools import BaseTool
 from llm_workers.tools.custom_tools_base import CustomToolBaseDefinition
 from llm_workers.tools.stub_tool import StubToolDefinition, build_stub_tool
 from llm_workers.tools.llm_tool import build_llm_tool, LLMToolDefinition
+from llm_workers.tools.t2_ai_wrapper import T2AiWrapperToolDefinition, build_t2_ai_wrapper
 from llm_workers.tools.tool_binding import ToolBindingDefinition, build_tool_binding
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,8 @@ class ToolRegistry:
                 return build_llm_tool(definition, models_lookup, self.resolve_tool_refs)
             if isinstance(definition, ToolBindingDefinition):
                 return build_tool_binding(definition, self.resolve_tool_refs)
+            if isinstance(definition, T2AiWrapperToolDefinition):
+                return build_t2_ai_wrapper(definition)
             raise ValueError(f"Unsupported custom tool definition class {type(definition)}")
         except Exception as e:
             raise ValueError(f"Error building custom tool {definition.name}") from e

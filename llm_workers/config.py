@@ -7,6 +7,7 @@ from llm_workers.llm import BaseLLMConfig
 from llm_workers.tools.custom_tools_base import Json
 from llm_workers.tools.llm_tool import LLMToolDefinition
 from llm_workers.tools.stub_tool import StubToolDefinition
+from llm_workers.tools.t2_ai_wrapper import T2AiWrapperToolDefinition
 from llm_workers.tools.tool_binding import ToolBindingDefinition
 
 
@@ -19,6 +20,7 @@ def custom_tool_discriminator_value(v: Any) -> str:
 
 CustomToolDefinition = Annotated[
     Annotated[ToolBindingDefinition, Tag('tool_binding')] |
+    Annotated[T2AiWrapperToolDefinition, Tag('t2-ai-wrapper')] |
     Annotated[StubToolDefinition, Tag('stub')] |
     Annotated[LLMToolDefinition, Tag('LLM')],
     Field(discriminator=Discriminator(custom_tool_discriminator_value))

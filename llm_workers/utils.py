@@ -117,9 +117,13 @@ def ensure_environment_variable(name: str) -> str:
     return var
 
 
-def format_tool(tc: ToolCall) -> str:
+def format_tool_call(tc: ToolCall) -> str:
     name = tc.get('name', '<tool>')
     args = tc.get("args")
+    return format_tool_invocation(name, args)
+
+
+def format_tool_invocation(name: str, args: Any) -> str:
     if isinstance(args, dict):
         arg = next(iter(args.values()), None)
         if arg is None:
