@@ -8,21 +8,10 @@ from pydantic_core import PydanticCustomError
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler, ValidationInfo
 
 
-class CustomToolParamsDefinition(BaseModel):
-    name: str
-    description: str
-    type: str
-
-
-class CustomToolBaseDefinition(BaseModel):
-    name: str
-    description: str
-    params: list[CustomToolParamsDefinition]
-    return_direct: bool = False
-
-
 def json_custom_error_validator(
-        value: Any, handler: ValidatorFunctionWrapHandler, _info: ValidationInfo
+    value: Any,
+    handler: ValidatorFunctionWrapHandler,
+    _info: ValidationInfo
 ) -> Any:
     """Simplify the error message to avoid a gross error stemming
     from exhaustive checking of all union options.
@@ -45,6 +34,22 @@ Json = TypeAliasType(
 )
 
 
+
+
+class CustomToolParamsDefinition(BaseModel):
+    name: str
+    description: str
+    type: str
+    default: Json | None = None
+
+
+class CustomToolBaseDefinition(BaseModel):
+    name: str
+    description: str
+    params: list[CustomToolParamsDefinition]
+    return_direct: bool = False
+
+
 def create_dynamic_schema(name: str, params: list[CustomToolParamsDefinition]) -> Type[BaseModel]:
     # convert name to camel case
     cc_name = name.replace('_', ' ').title().replace(' ', '')
@@ -52,7 +57,10 @@ def create_dynamic_schema(name: str, params: list[CustomToolParamsDefinition]) -
     fields = {}
     for param in params:
         field_type = eval(param.type)  # Convert string type to Python type
-        fields[param.name] = (field_type, Field(field_type, description=param.description, coerce_numbers_to_str=True))
+        if param.default is not None:
+            fields[param.name] = (field_type, Field(description=param.description, default=param.default, coerce_numbers_to_str=True))
+        else:
+            fields[param.name] = (field_type, Field(description=param.description, coerce_numbers_to_str=True))
     return create_model(model_name, **fields)
 
 
@@ -73,7 +81,7 @@ def build_dynamic_tool(
 
     return StructuredTool.from_function(
         func=wrapped_tool_logic,
-        coroutine=async_wrapped_tool_logic,
+        coroutine=None if async_tool_logic is None else async_wrapped_tool_logic,
         name=definition.name,
         description=definition.description,
         args_schema=schema,

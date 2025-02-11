@@ -48,6 +48,7 @@ custom_tools:
       - name: skip_seconds
         description: Number of seconds to skip at the beginning of the file
         type: int
+        default: 0
     tool_ref: whisper_cpp
     tool_params:
       file: "{file}"
@@ -63,7 +64,7 @@ custom_tools:
       Generates summary for meeting transcript (multiple frequently changing speakers).
     params:
       - name: transcript
-        description: Transcript text
+        description: Transcript of the meeting to summarize
         type: str
     type: t2-ai-wrapper
     endpoint: https://api-relay.applied-ai.zynga.com/v0/text/complete
@@ -85,7 +86,7 @@ custom_tools:
       Generates summary for presentation transcript (there is primary speaker, longer chunks of text).
     params:
       - name: transcript
-        description: Transcript text
+        description: Transcript of the presentation to summarize
         type: str
     type: t2-ai-wrapper
     endpoint: https://api-relay.applied-ai.zynga.com/v0/text/complete
