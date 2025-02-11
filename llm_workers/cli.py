@@ -23,7 +23,7 @@ def print_model_output(chunks: Iterator[List[BaseMessage]]):
                     print(message.content)
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(
         description="CLI tool to run LLM scripts with prompts from command-line or stdin."
     )
@@ -85,3 +85,7 @@ if __name__ == "__main__":
     print(f"Prompt Tokens: {cb.prompt_tokens}", file=sys.stderr)
     print(f"Completion Tokens: {cb.completion_tokens}", file=sys.stderr)
     print(f"Total Cost (USD): ${cb.total_cost}", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()

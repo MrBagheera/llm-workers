@@ -22,6 +22,10 @@ dependencies = [
     "html-text (>=0.7.0,<0.8.0)"
 ]
 
+[project.scripts]
+llm-workers-chat = "llm_workers.chat:main"
+llm-workers-cli = "llm_workers.cli:main"
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
