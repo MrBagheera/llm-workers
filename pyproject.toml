@@ -6,13 +6,20 @@ authors = [
     {name = "Dmitry Mikhaylov", email = "mikhailov.dmitry@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<4.0"
 dependencies = [
     "pydantic~=2.10.5",
     "python-dotenv~=1.0.1",
     "beautifulsoup4~=4.12.3",
     "PyYAML~=6.0.2",
-    "langchain-community~=0.3.14"
+    "langchain-community~=0.3.14",
+    "torch (>=2.6.0,<3.0.0)",
+    "pyannote-audio (==3.3.2)",
+    "prompt-toolkit (==3.0.50)",
+    "langgraph (>=0.2.70,<0.3.0)",
+    "langchain-openai (>=0.3.4,<0.4.0)",
+    "html2text (>=2024.2.26,<2025.0.0)",
+    "html-text (>=0.7.0,<0.8.0)"
 ]
 
 [build-system]
