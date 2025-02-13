@@ -1,29 +1,24 @@
-from typing import Literal, Annotated
+from typing import Annotated
 
 import requests
-from langchain_core.tools import InjectedToolArg, ToolException, BaseTool
-from pydantic import BaseModel
+from langchain_core.tools import InjectedToolArg, ToolException, StructuredTool
 from requests import RequestException
 
-from llm_workers.tools.custom_tools_base import CustomToolBaseDefinition, Json, TemplateHelper, build_dynamic_tool
+from llm_workers.config import Json
 from llm_workers.utils import ensure_environment_variable
 
-
-class T2AiWrapperToolDefinition(CustomToolBaseDefinition):
-    type: Literal['t2-ai-wrapper']
-    endpoint: Annotated[str, InjectedToolArg]
-    payload: Annotated[Json, InjectedToolArg] = None
-
-
 # Auth token to include in AI Relay API calls
-_auth_token = None
+_auth_token = ensure_environment_variable("T2_AI_TOKEN")
 
 
-def _call_t2_ai_wrapper(endpoint, payload) -> Json:
+def _call_t2_ai_wrapper(
+    endpoint: Annotated[str, InjectedToolArg],
+    payload: Annotated[Json, InjectedToolArg]
+) -> Json:
     """
-    Calls T2AI wrapper with given endpoint and payload.
+    Calls T2 AI Relay with given endpoint and payload.
     This tool is not supposed to be called by LLM directly,
-    only via tool binding.
+    only via custom tool.
 
     See https://wiki.corp.zynga.com/pages/viewpage.action?pageId=261429979
 
@@ -58,13 +53,9 @@ def _call_t2_ai_wrapper(endpoint, payload) -> Json:
         else:
             raise ToolException(f"Unexpected response from T2 AI wrapper: {result}")
 
-def build_t2_ai_wrapper(definition: T2AiWrapperToolDefinition) -> BaseTool:
-    global _auth_token
-    _auth_token = ensure_environment_variable("T2_AI_TOKEN")
-    template_helper = TemplateHelper(definition, definition.payload)
-
-    def tool_logic(validated_input: BaseModel):
-        target_payload = template_helper.render(validated_input.model_dump())
-        return _call_t2_ai_wrapper(definition.endpoint, target_payload)
-
-    return build_dynamic_tool(definition, tool_logic, async_tool_logic = None)
+t2_ai_wrapper = StructuredTool.from_function(
+    _call_t2_ai_wrapper,
+    name="t2_ai_wrapper",
+    parse_docstring=True,
+    error_on_invalid_docstring=True
+)

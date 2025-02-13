@@ -21,27 +21,28 @@ custom_tools:
     description: >
       Generates transcript from video or audio file. Use it for a meeting (multiple frequently changing speakers).
       Transcript is returned as text string, not saved anywhere.
-    params:
+    input:
       - name: file
         description: File name
         type: str
       - name: skip_seconds
         description: Number of seconds to skip at the beginning of the file
         type: int
-    tool_ref: whisper_cpp
-    tool_params:
-      file: "{file}"
-      model: "/Users/dmikhaylov/Private/whisper.cpp/models/ggml-large-v3-turbo.bin"
-      skip_seconds: "{skip_seconds}"
-      extra_args": "--entropy-thold 2.8 --max-context 64"
-      write_timestamps: false
+    body:
+      call: whisper_cpp
+      params:
+        model: "/Users/dmikhaylov/Private/whisper.cpp/models/ggml-large-v3-turbo.bin"
+        file: "{file}"
+        skip_seconds: "{skip_seconds}"
+        extra_args": "--entropy-thold 2.8 --max-context 64"
+        write_timestamps: false
     return_direct: true
 
   - name: generate_presentation_transcript
     description: >
       Generates transcript from video or audio file. Use it for a presentation (there is primary speaker, longer chunks of text).
       Transcript is returned as text string, not saved anywhere.
-    params:
+    input:
       - name: file
         description: File name
         type: str
@@ -49,62 +50,90 @@ custom_tools:
         description: Number of seconds to skip at the beginning of the file
         type: int
         default: 0
-    tool_ref: whisper_cpp
-    tool_params:
-      file: "{file}"
-      model: "/Users/dmikhaylov/Private/whisper.cpp/models/ggml-large-v3-turbo.bin"
-      skip_seconds: "{skip_seconds}"
-      extra_args": "--entropy-thold 2.8 --max-context 64"
-      max_length: 1000
-      write_timestamps: true
+    body:
+      call: whisper_cpp
+      params:
+        model: "/Users/dmikhaylov/Private/whisper.cpp/models/ggml-large-v3-turbo.bin"
+        file: "{file}"
+        skip_seconds: "{skip_seconds}"
+        extra_args: "--entropy-thold 2.8 --max-context 64"
+        max_length: 1000
+        write_timestamps: true
     return_direct: true
 
   - name: summarize_meeting_transcript
     description: >
       Generates summary for meeting transcript (multiple frequently changing speakers).
-    params:
+    input:
       - name: transcript
         description: Transcript of the meeting to summarize
         type: str
-    type: t2-ai-wrapper
-    endpoint: https://api-relay.applied-ai.zynga.com/v0/text/complete
-    payload:
-      text: >
-        You will be provided with meeting transcript, and your task is to summarize it as follows:
+    body:
+      call: t2_ai_wrapper
+      params:
+        endpoint: https://api-relay.applied-ai.zynga.com/v0/text/complete
+        payload:
+          text: >
+            You will be provided with meeting transcript, and your task is to summarize it as follows:
 
-            -Overall summary of discussion
-            -Action items (what needs to be done and who is doing it)
-            -If applicable, a list of topics that need to be discussed more fully in the next meeting.
-        
-        Meeting transcript:
-        {transcript}
-      model: claude-3-haiku
+                -Overall summary of discussion
+                -Action items (what needs to be done and who is doing it)
+                -If applicable, a list of topics that need to be discussed more fully in the next meeting.
+            
+            Meeting transcript:
+            {transcript}
+          model: claude-3-haiku
     return_direct: true
 
   - name: summarize_presentation_transcript
     description: >
       Generates summary for presentation transcript (there is primary speaker, longer chunks of text).
-    params:
+    input:
       - name: transcript
         description: Transcript of the presentation to summarize
         type: str
-    type: t2-ai-wrapper
-    endpoint: https://api-relay.applied-ai.zynga.com/v0/text/complete
-    payload:
-      text: >
-        You will be provided with presentation transcript, and your task is to summarize it as follows:
-        
-            -Topics presented
-            -Discussions, if any
-            -If applicable, a list of topics that need to be discussed more fully in the next meeting.
-        
-        Presentation transcript:
-        {transcript}
-      model: claude-3-haiku
+    body:
+      call: t2_ai_wrapper
+      params:
+        endpoint: https://api-relay.applied-ai.zynga.com/v0/text/complete
+        payload:
+          text: >
+            You will be provided with presentation transcript, and your task is to summarize it as follows:
+            
+                -Topics presented
+                -Discussions, if any
+                -If applicable, a list of topics that need to be discussed more fully in the next meeting.
+            
+            Presentation transcript:
+            {transcript}
+          model: claude-3-haiku
     return_direct: true
 
+  - name: test_chain
+    description: Test chain of tools
+    input:
+      - name: file
+        description: File name
+        type: str
+      - name: skip_seconds
+        description: Number of seconds to skip at the beginning of the file
+        type: int
+        default: 0
+    body:
+      - call: generate_presentation_transcript
+        params:
+          file: "{file}"
+          skip_seconds: "{skip_seconds}"
+      - call: summarize_presentation_transcript
+        params:
+          transcript: "{output0}"
+      - result: |-
+          Here is summary for presentation "{file}": 
+          
+          {output1}
+
 main:
-  system_message: >
+  system_message: |-
     You are secretary in Small Giant Games Oy, small Finnish mobile game company. The company is fully owned
     by Zynga Inc., which is now part of Take Two Interactive.
     
@@ -116,7 +145,7 @@ main:
     is not obvious from the context, ask user.
     
     After getting transcript make a summary of it using appropriate tool. If any has tool failed, show tool error message.
-  default_prompt: >
+  default_prompt: |-
     Please make and print transcript of following presentation:
     /Users/dmikhaylov/Private/video-to-summary/GMT20250127-082755_Recording.m4a, start from 3 minutes
   tool_refs:

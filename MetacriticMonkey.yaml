@@ -9,598 +9,595 @@ custom_tools:
 
   - name: search_movie_on_metacritic_stub
     description: >
-      Searches for movies at Metacritic site, returns list of possible matches
-    params:
+      (debug) Searches for the Metacritic score for a given movie title. Returns text from Metacritic web site,
+      containing the list of possible matches (movie title, release year, score).
+    input:
       - name: movie_title
         description: Movie title
         type: str
       - name: movie_year
         description: Movie release year
         type: str
-    type: stub
-    match_value: "{movie_title} ({movie_year})"
-    matchers:
-      - case: "Soul (2020)"
-        result: >         
-          Soul
-          
-          movie
-          2020
-          83
-          
-          The Story of Souleyman
-          
-          movie
-          2024
-          81
-          
-          Summer of Soul (...Or, When the Revolution Could Not Be Televised)
-          
-          movie
-          2021
-          96
-          
-          Lost Soulz
-          
-          movie
-          2023
-          74
-          
-          Dead Souls
-          
-          movie
-          2018
-          89
-          
-          Mr. SOUL!
-          
-          movie
-          2018
-          88
-          
-          Paths of the Soul
-          
-          movie
-          2015
-          90
-          
-          Soul Surfer
-          
-          movie
-          2011
-          53
-          
-          Desperate Souls, Dark City and the Legend of Midnight Cowboy
-          
-          movie
-          2022
-          66
-          
-          Honk for Jesus. Save Your Soul.
-          
-          movie
-          2022
-          63
-          
-          On Body and Soul
-          
-          movie
-          2017
-          77
-          
-          Thunder Soul
-          
-          movie
-          2010
-          81
-          
-          Black Souls
-          
-          movie
-          2014
-          76
-          
-          Our Souls at Night
-          
-          movie
-          2017
-          69
-          
-          Silent Souls
-          
-          movie
-          2010
-          76
-          
-          Soul Kitchen
-          
-          movie
-          2009
-          76
-          
-          Soul Power
-          
-          movie
-          2008
-          76
-          
-          Blizzard of Souls
-          
-          movie
-          2019
-          63
-          
-          Soul Plane
-          
-          movie
-          2004
-          33
-          
-          The Forest of the Lost Souls
-          
-          movie
-          2017
-          63
-          
-          Cold Souls
-          
-          movie
-          2009
-          69
-          
-          My Soul to Take
-          
-          movie
-          2010
-          25
-          
-          Northern Soul
-          
-          movie
-          2014
-          64
-          
-          Soul Food
-          
-          movie
-          1997
-          70
-          
-          Soul Boys of the Western World
-          
-          movie
-          2014
-          60
-          
-          The Decomposition of the Soul
-          
-          movie
-          2002
-          65
-          
-          Don't Tell a Soul
-          
-          movie
-          2020
-          45
-          
-          America's Heart and Soul
-          
-          movie
-          2004
-          55
-          
-          Lost Souls
-          
-          movie
-          2000
-          16
-          
-          Heart and Souls
-          
-          movie
-          1993
-          56
-      - case: "Wallace & Gromit: The Curse of the Were-Rabbit (2005)"
-        result: >
-          Wallace & Gromit: The Curse of the Were-Rabbit
-            
-            movie
-            2005
-            87
-          
-          Pirates of the Caribbean: The Curse of the Black Pearl
-            
-            movie
-            2003
-            63
-          
-          The Lord of the Rings: The Return of the King
-            
-            movie
-            2003
-            94
-          
-          The Lord of the Rings: The Fellowship of the Ring
-            
-            movie
-            2001
-            92
-          
-          Wallace & Gromit: Vengeance Most Fowl
-            
-            movie
-            2024
-            83
-            
-            Curse of the Golden Flower
-            
-            movie
-            2006
-            70
-            
-            The Curse of La Llorona
-            
-            movie
-            2019
-            41
-            
-            Remington and the Curse of the Zombadings
-            
-            movie
-            2011
-            56
-          
-          The Adventurer: The Curse of the Midas Box
-            
-            movie
-            2013
-            39
-          
-          Broadway: The Golden Age, by the Legends Who Were There
-            
-            movie
-            2003
-            72
-          
-          The Lord of the Rings: The Two Towers
-            
-            movie
-            2002
-            87
-            
-            Dawn of the Planet of the Apes
-            
-            movie
-            2014
-            79
-          
-          The Chronicles of Narnia: The Lion, the Witch and the Wardrobe
-            
-            movie
-            2005
-            75
-            
-            The Curse of the Jade Scorpion
-            
-            movie
-            2001
-            52
-          
-          The Lord of the Rings: The War of the Rohirrim
-            
-            movie
-            2024
-            54
-            
-            The Curse of the Necklace
-            
-            movie
-            2024
-            tbd
-            
-            Rise of the Planet of the Apes
-            
-            movie
-            2011
-            68
-          
-          The Chronicles of Narnia: The Voyage of the Dawn Treader
-            
-            movie
-            2010
-            53
-            
-            The Power of the Dog
-            
-            movie
-            2021
-            89
-          
-          The Hobbit: The Battle of the Five Armies
-            
-            movie
-            2014
-            59
-            
-            Nausicaä of the Valley of the Wind
-            
-            movie
-            1984
-            86
-            
-            If You Were the Last
-            
-            movie
-            2023
-            70
-            
-            The Curse of Bridge Hollow
-            
-            movie
-            2022
-            38
-            
-            War for the Planet of the Apes
-            
-            movie
-            2017
-            82
-            
-            Shang-Chi and the Legend of the Ten Rings
-            
-            movie
-            2021
-            71
-            
-            Kingdom of the Planet of the Apes
-            
-            movie
-            2024
-            66
-          
-          The Power of Nightmares: The Rise of the Politics of Fear
-            
-            movie
-            2004
-            78
-          
-          The Venture Bros.: Radiant Is the Blood of the Baboon Heart
-            
-            movie
-            2023
-            84
-            
-            The Tale of The Princess Kaguya
-            
-            movie
-            2013
-            89
-          
-          Halloween: The Curse of Michael Myers
-            
-            movie
-            1995
-            10
-      - case: "The Incredibles (2004)"
-        result: >  
-          The Incredibles
-          
-          movie
-          2004
-          90
-          
-          Incredibles 2
-          
-          movie
-          2018
-          80
-        
-          The Lord of the Rings: The Return of the King
-            
-            movie
-            2003
-            94
-          
-          The Lord of the Rings: The Fellowship of the Ring
-            
-            movie
-            2001
-            92
-          
-          The Chronicles of Narnia: The Lion, the Witch and the Wardrobe
-            
-            movie
-            2005
-            75
-          
-          The Lord of the Rings: The Two Towers
-            
-            movie
-            2002
-            87
-            
-            The Good, the Bad and the Ugly
-            
-            movie
-            1966
-            90
-          
-          The Hobbit: The Battle of the Five Armies
-            
-            movie
-            2014
-            59
-          
-          Pirates of the Caribbean: The Curse of the Black Pearl
-            
-            movie
-            2003
-            63
-          
-          The Lord of the Rings: The War of the Rohirrim
-            
-            movie
-            2024
-            54
-            
-            The Boy, the Mole, the Fox and the Horse
-            
-            movie
-            2022
-            75
-            
-            The Power of the Dog
-            
-            movie
-            2021
-            89
-          
-          The Venture Bros.: Radiant Is the Blood of the Baboon Heart
-            
-            movie
-            2023
-            84
-            
-            The Worst Person in the World
-            
-            movie
-            2021
-            91
-            
-            War for the Planet of the Apes
-            
-            movie
-            2017
-            82
-            
-            The Mitchells vs. The Machines
-            
-            movie
-            2021
-            81
-            
-            Shang-Chi and the Legend of the Ten Rings
-            
-            movie
-            2021
-            71
-            
-            Dawn of the Planet of the Apes
-            
-            movie
-            2014
-            79
-          
-          The Chronicles of Narnia: The Voyage of the Dawn Treader
-            
-            movie
-            2010
-            53
-            
-            The Tale of The Princess Kaguya
-            
-            movie
-            2013
-            89
-            
-            The Trial of the Chicago 7
+    body:
+      match: "{movie_title} ({movie_year})"
+      matchers:
+        - case: "Soul (2020)"
+          body: |         
+            Soul
             
             movie
             2020
-            76
+            83
             
-            The Diving Bell and the Butterfly
-            
-            movie
-            2007
-            92
-            
-            The Silence of the Lambs
+            The Story of Souleyman
             
             movie
-            1991
-            86
+            2024
+            81
             
-            The Cabin in the Woods
-            
-            movie
-            2011
-            72
-          
-          Wallace & Gromit: The Curse of the Were-Rabbit
-            
-            movie
-            2005
-            87
-          
-          The Hobbit: The Desolation of Smaug
-            
-            movie
-            2013
-            66
-            
-            Harry Potter and the Order of the Phoenix
-            
-            movie
-            2007
-            71
-            
-            The Girl with the Dragon Tattoo
-            
-            movie
-            2011
-            71
-            
-            The Squid and the Whale
-            
-            movie
-            2005
-            82
-          
-          The Witcher: Nightmare of the Wolf
+            Summer of Soul (...Or, When the Revolution Could Not Be Televised)
             
             movie
             2021
-            67
-    default_result: "N/A"
+            96
+            
+            Lost Soulz
+            
+            movie
+            2023
+            74
+            
+            Dead Souls
+            
+            movie
+            2018
+            89
+            
+            Mr. SOUL!
+            
+            movie
+            2018
+            88
+            
+            Paths of the Soul
+            
+            movie
+            2015
+            90
+            
+            Soul Surfer
+            
+            movie
+            2011
+            53
+            
+            Desperate Souls, Dark City and the Legend of Midnight Cowboy
+            
+            movie
+            2022
+            66
+            
+            Honk for Jesus. Save Your Soul.
+            
+            movie
+            2022
+            63
+            
+            On Body and Soul
+            
+            movie
+            2017
+            77
+            
+            Thunder Soul
+            
+            movie
+            2010
+            81
+            
+            Black Souls
+            
+            movie
+            2014
+            76
+            
+            Our Souls at Night
+            
+            movie
+            2017
+            69
+            
+            Silent Souls
+            
+            movie
+            2010
+            76
+            
+            Soul Kitchen
+            
+            movie
+            2009
+            76
+            
+            Soul Power
+            
+            movie
+            2008
+            76
+            
+            Blizzard of Souls
+            
+            movie
+            2019
+            63
+            
+            Soul Plane
+            
+            movie
+            2004
+            33
+            
+            The Forest of the Lost Souls
+            
+            movie
+            2017
+            63
+            
+            Cold Souls
+            
+            movie
+            2009
+            69
+            
+            My Soul to Take
+            
+            movie
+            2010
+            25
+            
+            Northern Soul
+            
+            movie
+            2014
+            64
+            
+            Soul Food
+            
+            movie
+            1997
+            70
+            
+            Soul Boys of the Western World
+            
+            movie
+            2014
+            60
+            
+            The Decomposition of the Soul
+            
+            movie
+            2002
+            65
+            
+            Don't Tell a Soul
+            
+            movie
+            2020
+            45
+            
+            America's Heart and Soul
+            
+            movie
+            2004
+            55
+            
+            Lost Souls
+            
+            movie
+            2000
+            16
+            
+            Heart and Souls
+            
+            movie
+            1993
+            56
+        - case: "Wallace & Gromit: The Curse of the Were-Rabbit (2005)"
+          body: |
+            Wallace & Gromit: The Curse of the Were-Rabbit
+              
+              movie
+              2005
+              87
+            
+            Pirates of the Caribbean: The Curse of the Black Pearl
+              
+              movie
+              2003
+              63
+            
+            The Lord of the Rings: The Return of the King
+              
+              movie
+              2003
+              94
+            
+            The Lord of the Rings: The Fellowship of the Ring
+              
+              movie
+              2001
+              92
+            
+            Wallace & Gromit: Vengeance Most Fowl
+              
+              movie
+              2024
+              83
+              
+              Curse of the Golden Flower
+              
+              movie
+              2006
+              70
+              
+              The Curse of La Llorona
+              
+              movie
+              2019
+              41
+              
+              Remington and the Curse of the Zombadings
+              
+              movie
+              2011
+              56
+            
+            The Adventurer: The Curse of the Midas Box
+              
+              movie
+              2013
+              39
+            
+            Broadway: The Golden Age, by the Legends Who Were There
+              
+              movie
+              2003
+              72
+            
+            The Lord of the Rings: The Two Towers
+              
+              movie
+              2002
+              87
+              
+              Dawn of the Planet of the Apes
+              
+              movie
+              2014
+              79
+            
+            The Chronicles of Narnia: The Lion, the Witch and the Wardrobe
+              
+              movie
+              2005
+              75
+              
+              The Curse of the Jade Scorpion
+              
+              movie
+              2001
+              52
+            
+            The Lord of the Rings: The War of the Rohirrim
+              
+              movie
+              2024
+              54
+              
+              The Curse of the Necklace
+              
+              movie
+              2024
+              tbd
+              
+              Rise of the Planet of the Apes
+              
+              movie
+              2011
+              68
+            
+            The Chronicles of Narnia: The Voyage of the Dawn Treader
+              
+              movie
+              2010
+              53
+              
+              The Power of the Dog
+              
+              movie
+              2021
+              89
+            
+            The Hobbit: The Battle of the Five Armies
+              
+              movie
+              2014
+              59
+              
+              Nausicaä of the Valley of the Wind
+              
+              movie
+              1984
+              86
+              
+              If You Were the Last
+              
+              movie
+              2023
+              70
+              
+              The Curse of Bridge Hollow
+              
+              movie
+              2022
+              38
+              
+              War for the Planet of the Apes
+              
+              movie
+              2017
+              82
+              
+              Shang-Chi and the Legend of the Ten Rings
+              
+              movie
+              2021
+              71
+              
+              Kingdom of the Planet of the Apes
+              
+              movie
+              2024
+              66
+            
+            The Power of Nightmares: The Rise of the Politics of Fear
+              
+              movie
+              2004
+              78
+            
+            The Venture Bros.: Radiant Is the Blood of the Baboon Heart
+              
+              movie
+              2023
+              84
+              
+              The Tale of The Princess Kaguya
+              
+              movie
+              2013
+              89
+            
+            Halloween: The Curse of Michael Myers
+              
+              movie
+              1995
+              10
+        - case: "The Incredibles (2004)"
+          body: |  
+            The Incredibles
+            
+            movie
+            2004
+            90
+            
+            Incredibles 2
+            
+            movie
+            2018
+            80
+          
+            The Lord of the Rings: The Return of the King
+              
+              movie
+              2003
+              94
+            
+            The Lord of the Rings: The Fellowship of the Ring
+              
+              movie
+              2001
+              92
+            
+            The Chronicles of Narnia: The Lion, the Witch and the Wardrobe
+              
+              movie
+              2005
+              75
+            
+            The Lord of the Rings: The Two Towers
+              
+              movie
+              2002
+              87
+              
+              The Good, the Bad and the Ugly
+              
+              movie
+              1966
+              90
+            
+            The Hobbit: The Battle of the Five Armies
+              
+              movie
+              2014
+              59
+            
+            Pirates of the Caribbean: The Curse of the Black Pearl
+              
+              movie
+              2003
+              63
+            
+            The Lord of the Rings: The War of the Rohirrim
+              
+              movie
+              2024
+              54
+              
+              The Boy, the Mole, the Fox and the Horse
+              
+              movie
+              2022
+              75
+              
+              The Power of the Dog
+              
+              movie
+              2021
+              89
+            
+            The Venture Bros.: Radiant Is the Blood of the Baboon Heart
+              
+              movie
+              2023
+              84
+              
+              The Worst Person in the World
+              
+              movie
+              2021
+              91
+              
+              War for the Planet of the Apes
+              
+              movie
+              2017
+              82
+              
+              The Mitchells vs. The Machines
+              
+              movie
+              2021
+              81
+              
+              Shang-Chi and the Legend of the Ten Rings
+              
+              movie
+              2021
+              71
+              
+              Dawn of the Planet of the Apes
+              
+              movie
+              2014
+              79
+            
+            The Chronicles of Narnia: The Voyage of the Dawn Treader
+              
+              movie
+              2010
+              53
+              
+              The Tale of The Princess Kaguya
+              
+              movie
+              2013
+              89
+              
+              The Trial of the Chicago 7
+              
+              movie
+              2020
+              76
+              
+              The Diving Bell and the Butterfly
+              
+              movie
+              2007
+              92
+              
+              The Silence of the Lambs
+              
+              movie
+              1991
+              86
+              
+              The Cabin in the Woods
+              
+              movie
+              2011
+              72
+            
+            Wallace & Gromit: The Curse of the Were-Rabbit
+              
+              movie
+              2005
+              87
+            
+            The Hobbit: The Desolation of Smaug
+              
+              movie
+              2013
+              66
+              
+              Harry Potter and the Order of the Phoenix
+              
+              movie
+              2007
+              71
+              
+              The Girl with the Dragon Tattoo
+              
+              movie
+              2011
+              71
+              
+              The Squid and the Whale
+              
+              movie
+              2005
+              82
+            
+            The Witcher: Nightmare of the Wolf
+              
+              movie
+              2021
+              67
+      default: "N/A"
 
-  - name: search_movie_on_metacritic
-    description: >
-      Searches for the Metacritic score for a given movie title. Returns text from Metasritics web site,
-      containing the list of possible matches (movie title, release year, score).
-    params:
-      - name: movie_title
-        description: Movie title
-        type: str
-    tool_ref: fetch_page_text
-    tool_params:
-      url: "https://www.metacritic.com/search/{movie_title}/?page=1&category=2"
-      xpath: "//*[@class=\"c-pageSiteSearch-results\"]"
-
-  # LLM tool as a generic way to call specific tool and parse result
   - name: metacritic_monkey
     description: >
       Finds the Metacritic score for a given movie title and year. Returns either a single number or "N/A" if the movie is not found.
-    params:
+    input:
       - name: movie_title
         description: Movie title
         type: str
       - name: movie_year
         description: Movie release year
         type: int
-    type: LLM
-    system_message: >
-      Your job is to find the Metacritic score for a movie by title and release year.
-      To do so:
-        - Search for movie on Metacritic site using provided tool
-        - From the tool output, chose the one matching movie title and year and return metacritic score as single number
-        - If no matching movie is found, you MUST respond with just "N/A" (without quotes)
-        - DO NOT provide any additional information in the response
-    prompt: >
-      Find Metacritic score for movie "{movie_title}" released in {movie_year}.
-    tool_refs:
-      - search_movie_on_metacritic
+    body:
+      - call: fetch_page_text
+        params:
+          url: "https://www.metacritic.com/search/{movie_title}/?page=1&category=2"
+          xpath: "//*[@class=\"c-pageSiteSearch-results\"]"
+#      - call: search_movie_on_metacritic_stub
+#        params:
+#          movie_title: "{movie_title}"
+#          movie_year: "{movie_year}"
+      - call: LLM
+        model: default
+        params:
+          prompt: >
+            Find Metacritic score for movie "{movie_title}" released in {movie_year}.
+            To do so:
+              - From the list of possible matches, chose the one matching movie title and year and return metacritic score as single number
+              - If no matching movie is found, respond with just "N/A" (without quotes)
+              - DO NOT provide any additional information in the response
+            
+            Possible matches:
+            {output.0}
+          
 
 main:
   default_prompt: Your job is to find metacritic score for the movie "Soul" (2020).

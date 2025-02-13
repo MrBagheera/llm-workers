@@ -1,36 +1,100 @@
-from typing import Annotated, Any, Self
-
 import yaml
-from pydantic import BaseModel, Field, Tag, Discriminator
+from pydantic import BaseModel
 
 from llm_workers.llm import BaseLLMConfig
-from llm_workers.tools.custom_tools_base import Json
-from llm_workers.tools.llm_tool import LLMToolDefinition
-from llm_workers.tools.stub_tool import StubToolDefinition
-from llm_workers.tools.t2_ai_wrapper import T2AiWrapperToolDefinition
-from llm_workers.tools.tool_binding import ToolBindingDefinition
+
+from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict
+
+from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import ValidationError, WrapValidator
+from pydantic_core import PydanticCustomError
+from pydantic_core.core_schema import ValidatorFunctionWrapHandler, ValidationInfo
+from typing_extensions import Self
 
 
-def custom_tool_discriminator_value(v: Any) -> str:
-    if isinstance(v, dict):
-        result = v.get('type')
-    else:
-        result = getattr(v, 'type')
-    return 'tool_binding' if result is None else result
+def json_custom_error_validator(
+        value: Any,
+        handler: ValidatorFunctionWrapHandler,
+        _info: ValidationInfo
+) -> Any:
+    """Simplify the error message to avoid a gross error stemming
+    from exhaustive checking of all union options.
+    """
+    try:
+        return handler(value)
+    except ValidationError:
+        raise PydanticCustomError(
+            'invalid_json',
+            'Input is not valid json',
+        )
 
-CustomToolDefinition = Annotated[
-    Annotated[ToolBindingDefinition, Tag('tool_binding')] |
-    Annotated[T2AiWrapperToolDefinition, Tag('t2-ai-wrapper')] |
-    Annotated[StubToolDefinition, Tag('stub')] |
-    Annotated[LLMToolDefinition, Tag('LLM')],
-    Field(discriminator=Discriminator(custom_tool_discriminator_value))
-]
+Json = TypeAliasType(
+    'Json',
+    Annotated[
+        Union[dict[str, 'Json'], list['Json'], str, int, float, bool, None],
+        WrapValidator(json_custom_error_validator),
+    ],
+)
+
 
 class ModelConfig(BaseModel):
     name: str
     provider: str
     model: str
     model_params: Json = None
+
+
+StatementDefinition = TypeAliasType(
+    'StatementDefinition',
+    Union['CallDefinition', 'MatchDefinition', 'ResultDefinition'],
+)
+
+BodyDefinition = TypeAliasType(
+    'BodyDefinition',
+    Union[StatementDefinition, List[StatementDefinition]],
+)
+
+class ResultDefinition(BaseModel):
+    result: Json
+
+class CallDefinition(BaseModel):
+    call: str
+    params: Optional[Dict[str, Json]] = None
+    model_config = ConfigDict(extra='allow')
+
+class MatchClauseDefinition(BaseModel):
+    case: Optional[str] = None
+    pattern: Optional[str] = None
+    then: BodyDefinition
+
+    @classmethod
+    @model_validator(mode='after')
+    def validate(cls, value: Any) -> Self:
+        if value.case is None and value.pattern is None:
+            raise ValueError("Either 'case' or 'pattern' must be provided")
+        if value.case is not None and value.pattern is not None:
+            raise ValueError("Only one of 'case' or 'pattern' can be provided")
+        return value
+
+class MatchDefinition(BaseModel):
+    match: str
+    trim: bool = False
+    matchers: List[MatchClauseDefinition]
+    default: BodyDefinition
+
+class CustomToolParamsDefinition(BaseModel):
+    name: str
+    description: str
+    type: str
+    default: Optional[Json] = None
+
+class CustomToolDefinition(BaseModel):
+    name: str
+    description: str
+    input: List[CustomToolParamsDefinition]
+    body: BodyDefinition
+    return_direct: bool = False
+
 
 class MainConfig(BaseLLMConfig):
     default_prompt: str | None = None
@@ -50,10 +114,12 @@ class MainConfig(BaseLLMConfig):
             raise ValueError("system_prompt and prompt cannot be set at the same time")
         return obj
 
+
 class WorkerConfig(BaseModel):
     models: list[ModelConfig]
     custom_tools: list[CustomToolDefinition] = ()
     main: MainConfig
+
 
 def load_config(file_path: str) -> WorkerConfig:
     with open(file_path, 'r') as file:

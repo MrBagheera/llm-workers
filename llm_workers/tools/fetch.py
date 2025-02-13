@@ -12,7 +12,7 @@ from lxml_html_clean import Cleaner
 from pydantic import BaseModel
 from requests import RequestException
 
-from llm_workers.tools.custom_tools_base import Json
+from llm_workers.config import Json
 
 
 def _fetch_content(

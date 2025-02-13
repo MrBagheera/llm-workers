@@ -2,48 +2,33 @@ import logging
 import sys
 from typing import Optional, Any, List, Iterator, Dict, AsyncIterator
 
-from langchain.chat_models import init_chat_model
 from langchain.globals import get_verbose
 from langchain_community.callbacks import get_openai_callback
-from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, BaseMessage
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.runnables.utils import Input
 
 from llm_workers.config import load_config, WorkerConfig
+from llm_workers.context import StandardContext
 from llm_workers.llm import build_tool_calling_llm
-from llm_workers.tools.registry import ToolRegistry
-
 
 logger = logging.getLogger(__name__)
 
 class LlmWorker(Runnable[str, List[BaseMessage]]):
     def __init__(self, config_filename: str):
         logger.info(f"Loading from {config_filename}")
-        self._config = load_config(config_filename)
-        self._model_registry = dict[str, BaseChatModel]()
-        for model in self._config.models:
-            model_params = model.model_params or {}
-            self._model_registry[model.name] = init_chat_model(model.model, model_provider=model.provider, configurable_fields=None, **model_params)
-        self._tool_registry = ToolRegistry()
-        self._tool_registry.register_custom_tools(self._model_lookup, self._config.custom_tools)
-        self._llm = build_tool_calling_llm(self._config.main, models_lookup = self._model_lookup, tools_lookup=self._tool_registry.resolve_tool_refs)
+        self._context = StandardContext(load_config(config_filename))
+        self._llm = build_tool_calling_llm(self.config.main, self._context)
         self._openai_callback_generator = get_openai_callback()
         self._openai_callback = self._openai_callback_generator.__enter__()
 
     @property
     def config(self) -> WorkerConfig:
-        return self._config
+        return self._context.config
 
     @property
     def default_prompt(self) -> str:
-        return self._config.main.default_prompt
-
-    def _model_lookup(self, name: str) -> BaseChatModel:
-        model = self._model_registry[name]
-        if model is None:
-            raise ValueError(f"Model '{name}' not found.")
-        return model
+        return self.config.main.default_prompt
 
     @staticmethod
     # noinspection PyShadowingBuiltins
