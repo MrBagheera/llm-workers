@@ -1,16 +1,18 @@
 import argparse
+import logging
 import sys
 from collections.abc import Iterator
-from typing import List
-import logging
+from typing import List, Any
 
 from dotenv import load_dotenv
 from langchain.globals import set_verbose, set_debug
 from langchain_community.callbacks import get_openai_callback
 from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.runnables import Runnable
 
+from llm_workers.context import StandardContext
+from llm_workers.tools.custom_tool import create_statement_from_model
 from llm_workers.utils import setup_logging
-from llm_workers.worker import LlmWorker
 
 load_dotenv()
 
@@ -40,7 +42,7 @@ def main():
     )
     # Optional arguments for prompts or stdin input
     parser.add_argument(
-        'prompts', nargs='*', help="Prompts for the script (or use '--' to read from stdin)."
+        'inputs', nargs='*', help="Inputs for the script (or use '--' to read from stdin)."
     )
     args = parser.parse_args()
 
@@ -56,30 +58,27 @@ def main():
     else:
         setup_logging(console_level=logging.WARNING)
 
-    worker = LlmWorker(args.script_file)
+    context = StandardContext.from_file(args.script_file)
+    if context.config.cli is None:
+        parser.error(f"No CLI configuration found in {args.script_file}.")
+    worker: Runnable[dict[str, Any], Any] = create_statement_from_model(["input"], context.config.cli, context)
 
     with get_openai_callback() as cb:
-        try:
-            # Determine the input mode
-            if '--' in sys.argv:
-                if args.prompts:
-                    parser.error("Cannot use both command-line prompts and '--'.")
-                for line in sys.stdin:
-                    line = line.strip()
-                    final_prompt = line if worker.default_prompt is None else f"{worker.default_prompt} {line}"
-                    print_model_output(worker.stream(final_prompt))
+        # Determine the input mode
+        if '--' in sys.argv:
+            if args.inputs:
+                parser.error("Cannot use both command-line inputs and '--'.")
+            for input in sys.stdin:
+                input = input.strip()
+                result = worker.invoke({"input": input})
+                print(result)
+        else:
+            if args.inputs:
+                for input in args.inputs:
+                    result = worker.invoke({"input": input})
+                    print(result)
             else:
-                if args.prompts:
-                    for prompt in args.prompts:
-                        final_prompt = prompt if worker.default_prompt is None else f"{worker.default_prompt} {prompt}"
-                        print_model_output(worker.stream(final_prompt))
-                else:
-                    if worker.default_prompt is not None:
-                        print_model_output(worker.stream(worker.default_prompt))
-                    else:
-                        parser.error(f"No prompts provided and no default prompt set in {args.script_file}.")
-        finally:
-            worker.close()
+                parser.error(f"No inputs provided in {args.script_file}.")
 
     print(f"Total Tokens: {cb.total_tokens}", file=sys.stderr)
     print(f"Prompt Tokens: {cb.prompt_tokens}", file=sys.stderr)

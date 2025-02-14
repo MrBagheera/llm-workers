@@ -1,15 +1,13 @@
-import yaml
-from pydantic import BaseModel
-
-from llm_workers.llm import BaseLLMConfig
-
 from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict
 
+import yaml
 from pydantic import BaseModel, ConfigDict, model_validator
 from pydantic import ValidationError, WrapValidator
 from pydantic_core import PydanticCustomError
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler, ValidationInfo
 from typing_extensions import Self
+
+from llm_workers.llm import BaseLLMConfig
 
 
 def json_custom_error_validator(
@@ -96,29 +94,14 @@ class CustomToolDefinition(BaseModel):
     return_direct: bool = False
 
 
-class MainConfig(BaseLLMConfig):
-    default_prompt: str | None = None
-
-    @classmethod
-    def model_validate(
-        cls,
-        obj: Any,
-        *,
-        strict: bool | None = None,
-        from_attributes: bool | None = None,
-        context: Any | None = None,
-    ) -> Self:
-        obj = super().model_validate(obj, strict=strict, from_attributes=from_attributes, context=context)
-        # either system_prompt or prompt must be set
-        if obj.system_message and obj.prompt:
-            raise ValueError("system_prompt and prompt cannot be set at the same time")
-        return obj
-
+class ChatConfig(BaseLLMConfig):
+    default_prompt: Optional[str] = None
 
 class WorkerConfig(BaseModel):
     models: list[ModelConfig]
     custom_tools: list[CustomToolDefinition] = ()
-    main: MainConfig
+    chat: Optional[ChatConfig] = None
+    cli: Optional[BodyDefinition] = None
 
 
 def load_config(file_path: str) -> WorkerConfig:

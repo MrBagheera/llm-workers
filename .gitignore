@@ -45,4 +45,4 @@ docs/_build/
 # poetry.lock
 
 # test files
-test.ipynb
+/workspace/

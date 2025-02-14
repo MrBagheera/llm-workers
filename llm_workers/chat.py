@@ -13,6 +13,7 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
 from rich.console import Console
 
+from llm_workers.context import StandardContext
 from llm_workers.utils import format_tool_call, setup_logging
 from llm_workers.worker import LlmWorker
 
@@ -22,7 +23,7 @@ class ChatSession:
     def __init__(self, console: Console, script_file: str):
         self._script_file = script_file
         self._console = console
-        self._worker = LlmWorker(script_file)
+        self._worker = LlmWorker(StandardContext.from_file(script_file))
         self._iteration = 1
         self._messages = list[BaseMessage]()
         self._history = InMemoryHistory()
@@ -36,8 +37,11 @@ class ChatSession:
         self._pre_input = ""
 
     def run(self):
-        if self._worker.default_prompt is not None:
-            self._pre_input = self._worker.default_prompt
+        config = self._worker.config.chat
+        if config is None:
+            raise ValueError(f"'chat' section is missing from '{self._script_file}'")
+        if config.default_prompt is not None:
+            self._pre_input = config.default_prompt
 
         session = PromptSession(history = self._history)
         try:
@@ -94,9 +98,8 @@ class ChatSession:
             return
 
         self._console.print(f"(Re)loading LLM script from {script_file}", style="bold white")
-        self._worker.close()
         self._script_file = script_file
-        self._worker = LlmWorker(script_file)
+        self._worker = LlmWorker(StandardContext.from_file(script_file))
 
     def _rewind(self, params: list[str]):
         """[N] - Rewinds chat session to input N (default to previous)"""
@@ -159,8 +162,6 @@ class ChatSession:
                 self._messages.append(message)
                 logger.debug(f"Appending {repr(message)} to session history")
 
-    def close(self):
-        self._worker.close()
 
 
 def main():
@@ -186,10 +187,7 @@ def main():
     chat_session = ChatSession(_console, args.script_file)
 
     with get_openai_callback() as cb:
-        try:
-            chat_session.run()
-        finally:
-            chat_session.close()
+        chat_session.run()
 
     print(f"Total Tokens: {cb.total_tokens}", file=sys.stderr)
     print(f"Prompt Tokens: {cb.prompt_tokens}", file=sys.stderr)

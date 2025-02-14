@@ -4,6 +4,12 @@ from typing import Any, Dict, Optional
 
 
 class LLMWorkersContext(ABC):
+
+    @property
+    @abstractmethod
+    def config(self):
+        pass
+
     @abstractmethod
     def get_tool(self, tool_name: str, config: Optional[Dict[str, Any]] = None ):
         pass

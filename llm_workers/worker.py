@@ -3,32 +3,24 @@ import sys
 from typing import Optional, Any, List, Iterator, Dict, AsyncIterator
 
 from langchain.globals import get_verbose
-from langchain_community.callbacks import get_openai_callback
 from langchain_core.messages import HumanMessage, BaseMessage
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.runnables.utils import Input
 
-from llm_workers.config import load_config, WorkerConfig
-from llm_workers.context import StandardContext
+from llm_workers.api import LLMWorkersContext
+from llm_workers.config import WorkerConfig
 from llm_workers.llm import build_tool_calling_llm
 
 logger = logging.getLogger(__name__)
 
 class LlmWorker(Runnable[str, List[BaseMessage]]):
-    def __init__(self, config_filename: str):
-        logger.info(f"Loading from {config_filename}")
-        self._context = StandardContext(load_config(config_filename))
-        self._llm = build_tool_calling_llm(self.config.main, self._context)
-        self._openai_callback_generator = get_openai_callback()
-        self._openai_callback = self._openai_callback_generator.__enter__()
+    def __init__(self, context: LLMWorkersContext):
+        self._context = context
+        self._llm = build_tool_calling_llm(self.config.chat, self._context)
 
     @property
     def config(self) -> WorkerConfig:
         return self._context.config
-
-    @property
-    def default_prompt(self) -> str:
-        return self.config.main.default_prompt
 
     @staticmethod
     # noinspection PyShadowingBuiltins
@@ -82,7 +74,3 @@ class LlmWorker(Runnable[str, List[BaseMessage]]):
         llm_output = self._llm.astream(input=LlmWorker._transform_input(input), config=config, stream_mode = "values", **kwargs)
         return LlmWorker._transform_async_iterator(llm_output)
 
-    def close(self) -> None:
-        """Prints final statistics."""
-        logger.info("Closing")
-        # nothing here yet

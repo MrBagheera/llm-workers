@@ -109,30 +109,15 @@ custom_tools:
           model: claude-3-haiku
     return_direct: true
 
-  - name: test_chain
-    description: Test chain of tools
-    input:
-      - name: file
-        description: File name
-        type: str
-      - name: skip_seconds
-        description: Number of seconds to skip at the beginning of the file
-        type: int
-        default: 0
-    body:
-      - call: generate_presentation_transcript
-        params:
-          file: "{file}"
-          skip_seconds: "{skip_seconds}"
-      - call: summarize_presentation_transcript
-        params:
-          transcript: "{output0}"
-      - result: |-
-          Here is summary for presentation "{file}": 
-          
-          {output1}
+cli:
+  - call: generate_presentation_transcript
+    params:
+      file: "{input}"
+  - call: summarize_presentation_transcript
+    params:
+      transcript: "{output0}"
 
-main:
+chat:
   system_message: |-
     You are secretary in Small Giant Games Oy, small Finnish mobile game company. The company is fully owned
     by Zynga Inc., which is now part of Take Two Interactive.
@@ -147,9 +132,9 @@ main:
     After getting transcript make a summary of it using appropriate tool. If any has tool failed, show tool error message.
   default_prompt: |-
     Please make and print transcript of following presentation:
-    /Users/dmikhaylov/Private/video-to-summary/GMT20250127-082755_Recording.m4a, start from 3 minutes
+    workspace/GMT20250127-082755_Recording.m4a, start from 3 minutes
   tool_refs:
     - generate_meeting_transcript
     - generate_presentation_transcript
-    - summarize_meeting_transcript
-    - summarize_presentation_transcript
+#    - summarize_meeting_transcript
+#    - summarize_presentation_transcript

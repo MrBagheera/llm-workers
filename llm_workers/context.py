@@ -8,7 +8,7 @@ from langchain_core.tools import BaseTool
 
 import llm_workers.tools.llm_tool
 from llm_workers.api import LLMWorkersContext
-from llm_workers.config import WorkerConfig
+from llm_workers.config import WorkerConfig, load_config
 from llm_workers.tools.custom_tool import build_custom_tool
 
 logger = logging.getLogger(__name__)
@@ -45,6 +45,12 @@ class StandardContext(LLMWorkersContext):
             if tool.name in self._tools:
                 raise ValueError(f"Failed to create custom tool {definition.name}: tool already defined")
             self._tools[tool.name] = tool
+
+
+    @classmethod
+    def from_file(cls, file_path: str):
+        logger.info(f"Loading from {file_path}")
+        return cls(load_config(file_path))
 
     @property
     def config(self) -> WorkerConfig:
