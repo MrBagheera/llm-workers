@@ -104,12 +104,12 @@ Common flags:
 - [x] improve logging for CLI (log only info and above to stderr, debug to file)
 - [x] `t2-ai-wrapper` tool
 - [x] tool chaining
-- [x] `switch` tool
+- [x] `match` tool
 - [x] better use of prompts and command-line args
 - [x] import tool factories
 - [x] import LangChain tool/toolkit instances
+- [x] extract unrelated tools to separate packages
 - [ ] import from LangChain tool/toolkit classes
-- [ ] extract unrelated tools to separate packages
 - [ ] chose license - MIT, as LangChain
 - [ ] decide how to host the source code - as SGG or as a private person
 
@@ -117,7 +117,7 @@ Common flags:
 
 - `prompts` section
 - `foreach` statements
-- `splt` tool
+- `split` tool
 - `merge` tool
 - `exec` tool
 - support accessing nested JSON elements in templates
