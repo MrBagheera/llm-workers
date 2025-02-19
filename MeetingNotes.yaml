@@ -13,7 +13,7 @@ models:
 #      num_ctx: 16384
 #      num_predict: 16384
 
-imports:
+tools:
   - llm_workers.tools.transcribe_whisper_cpp.make_transcript
   - llm_workers.tools.t2_ai_wrapper.t2_ai_wrapper
 

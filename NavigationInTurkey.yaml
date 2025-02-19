@@ -6,7 +6,7 @@ models:
     provider: openai
     model: gpt-4o
 
-imports:
+tools:
   - llm_workers.tools.fetch.fetch_page_markdown
 
 cli:

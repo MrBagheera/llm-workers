@@ -102,7 +102,7 @@ class ChatConfig(BaseLLMConfig):
 
 class WorkersConfig(BaseModel):
     models: list[ModelConfig]
-    imports: list[str] = ()
+    tools: list[str] = ()
     custom_tools: list[CustomToolDefinition] = ()
     chat: Optional[ChatConfig] = None
     cli: Optional[BodyDefinition] = None

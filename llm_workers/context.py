@@ -34,8 +34,8 @@ class StandardContext(WorkersContext):
         self._tools = dict[str, BaseTool]()
         self._register_models()
         self._register_builtin_tools_factories()
-        self._process_imports()
         self._register_builtin_tools()
+        self._register_tools()
         self._register_custom_tools()
 
     def _register_models(self):
@@ -49,10 +49,10 @@ class StandardContext(WorkersContext):
         for tool_name, tool_factory in self._builtin_tools_factories.items():
             self._tool_factories[tool_name] = tool_factory
 
-    def _process_imports(self):
-        for import_def in self._config.imports:
+    def _register_tools(self):
+        for tool_def in self._config.tools:
             try:
-                segments = import_def.split('.')
+                segments = tool_def.split('.')
                 module = importlib.import_module('.'.join(segments[:-1]))
                 symbol = getattr(module, segments[-1])
                 if isinstance(symbol, BaseTool):
@@ -64,8 +64,10 @@ class StandardContext(WorkersContext):
                     if len(symbol.__annotations__) == 2 and 'context' in symbol.__annotations__ and 'config' in symbol.__annotations__:
                         self._tool_factories[symbol.__name__] = symbol
                         logger.info(f"Registered tool factory {symbol.__name__}")
+                    else:
+                        raise ValueError("invalid tool factory signature")
             except Exception as e:
-                raise ValueError(f"Failed to import module {import_def}: {e}", e)
+                raise ValueError(f"Failed to import module {tool_def}: {e}", e)
 
     def _register_builtin_tools(self):
         for tool in self._builtin_tools:
