@@ -108,7 +108,6 @@ Common flags:
 - [x] better use of prompts and command-line args
 - [x] import tool factories
 - [x] import LangChain tool/toolkit instances
-- [ ] create tools from methods
 - [ ] import from LangChain tool/toolkit classes
 - [ ] extract unrelated tools to separate packages
 - [ ] chose license - MIT, as LangChain

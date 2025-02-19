@@ -13,8 +13,6 @@ dependencies = [
     "beautifulsoup4~=4.12.3",
     "PyYAML~=6.0.2",
     "langchain-community~=0.3.14",
-    "torch (>=2.6.0,<3.0.0)",
-    "pyannote-audio (==3.3.2)",
     "prompt-toolkit (==3.0.50)",
     "langgraph (>=0.2.70,<0.3.0)",
     "langchain-openai (>=0.3.4,<0.4.0)",

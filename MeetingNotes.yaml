@@ -14,8 +14,8 @@ models:
 #      num_predict: 16384
 
 tools:
-  - llm_workers.tools.transcribe_whisper_cpp.make_transcript
-  - llm_workers.tools.t2_ai_wrapper.t2_ai_wrapper
+  - sgg_transcribe.transcribe_whisper_cpp.make_transcript
+  - t2_ai_relay.t2_ai_relay
 
 # Custom tools. To be available for LLM, reference to custom tool
 # must be included in tool_refs section of LLM definition.
@@ -73,7 +73,7 @@ custom_tools:
         description: Transcript of the meeting to summarize
         type: str
     body:
-      call: t2_ai_wrapper
+      call: t2_ai_relay
       params:
         endpoint: https://api-relay.applied-ai.zynga.com/v0/text/complete
         payload:
@@ -97,7 +97,7 @@ custom_tools:
         description: Transcript of the presentation to summarize
         type: str
     body:
-      call: t2_ai_wrapper
+      call: t2_ai_relay
       params:
         endpoint: https://api-relay.applied-ai.zynga.com/v0/text/complete
         payload:
