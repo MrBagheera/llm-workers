@@ -20,7 +20,6 @@ class StandardContext(WorkersContext):
 
     _builtin_tools = [
         llm_workers.tools.fetch.fetch_content,
-        llm_workers.tools.fetch.fetch_page_markdown,
         llm_workers.tools.fetch.fetch_page_text,
         llm_workers.tools.fetch.fetch_page_links
     ]

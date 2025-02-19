@@ -106,10 +106,10 @@ Common flags:
 - [x] tool chaining
 - [x] `switch` tool
 - [x] better use of prompts and command-line args
-- [ ] import tool factories
-- [ ] import LangChain tools
+- [x] import tool factories
+- [x] import LangChain tool/toolkit instances
 - [ ] create tools from methods
-- [ ] import from LangChain toolkits
+- [ ] import from LangChain tool/toolkit classes
 - [ ] extract unrelated tools to separate packages
 - [ ] chose license - MIT, as LangChain
 - [ ] decide how to host the source code - as SGG or as a private person

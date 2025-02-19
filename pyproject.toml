@@ -18,7 +18,6 @@ dependencies = [
     "prompt-toolkit (==3.0.50)",
     "langgraph (>=0.2.70,<0.3.0)",
     "langchain-openai (>=0.3.4,<0.4.0)",
-    "html2text (>=2024.2.26,<2025.0.0)",
     "html-text (>=0.7.0,<0.8.0)"
 ]
 

@@ -1033,17 +1033,6 @@ lxml = "*"
 lxml-html-clean = "*"
 
 [[package]]
-name = "html2text"
-version = "2024.2.26"
-description = "Turn HTML into equivalent Markdown-structured text."
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "html2text-2024.2.26.tar.gz", hash = "sha256:05f8e367d15aaabc96415376776cdd11afd5127a77fce6e36afc60c563ca2c32"},
-]
-
-[[package]]
 name = "httpcore"
 version = "1.0.7"
 description = "A minimal low-level HTTP client."
@@ -4844,4 +4833,4 @@ dev = ["langchain-aws"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "102deae5cf912283945fb7bc0800d17a475cda8d18a085cd380ecc2fdd0eaf10"
+content-hash = "e57c22ab5223802fd4288509ba8a7e6c881afc3d486c414ede72eea203bdf904"
