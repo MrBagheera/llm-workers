@@ -110,7 +110,7 @@ Common flags:
 - [x] import LangChain tool/toolkit instances
 - [x] extract unrelated tools to separate packages
 - [ ] import from LangChain tool/toolkit classes
-- [ ] chose license - MIT, as LangChain
+- [x] chose license - MIT, as LangChain
 - [ ] decide how to host the source code - as SGG or as a private person
 
 ## Version 0.2
