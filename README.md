@@ -76,6 +76,8 @@ Common flags:
 
 # To Do
 
+## Version 0.1
+
 - [x] Running main prompt
 - [x] General-purpose `debug` tool
 - [x] Specifying LLM provider and model (ollama/open-ai/claude)
@@ -100,22 +102,36 @@ Common flags:
 - [x] `/reload` command
 - [x] improve logging for chat (log only warns and above to stderr, debug to file)
 - [x] improve logging for CLI (log only info and above to stderr, debug to file)
-- [ ] `t2-ai-wrapper` tool
-- [ ] tool chaining
-- [ ] `switch` tool
-- [ ] better use of prompts and command-line args
-- [ ] restrict file access only to `cwd`
-- [ ] better names in cache, remove big files
-- [ ] cache cleanup
-- [ ] async versions for all tools
-- [ ] `search` tools
-- [ ] Add audit trail
+- [x] `t2-ai-wrapper` tool
+- [x] tool chaining
+- [x] `switch` tool
+- [x] better use of prompts and command-line args
+- [ ] import tool factories
+- [ ] import LangChain tools
+- [ ] create tools from methods
+- [ ] import from LangChain toolkits
+- [ ] extract unrelated tools to separate packages
+- [ ] chose license - MIT, as LangChain
+- [ ] decide how to host the source code - as SGG or as a private person
 
-# Further Ideas
+## Version 0.2
 
+- `prompts` section
+- `foreach` statements
+- `splt` tool
+- `merge` tool
+- `exec` tool
+- support accessing nested JSON elements in templates
+
+## Further Ideas
+
+- async versions for all built-in tools
+- proper error handling
+- restrict file access only to `cwd`
+- write trail
+- resume trail
 - read/write/list files
 - shell commands
 - running python scripts
-- support LangChain toolkits(?)
 - support acting as MCP server (expose `custom_tools`)
 - support acting as MCP host (use tools from configured MCP servers)

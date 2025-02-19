@@ -1,20 +1,12 @@
-from typing import List
-
 from langchain_core.messages import SystemMessage
 from langgraph.graph.graph import CompiledGraph
 from langgraph.prebuilt import create_react_agent
-from pydantic import BaseModel
 
-from llm_workers.api import LLMWorkersContext
-
-
-class BaseLLMConfig(BaseModel):
-    model_ref: str = "default"
-    system_message: str = None
-    tool_refs: List[str] = ()
+from llm_workers.api import WorkersContext
+from llm_workers.config import BaseLLMConfig
 
 
-def build_tool_calling_llm(llm_config: BaseLLMConfig, context: LLMWorkersContext) -> CompiledGraph:
+def build_tool_calling_llm(llm_config: BaseLLMConfig, context: WorkersContext) -> CompiledGraph:
     llm = context.get_llm(llm_config.model_ref) # init_chat_model(llm_config.model, model_provider=llm_config.provider, temperature=0)
     system_message = None
     if llm_config.system_message is not None:

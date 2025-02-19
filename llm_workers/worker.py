@@ -7,19 +7,19 @@ from langchain_core.messages import HumanMessage, BaseMessage
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.runnables.utils import Input
 
-from llm_workers.api import LLMWorkersContext
-from llm_workers.config import WorkerConfig
+from llm_workers.api import WorkersContext
+from llm_workers.config import WorkersConfig
 from llm_workers.llm import build_tool_calling_llm
 
 logger = logging.getLogger(__name__)
 
 class LlmWorker(Runnable[str, List[BaseMessage]]):
-    def __init__(self, context: LLMWorkersContext):
+    def __init__(self, context: WorkersContext):
         self._context = context
         self._llm = build_tool_calling_llm(self.config.chat, self._context)
 
     @property
-    def config(self) -> WorkerConfig:
+    def config(self) -> WorkersConfig:
         return self._context.config
 
     @staticmethod

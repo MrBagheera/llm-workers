@@ -8,7 +8,7 @@ from langchain_core.runnables.base import Runnable
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field, create_model
 
-from llm_workers.api import LLMWorkersContext
+from llm_workers.api import WorkersContext
 from llm_workers.config import Json, CustomToolParamsDefinition, \
     CallDefinition, ResultDefinition, StatementDefinition, MatchDefinition, CustomToolDefinition
 
@@ -115,7 +115,7 @@ class ResultStatement(Runnable[Dict[str, Json], Json]):
 
 class CallStatement(Runnable[Dict[str, Json], Json]):
 
-    def __init__(self, valid_template_vars: List[str], model: CallDefinition, context: LLMWorkersContext):
+    def __init__(self, valid_template_vars: List[str], model: CallDefinition, context: WorkersContext):
         self._tool = context.get_tool(model.call, model.__pydantic_extra__)
         self._template_helper = TemplateHelper.from_valid_template_vars(valid_template_vars, model.params)
 
@@ -148,7 +148,7 @@ class CallStatement(Runnable[Dict[str, Json], Json]):
 
 class FlowStatement(Runnable[Dict[str, Json], Json]):
 
-    def __init__(self, valid_template_vars: List[str], model: list[StatementDefinition], context: LLMWorkersContext):
+    def __init__(self, valid_template_vars: List[str], model: list[StatementDefinition], context: WorkersContext):
         valid_template_vars = copy(valid_template_vars) # shallow copy is enough, we only append
         self._statements = []
         i = 0
@@ -182,7 +182,7 @@ class FlowStatement(Runnable[Dict[str, Json], Json]):
 class MatchStatement(Runnable[Dict[str, Json], Json]):
     match_key: str = 'match'
 
-    def __init__(self, valid_template_vars: List[str], model: MatchDefinition, context: LLMWorkersContext):
+    def __init__(self, valid_template_vars: List[str], model: MatchDefinition, context: WorkersContext):
         self._template_helper = TemplateHelper.from_valid_template_vars(valid_template_vars, {MatchStatement.match_key: model.match})
         self._trim = model.trim
         self._clauses = []
@@ -223,7 +223,7 @@ class MatchStatement(Runnable[Dict[str, Json], Json]):
         return self._default.invoke(input, config, **kwargs)
 
 
-def create_statement_from_model(valid_template_vars: List[str], model: StatementDefinition, context: LLMWorkersContext) -> Statement:
+def create_statement_from_model(valid_template_vars: List[str], model: StatementDefinition, context: WorkersContext) -> Statement:
     if isinstance(model, ResultDefinition):
         return ResultStatement(valid_template_vars, model)
     elif isinstance(model, CallDefinition):
@@ -250,7 +250,7 @@ def create_dynamic_schema(name: str, params: list[CustomToolParamsDefinition]) -
     return create_model(model_name, **fields)
 
 
-def build_custom_tool(definition: CustomToolDefinition, context: LLMWorkersContext) -> StructuredTool:
+def build_custom_tool(definition: CustomToolDefinition, context: WorkersContext) -> StructuredTool:
     valid_template_vars = [param.name for param in definition.input]
     args_schema = create_dynamic_schema(definition.name, definition.input)
     body = create_statement_from_model(valid_template_vars, definition.body, context)

@@ -13,6 +13,10 @@ models:
 #      num_ctx: 16384
 #      num_predict: 16384
 
+imports:
+  - llm_workers.tools.transcribe_whisper_cpp.make_transcript
+  - llm_workers.tools.t2_ai_wrapper.t2_ai_wrapper
+
 # Custom tools. To be available for LLM, reference to custom tool
 # must be included in tool_refs section of LLM definition.
 custom_tools:

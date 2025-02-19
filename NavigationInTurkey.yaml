@@ -6,7 +6,38 @@ models:
     provider: openai
     model: gpt-4o
 
-main:
+#custom_tools:
+#  - name: fetch_page_markdown
+#    description: >
+#      Fetches a page from the web and converts it to markdown.
+#    input:
+#      - name: url
+#        description: URL of the page to fetch
+#        type: str
+#      - name: xpath
+#        description: XPath to extract from the page
+#        type: str
+#        default: ""
+#    body:
+#      - call: fetch_content
+#        params:
+#          url: "{url}"
+#          xpath: "{xpath}"
+#      - call_python: html2text.html2text
+#        params:
+#          html: "{output0}"
+#          base_url: "{url}"
+#          body_width: 0
+
+cli:
+  call: llm
+  tool_refs:
+    - fetch_page_markdown
+  params:
+    prompt: >
+      Please fetch the page from {input} and list links under section "KOY". Only the links, without any extra formatting.
+
+chat:
   system_message: >
     You are an assistant to a sailing boat navigator.
     
@@ -17,7 +48,7 @@ main:
        - services and docking information (for marinas) or anchoring recommendations and protection offered (for anchorages
        - navigational hazards
        - other information relevant to boating
-#  default_prompt: >
-#/    Please fetch the page from https://www.coastguidetr.com/tr/korfez/1009/yesilova-korfezi-kadirga-burnu-arasi and list links under section "KOY"
+  default_prompt: >
+    Please fetch the page from https://www.coastguidetr.com/tr/korfez/1009/yesilova-korfezi-kadirga-burnu-arasi and list links under section "KOY"
   tool_refs:
     - fetch_page_markdown

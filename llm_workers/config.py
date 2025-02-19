@@ -7,8 +7,6 @@ from pydantic_core import PydanticCustomError
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler, ValidationInfo
 from typing_extensions import Self
 
-from llm_workers.llm import BaseLLMConfig
-
 
 def json_custom_error_validator(
         value: Any,
@@ -94,17 +92,23 @@ class CustomToolDefinition(BaseModel):
     return_direct: bool = False
 
 
+class BaseLLMConfig(BaseModel):
+    model_ref: str = "default"
+    system_message: str = None
+    tool_refs: List[str] = ()
+
 class ChatConfig(BaseLLMConfig):
     default_prompt: Optional[str] = None
 
-class WorkerConfig(BaseModel):
+class WorkersConfig(BaseModel):
     models: list[ModelConfig]
+    imports: list[str] = ()
     custom_tools: list[CustomToolDefinition] = ()
     chat: Optional[ChatConfig] = None
     cli: Optional[BodyDefinition] = None
 
 
-def load_config(file_path: str) -> WorkerConfig:
+def load_config(file_path: str) -> WorkersConfig:
     with open(file_path, 'r') as file:
         config_data = yaml.safe_load(file)
-    return WorkerConfig(**config_data)
+    return WorkersConfig(**config_data)

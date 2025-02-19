@@ -1,13 +1,16 @@
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Callable
+from langchain_core.tools import BaseTool
+
+from llm_workers.config import WorkersConfig
 
 
-class LLMWorkersContext(ABC):
+class WorkersContext(ABC):
 
     @property
     @abstractmethod
-    def config(self):
+    def config(self) -> WorkersConfig:
         pass
 
     @abstractmethod
@@ -17,3 +20,7 @@ class LLMWorkersContext(ABC):
     @abstractmethod
     def get_llm(self, llm_name: str):
         pass
+
+
+ToolFactory = Callable[[WorkersContext, Dict[str, Any]], BaseTool]
+
