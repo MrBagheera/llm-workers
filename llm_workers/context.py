@@ -122,8 +122,6 @@ class StandardContext(WorkersContext):
                 available_tools = list(dict.fromkeys(available_tools)) # remove duplicates
                 raise ValueError(f"Tool {tool_name} not found, available tools: {available_tools}")
         else:
-            if tool_name in self._tools:
-                raise ValueError(f"Cannot create tool {tool_name} with custom config, tool already exists")
             if tool_name in self._builtin_tools_factories:
                 try:
                     tool = self._builtin_tools_factories[tool_name](self, config)
