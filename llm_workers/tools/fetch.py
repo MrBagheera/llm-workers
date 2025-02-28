@@ -42,13 +42,13 @@ def _fetch_content(
         # Check for a valid response (HTTP Status Code 200)
         if response.status_code != 200:
             if response.status_code == 404:
-                return _handle_no_content(url, on_no_content, empty="")
+                return _handle_no_content(url, '', on_no_content, empty="")
             else:
                 raise RequestException(f"HTTP status code {response.status_code}")
         # TODO handle non-text content
-        return response.content.decode('utf-8')
+        return response.content.decode('utf-8', errors='ignore')
     except IOError as e:
-        return _handle_error(e, on_error, empty = "")
+        return _handle_error(url, e, on_error, empty = "")
 
 fetch_content = StructuredTool.from_function(
     _fetch_content,
@@ -58,19 +58,19 @@ fetch_content = StructuredTool.from_function(
 )
 
 
-def _handle_error(e: IOError, on_error: Literal['raise_exception', 'return_error', 'return_empty'], empty: Json) -> Json:
+def _handle_error(url: str, e: IOError, on_error: Literal['raise_exception', 'return_error', 'return_empty'], empty: Json) -> Json:
     if on_error == "raise_exception":
-        raise e
+        raise ToolException(f"Error fetching {url}: {e}", e)
     elif on_error == "return_error":
-        return {'error': str(e)}
+        return {'error': str(e), 'url': url}
     else:
         return empty
 
-def _handle_no_content(xpath: str, on_no_content: Literal['raise_exception', 'return_error', 'return_empty'], empty: Json) -> Json:
+def _handle_no_content(url: str, xpath: str, on_no_content: Literal['raise_exception', 'return_error', 'return_empty'], empty: Json) -> Json:
     if on_no_content == "raise_exception":
-        raise ToolException(f"No content matching '{xpath}' found")
+        raise ToolException(f"No content matching '{xpath}' found at url {url}")
     elif on_no_content == "return_error":
-        return {'error': f"No content matching '{xpath}' found"}
+        return {'error': f"No content matching '{xpath}' found", 'url': url}
     else:
         return empty
 
@@ -127,7 +127,7 @@ def _fetch_page_markdown(
                 baseurl=url,
                 bodywidth=0))
         if len(texts) == 0:
-            return _handle_no_content(xpath, on_no_content, empty="")
+            return _handle_no_content(url, xpath, on_no_content, empty="")
         return '\n'.join(texts)
 
 
@@ -167,7 +167,7 @@ def _fetch_page_text(
         for element in cleaned_tree.xpath(xpath):
             texts.append(html_text.etree_to_text(element))
         if len(texts) == 0:
-            return _handle_no_content(xpath, on_no_content, empty="")
+            return _handle_no_content(url, xpath, on_no_content, empty="")
         return '\n'.join(texts)
 
 fetch_page_text = StructuredTool.from_function(
@@ -219,7 +219,7 @@ def _fetch_page_links(
                     text = None
                 links.append(LinkTextPair(link=href, text=text))
     if not found:
-        return _handle_no_content(xpath, on_no_content, empty = [])
+        return _handle_no_content(url, xpath, on_no_content, empty = [])
     return links
 
 fetch_page_links = StructuredTool.from_function(

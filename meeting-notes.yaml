@@ -136,7 +136,6 @@ chat:
     After getting transcript make a summary of it using appropriate tool. If any has tool failed, show tool error message.
   default_prompt: |-
     Please make and print transcript of following presentation:
-    workspace/GMT20250127-082755_Recording.m4a, start from 3 minutes
   tool_refs:
     - generate_meeting_transcript
     - generate_presentation_transcript

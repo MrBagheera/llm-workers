@@ -41,6 +41,7 @@ class ChatSession:
         self._finished = False
         self._pre_input = ""
         self._callbacks = [ChatSessionCallbackDelegate(self)]
+        self._chunks_len = 0
 
     def run(self):
         config = self._context.config.chat
@@ -52,8 +53,11 @@ class ChatSession:
             while not self._finished:
                 if len(self._messages) > 0:
                     print()
-                self._console.print(f"[bold green]#{self._iteration} Your input: [/bold green] [grey69 italic](Meta+Enter or Escape,Enter to submit, /help for commands list)[/grey69 italic]")
-                text = session.prompt(default=self._pre_input, multiline=True)
+                    print()
+                    print()
+                self._console.print(f"#{self._iteration} Your input:", style="bold green", end="")
+                self._console.print(" (Meta+Enter or Escape,Enter to submit, /help for commands list)", style="grey69 italic")
+                text = session.prompt(default=self._pre_input.strip(), multiline=True)
                 self._pre_input = ""
                 if self._parse_and_run_command(text):
                     continue
@@ -61,6 +65,7 @@ class ChatSession:
                 self._console.print(f"#{self._iteration} AI:", style="bold green")
                 message = HumanMessage(text)
                 self._messages.append(message)
+                self._chunks_len = 0
                 logger.debug("Running new prompt for #%s:\n%r", self._iteration, LazyPrettyRepr(message))
                 self._messages.extend(self._worker.invoke(self._messages, config={"callbacks": self._callbacks}))
                 self._iteration = self._iteration + 1
@@ -151,12 +156,19 @@ class ChatSession:
         self._finished = True
 
     def process_model_chunk(self, token: str):
+        self._chunks_len = self._chunks_len + len(token)
         print(token, end="", flush=True)
 
     def process_model_message(self, message: BaseMessage):
+        if self._chunks_len > 0:
+            print()
+            self._chunks_len = 0
         self._console.print(message.content)
 
     def process_tool_start(self, name: str):
+        if self._chunks_len > 0:
+            print()
+            self._chunks_len = 0
         self._console.print(f"Running tool {name}", style="bold white")
 
 
@@ -168,6 +180,11 @@ class ChatSessionCallbackDelegate(BaseCallbackHandler):
 
     def on_llm_new_token(self, token: str, *, chunk: Optional[Union[GenerationChunk, ChatGenerationChunk]] = None,
                          run_id: UUID, parent_run_id: Optional[UUID] = None, **kwargs: Any) -> Any:
+        # prefer chunk.text as token is broken for AWS Bedrock
+        if chunk is not None and isinstance(chunk, ChatGenerationChunk):
+            token = chunk.text
+        elif chunk is not None and isinstance(chunk, GenerationChunk):
+            token = chunk.text
         if len(token) > 0:
             self._chat_session.process_model_chunk(token)
 

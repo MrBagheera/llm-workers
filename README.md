@@ -78,7 +78,8 @@ Common flags:
 
 ## Version 0.1
 
-- [ ] replace LangGraph with tool calling agent
+- [x] replace LangGraph with tool calling agent
+- [x] streaming and UI improvements
 - [ ] simplify result referencing in chains - `{last_result}` and `store_as`
 - [ ] import from LangChain tool/toolkit classes
 - [ ] decide how to host the source code - as SGG or as a private person
@@ -92,6 +93,7 @@ Common flags:
 
 ## Further Ideas
 
+- structured output
 - async versions for all built-in tools
 - proper error handling
 - restrict file access only to `cwd`

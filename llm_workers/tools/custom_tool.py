@@ -257,11 +257,19 @@ def build_custom_tool(definition: CustomToolDefinition, context: WorkersContext)
 
     def tool_logic(**input) -> Json:
         validated_input = args_schema(**input)
-        return body.invoke(validated_input.model_dump())
+        # is this has single statement body, do not pass callbacks to avoid reporting nested tool
+        config = {}
+        if not isinstance(definition.body, FlowStatement):
+            config = {'callbacks': []}
+        return body.invoke(validated_input.model_dump(), config=config)
 
     async def async_tool_logic(**input) -> Json:
         validated_input = args_schema(**input)
-        return await body.ainvoke(validated_input.model_dump())
+        # is this has single statement body, do not pass callbacks to avoid reporting nested tool
+        config = {}
+        if not isinstance(definition.body, FlowStatement):
+            config = {'callbacks': []}
+        return await body.ainvoke(validated_input.model_dump(), config=config)
 
     return StructuredTool.from_function(
         func = tool_logic,
