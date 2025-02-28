@@ -26,16 +26,17 @@ custom_tools:
           You are an assistant to a sailing boat navigator.
           
           Please write summary of a text below in English, use ONLY the information from provided text.
-          Format using markdown with headers starting form level 3, and follow this structure:
+          Please follow this structure:
             - title
             - coordinates
             - services and docking information (for marinas) or anchoring recommendations and protection offered (for anchorages)
             - navigational hazards
             - other information relevant to boating
+          Format using markdown, title as level 3 header, other information as separate section with bold titles. 
           
           Text to summarize:
           {text}
-      return_direct: true
+    return_direct: true
       
   - name: generate_navigation_summary_from_url
     description: >
@@ -72,3 +73,4 @@ chat:
   tool_refs:
     - fetch_page_markdown
     - generate_navigation_summary
+    - generate_navigation_summary_from_url

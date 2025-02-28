@@ -2,18 +2,21 @@ import argparse
 import logging
 import sys
 from logging import getLogger
-from typing import List
+from typing import Optional, Union, Any
+from uuid import UUID
 
 from dotenv import load_dotenv
 from langchain.globals import set_verbose, set_debug
 from langchain_community.callbacks import get_openai_callback
-from langchain_core.messages import ToolMessage, AIMessage, BaseMessage, HumanMessage
+from langchain_core.callbacks import BaseCallbackHandler
+from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.outputs import GenerationChunk, ChatGenerationChunk
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
 from rich.console import Console
 
 from llm_workers.context import StandardContext
-from llm_workers.utils import format_tool_call, setup_logging, LazyPrettyRepr
+from llm_workers.utils import setup_logging, LazyPrettyRepr
 from llm_workers.worker import Worker
 
 logger = getLogger(__name__)
@@ -37,6 +40,7 @@ class ChatSession:
         }
         self._finished = False
         self._pre_input = ""
+        self._callbacks = [ChatSessionCallbackDelegate(self)]
 
     def run(self):
         config = self._context.config.chat
@@ -54,11 +58,12 @@ class ChatSession:
                 if self._parse_and_run_command(text):
                     continue
                 # submitting input to the worker
-                self._iteration = self._iteration + 1
+                self._console.print(f"#{self._iteration} AI:", style="bold green")
                 message = HumanMessage(text)
                 self._messages.append(message)
                 logger.debug("Running new prompt for #%s:\n%r", self._iteration, LazyPrettyRepr(message))
-                self._process_model_output(self._worker.invoke(self._messages))
+                self._messages.extend(self._worker.invoke(self._messages, config={"callbacks": self._callbacks}))
+                self._iteration = self._iteration + 1
         except KeyboardInterrupt:
             self._finished = True
         except EOFError:
@@ -145,23 +150,37 @@ class ChatSession:
         """- Ends chat session"""
         self._finished = True
 
-    def _process_model_output(self, messages: List[BaseMessage]):
-        for message in messages:
-            if isinstance(message, AIMessage):
-                if message.content != "":
-                    self._console.print(f"#{self._iteration} AI:", style="bold green")
-                    self._console.print(message.content)
-                if len(message.tool_calls) > 0:
-                    for tool_call in message.tool_calls:
-                        self._console.print(f"Running tool {format_tool_call(tool_call)}", style="bold white")
-            elif isinstance(message, ToolMessage):
-                self._console.print(f"Tool {message.name} has finished", style="bold white")
-            else:
-                self._console.print(f"#{self._iteration} Unknown({message.type}):", style="bold red")
-                self._console.print(message.content)
-            self._messages.append(message)
-            logger.debug("Appending to session history:\n%r", LazyPrettyRepr(message))
+    def process_model_chunk(self, token: str):
+        print(token, end="", flush=True)
 
+    def process_model_message(self, message: BaseMessage):
+        self._console.print(message.content)
+
+    def process_tool_start(self, name: str):
+        self._console.print(f"Running tool {name}", style="bold white")
+
+
+class ChatSessionCallbackDelegate(BaseCallbackHandler):
+    """Delegates selected callbacks to ChatSession"""
+
+    def __init__(self, chat_session: ChatSession):
+        self._chat_session = chat_session
+
+    def on_llm_new_token(self, token: str, *, chunk: Optional[Union[GenerationChunk, ChatGenerationChunk]] = None,
+                         run_id: UUID, parent_run_id: Optional[UUID] = None, **kwargs: Any) -> Any:
+        if len(token) > 0:
+            self._chat_session.process_model_chunk(token)
+
+    def on_tool_start(self, serialized: dict[str, Any], input_str: str, *, run_id: UUID,
+                      parent_run_id: Optional[UUID] = None, tags: Optional[list[str]] = None,
+                      metadata: Optional[dict[str, Any]] = None, inputs: Optional[dict[str, Any]] = None,
+                      **kwargs: Any) -> Any:
+        self._chat_session.process_tool_start(serialized.get("name", "<tool>"))
+
+    def on_custom_event(self, name: str, data: Any, *, run_id: UUID, tags: Optional[list[str]] = None,
+                        metadata: Optional[dict[str, Any]] = None, **kwargs: Any) -> Any:
+        if name == "on_ai_message":
+            self._chat_session.process_model_message(data)
 
 
 def main():

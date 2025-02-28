@@ -6,7 +6,6 @@ from langchain_core.tools import BaseTool, StructuredTool
 
 from llm_workers.api import WorkersContext
 from llm_workers.config import BaseLLMConfig
-
 from llm_workers.worker import Worker
 
 logger = logging.getLogger(__name__)
@@ -31,11 +30,13 @@ def build_llm_tool(context: WorkersContext, raw_config: Dict[str, Any]) -> BaseT
         Args:
             prompt: text prompt
         """
-        result = agent.invoke(input=[HumanMessage(prompt)])
+        # pass empty callbacks to prevent LLM token streaming
+        result = agent.invoke(input=[HumanMessage(prompt)], config={'callbacks': []})
         return extract_result(result)
 
     async def async_tool_logic(prompt: str) -> str:
-        result = await agent.ainvoke(input=[HumanMessage(prompt)])
+        # pass empty callbacks to prevent LLM token streaming
+        result = await agent.ainvoke(input=[HumanMessage(prompt)], config={'callbacks': []})
         return extract_result(result)
 
     return StructuredTool.from_function(
