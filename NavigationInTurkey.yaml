@@ -9,26 +9,66 @@ models:
 tools:
   - llm_workers.tools.fetch.fetch_page_markdown
 
+custom_tools:
+
+  - name: generate_navigation_summary
+    description: >
+      Generates a summary of navigation information from given text.
+      Summary is returned as text , not saved anywhere.
+    input:
+      - name: text
+        description: text to summarize
+        type: str
+    body:
+      call: llm
+      params:
+        prompt: |
+          You are an assistant to a sailing boat navigator.
+          
+          Please write summary of a text below in English, use ONLY the information from provided text.
+          Format using markdown with headers starting form level 3, and follow this structure:
+            - title
+            - coordinates
+            - services and docking information (for marinas) or anchoring recommendations and protection offered (for anchorages)
+            - navigational hazards
+            - other information relevant to boating
+          
+          Text to summarize:
+          {text}
+      return_direct: true
+      
+  - name: generate_navigation_summary_from_url
+    description: >
+      Generates a summary of navigation information from a web page.
+      Summary is returned as text, not saved anywhere.
+    input:
+      - name: url
+        description: URL of the page to summarize
+        type: str
+    body:
+      - call: fetch_page_markdown
+        params:
+          url: "{url}"
+      - call: generate_navigation_summary
+        params:
+          text: "{output0}"
+    return_direct: true
+
 cli:
   call: llm
   tool_refs:
     - fetch_page_markdown
+    - generate_navigation_summary_from_url
   params:
     prompt: >
-      Please fetch the page from {input} and list links under section "KOY". List only the URLs, one on a line, without any extra text or formatting.
+      Please fetch the page from {input}. For all links under section "KOY", generate navigation summary.
 
 chat:
   system_message: >
-    You are an assistant to a sailing boat navigator.
-    
-    When asked to provide summary for a given text, please write summary in English, use ONLY the information from provided text.
-    Format using markdown with headers starting form level 3, and follow this structure:
-       - title
-       - coordinates
-       - services and docking information (for marinas) or anchoring recommendations and protection offered (for anchorages
-       - navigational hazards
-       - other information relevant to boating
+    You are an assistant to a sailing boat navigator. Your job is to use provided tools
+    to help user to prepare for navigation.
   default_prompt: >
     Please fetch the page from https://www.coastguidetr.com/tr/korfez/1009/yesilova-korfezi-kadirga-burnu-arasi and list links under section "KOY"
   tool_refs:
     - fetch_page_markdown
+    - generate_navigation_summary

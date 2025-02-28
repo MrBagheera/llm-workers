@@ -1,13 +1,11 @@
 import argparse
 import logging
 import sys
-from collections.abc import Iterator
-from typing import List, Any
+from typing import Any
 
 from dotenv import load_dotenv
 from langchain.globals import set_verbose, set_debug
 from langchain_community.callbacks import get_openai_callback
-from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.runnables import Runnable
 
 from llm_workers.context import StandardContext
@@ -15,14 +13,6 @@ from llm_workers.tools.custom_tool import create_statement_from_model
 from llm_workers.utils import setup_logging
 
 load_dotenv()
-
-
-def print_model_output(chunks: Iterator[List[BaseMessage]]):
-    for chunk in chunks:
-        for message in chunk:
-            if isinstance(message, AIMessage):
-                if message.content != "":
-                    print(message.content)
 
 
 def main():

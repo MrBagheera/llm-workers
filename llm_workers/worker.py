@@ -1,76 +1,115 @@
 import logging
 import sys
-from typing import Optional, Any, List, Iterator, Dict, AsyncIterator
+from typing import Optional, Any, List
 
-from langchain.globals import get_verbose
-from langchain_core.messages import HumanMessage, BaseMessage
+from langchain_core.messages import BaseMessage, SystemMessage, AIMessage, ToolMessage, ToolCall
+from langchain_core.messages.base import BaseMessageChunk
 from langchain_core.runnables import Runnable, RunnableConfig
-from langchain_core.runnables.utils import Input
+from langchain.globals import get_verbose
 
 from llm_workers.api import WorkersContext
-from llm_workers.config import WorkersConfig
-from llm_workers.llm import build_tool_calling_llm
+from llm_workers.config import BaseLLMConfig
+from llm_workers.utils import LazyPrettyRepr
 
 logger = logging.getLogger(__name__)
 
-class LlmWorker(Runnable[str, List[BaseMessage]]):
-    def __init__(self, context: WorkersContext):
-        self._context = context
-        self._llm = build_tool_calling_llm(self.config.chat, self._context)
 
-    @property
-    def config(self) -> WorkersConfig:
-        return self._context.config
+class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
 
-    @staticmethod
-    # noinspection PyShadowingBuiltins
-    def _transform_input(input: str| List[BaseMessage]) -> Input:
-        if isinstance(input, str):
-            return {"messages": [HumanMessage(input)]}
-        elif isinstance(input, list):
-            return {"messages": input}
-        else:
-            raise ValueError(f"Input '{input}' not supported.")
+    def __init__(self, llm_config: BaseLLMConfig, context: WorkersContext):
+        self._system_message: Optional[SystemMessage] = None
+        if llm_config.system_message is not None:
+            self._system_message = SystemMessage(llm_config.system_message)
+        self._llm = context.get_llm(llm_config.model_ref)
+        self._tools = {}
+        tools = []
+        for tool_name in llm_config.tool_refs:
+            tool = context.get_tool(tool_name)
+            self._tools[tool_name] = tool
+            tools.append(tool)
+        if len(tools) > 0:
+            self._llm = self._llm.bind_tools(tools)
+        self._direct_tools = set([tool.name for tool in tools if tool.return_direct])
 
-    @staticmethod
-    def _transform_invoke_output(output: Dict[str, Any]) -> List[BaseMessage]:
-        messages = output["messages"]
-        if get_verbose():
-            for message in messages:
-                print(message.pretty_repr(), file=sys.stderr)
-        return messages
+    def invoke(self, input: List[BaseMessage], config: Optional[RunnableConfig] = None, **kwargs: Any) -> List[BaseMessage]:
+        if self._system_message is not None:
+            input = [self._system_message] + input
 
-    @staticmethod
-    def _transform_stream_output(output: Dict[str, Any]) -> List[BaseMessage]:
-        message = output["messages"][-1]
-        if get_verbose():
-            print(message.pretty_repr(), file=sys.stderr)
-        return [message]
+        output: List[BaseMessage] = []
+        while True:
+            last: Optional[BaseMessage] = None
+            for chunk in self._llm.stream(input, config, **kwargs):
+                if isinstance(chunk, BaseMessageChunk):
+                    if last is None:
+                        last = chunk
+                    elif isinstance(last, BaseMessageChunk) and last.id == chunk.id:
+                        last = last + chunk
+                    else:
+                        logger.debug("Got intermediate LLM message:\n%r", LazyPrettyRepr(last))
+                        if get_verbose():
+                            print(last.pretty_repr(), file = sys.stderr)
+                        output.append(last)
+                        last = chunk
+                else:
+                    if last is not None:
+                        logger.debug("Got intermediate LLM message:\n%r", LazyPrettyRepr(last))
+                        if get_verbose():
+                            print(last.pretty_repr(), file = sys.stderr)
+                        output.append(last)
+                    last = chunk
+            if last is None:
+                return [] # no output from LLM
 
-    @staticmethod
-    async def _transform_async_iterator(source: AsyncIterator[Dict[str, Any]]) -> AsyncIterator[List[BaseMessage]]:
-        async for item in source:
-            yield LlmWorker._transform_stream_output(item)
+            if isinstance(last, AIMessage) and len(last.tool_calls) > 0:
+                logger.debug("Got last LLM message with tool calls:\n%r", LazyPrettyRepr(last))
+                if get_verbose():
+                    print(last.pretty_repr(), file = sys.stderr)
+                results = self._handle_tool_calls(last.tool_calls)
+                if isinstance(results[0], AIMessage):
+                    # return tool calls as if LLM responded with them
+                    output.extend(results)
+                    return output
+                else:
+                    # append calls and results to input to continue LLM conversation
+                    input.append(last)
+                    input.extend(results)
+                    # it is recommended to include tool calls and results in
+                    # chat history for possible further use in the conversation
+                    output.append(last)
+                    output.extend(results)
+                    # continue to call LLM again
+            else:
+                # no tool calls, return LLM response
+                logger.debug("Got last LLM message:\n%r", LazyPrettyRepr(last))
+                if get_verbose():
+                    print(last.pretty_repr(), file = sys.stderr)
+                output.append(last)
+                return output
 
-    # noinspection PyShadowingBuiltins
-    def invoke(self, input: str | List[BaseMessage], config: Optional[RunnableConfig] = None, **kwargs: Any) -> List[BaseMessage]:
-        llm_output = self._llm.invoke(input=LlmWorker._transform_input(input), config=config, streamMode = "values", **kwargs)
-        return LlmWorker._transform_invoke_output(llm_output)
-
-    # noinspection PyShadowingBuiltins
-    def stream(self, input: str | List[BaseMessage], config: Optional[RunnableConfig] = None, **kwargs: Optional[Any]) -> Iterator[
-        List[BaseMessage]]:
-        llm_output = self._llm.stream(input=LlmWorker._transform_input(input), config=config, stream_mode = "values", **kwargs)
-        return map(LlmWorker._transform_stream_output, llm_output)
-
-    # noinspection PyShadowingBuiltins
-    async def ainvoke(self, input: str | List[BaseMessage], config: Optional[RunnableConfig] = None, **kwargs: Any) -> List[BaseMessage]:
-        llm_output = await self._llm.ainvoke(input=LlmWorker._transform_input(input), config=config, streamMode = "values", **kwargs)
-        return LlmWorker._transform_invoke_output(llm_output)
-
-    # noinspection PyShadowingBuiltins
-    async def astream(self, input: str | List[BaseMessage], config: Optional[RunnableConfig] = None, **kwargs: Optional[Any]) -> \
-    AsyncIterator[List[BaseMessage]]:
-        llm_output = self._llm.astream(input=LlmWorker._transform_input(input), config=config, stream_mode = "values", **kwargs)
-        return LlmWorker._transform_async_iterator(llm_output)
-
+    def _handle_tool_calls(self, tool_calls: List[ToolCall]):
+        results = []
+        use_direct_results = False
+        for tool_call in tool_calls:
+            if tool_call['name'] in self._direct_tools:
+                use_direct_results = True
+                break
+        for tool_call in tool_calls:
+            tool = self._tools[tool_call['name']]
+            args = tool_call['args']
+            logger.info("Calling tool %s with args: %r", tool.name, args)
+            try:
+                tool_output = tool.invoke(args)
+            except Exception as e:
+                logger.warning("Failed to call tool %s", tool.name, exc_info=True)
+                tool_output = f"Tool Error: {e}"
+            if use_direct_results:
+                if not tool.return_direct:
+                    logger.warning("Returning results of %s tool call as direct, as it is mixed with other return_direct tool calls", tool.name)
+                response = AIMessage(content = tool_output, tool_call_id = tool_call['id'])
+            else:
+                response = ToolMessage(content = tool_output, tool_call_id = tool_call['id'], name = tool.name)
+            logger.debug("Tool call result:\n%r", LazyPrettyRepr(response))
+            if get_verbose():
+                print(response.pretty_repr(), file = sys.stderr)
+            results.append(response)
+        return results

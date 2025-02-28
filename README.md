@@ -72,53 +72,21 @@ Before asking first user input, tool runs LLM script with default prompt (if def
 
 Common flags:
 - `--verbose` flag triggers some debug prints to stderr
-- `--debug` - enables LlangChain's debug mode, which prints additional information about script execution
+- `--debug` - enables LangChain's debug mode, which prints additional information about script execution
 
 # To Do
 
 ## Version 0.1
 
-- [x] Running main prompt
-- [x] General-purpose `debug` tool
-- [x] Specifying LLM provider and model (ollama/open-ai/claude)
-- [x] Specifying custom tools
-- [x] Write introduction for README.md
-- [x] Reorganize scripts
-- [x] `LLM` tool
-- [x] reorganize tools
-- [x] Add support for interactive mode
-- [x] `fetch_url_text` tool
-- [x] `whisper.cpp` tool
-- [x] support `pyannote.audio` for speaker diarization
-- [x] support cutting audio files
-- [x] `fetch_markdown` tool
-- [x] basic execution stats
-- [x] investigate effect of original content vs. simple HTML vs. text
-- [x] investigate HTML cleanup - not much effect
-- [x] Improve `whisper.cpp` tool: add prompt, adapt to `--max-len` automatically
-- [x] working chat interface
-- [x] report currently running tool with first parameter
-- [x] `/rewind` command
-- [x] `/reload` command
-- [x] improve logging for chat (log only warns and above to stderr, debug to file)
-- [x] improve logging for CLI (log only info and above to stderr, debug to file)
-- [x] `t2-ai-wrapper` tool
-- [x] tool chaining
-- [x] `match` tool
-- [x] better use of prompts and command-line args
-- [x] import tool factories
-- [x] import LangChain tool/toolkit instances
-- [x] extract unrelated tools to separate packages
+- [ ] replace LangGraph with tool calling agent
+- [ ] simplify result referencing in chains - `{last_result}` and `store_as`
 - [ ] import from LangChain tool/toolkit classes
-- [x] chose license - MIT, as LangChain
 - [ ] decide how to host the source code - as SGG or as a private person
 
 ## Version 0.2
 
 - `prompts` section
-- `foreach` statements
-- `split` tool
-- `merge` tool
+- `for_each` statement
 - `exec` tool
 - support accessing nested JSON elements in templates
 

@@ -1,7 +1,6 @@
 import argparse
 import logging
 import sys
-from collections.abc import Iterator
 from logging import getLogger
 from typing import List
 
@@ -14,8 +13,8 @@ from prompt_toolkit.history import InMemoryHistory
 from rich.console import Console
 
 from llm_workers.context import StandardContext
-from llm_workers.utils import format_tool_call, setup_logging
-from llm_workers.worker import LlmWorker
+from llm_workers.utils import format_tool_call, setup_logging, LazyPrettyRepr
+from llm_workers.worker import Worker
 
 logger = getLogger(__name__)
 
@@ -23,7 +22,10 @@ class ChatSession:
     def __init__(self, console: Console, script_file: str):
         self._script_file = script_file
         self._console = console
-        self._worker = LlmWorker(StandardContext.from_file(script_file))
+        self._context = StandardContext.from_file(script_file)
+        if not self._context.config.chat:
+            raise ValueError(f"'chat' section is missing from '{self._script_file}'")
+        self._worker = Worker(self._context.config.chat, self._context)
         self._iteration = 1
         self._messages = list[BaseMessage]()
         self._history = InMemoryHistory()
@@ -37,9 +39,7 @@ class ChatSession:
         self._pre_input = ""
 
     def run(self):
-        config = self._worker.config.chat
-        if config is None:
-            raise ValueError(f"'chat' section is missing from '{self._script_file}'")
+        config = self._context.config.chat
         if config.default_prompt is not None:
             self._pre_input = config.default_prompt
 
@@ -54,10 +54,11 @@ class ChatSession:
                 if self._parse_and_run_command(text):
                     continue
                 # submitting input to the worker
-                i = self._messages.copy()
-                i.append(text)
-                logger.debug(f"Running new prompt for #{self._iteration}:\n{i}")
-                self._process_model_output(self._worker.stream(i))
+                self._iteration = self._iteration + 1
+                message = HumanMessage(text)
+                self._messages.append(message)
+                logger.debug("Running new prompt for #%s:\n%r", self._iteration, LazyPrettyRepr(message))
+                self._process_model_output(self._worker.invoke(self._messages))
         except KeyboardInterrupt:
             self._finished = True
         except EOFError:
@@ -99,7 +100,10 @@ class ChatSession:
 
         self._console.print(f"(Re)loading LLM script from {script_file}", style="bold white")
         self._script_file = script_file
-        self._worker = LlmWorker(StandardContext.from_file(script_file))
+        self._context = StandardContext.from_file(script_file)
+        if not self._context.config.chat:
+            raise ValueError(f"'chat' section is missing from '{self._script_file}'")
+        self._worker = Worker(self._context.config.chat, self._context)
 
     def _rewind(self, params: list[str]):
         """[N] - Rewinds chat session to input N (default to previous)"""
@@ -141,26 +145,22 @@ class ChatSession:
         """- Ends chat session"""
         self._finished = True
 
-    def _process_model_output(self, chunks: Iterator[List[BaseMessage]]):
-        for chunk in chunks:
-            for message in chunk:
-                if isinstance(message, HumanMessage):
-                    self._iteration = self._iteration + 1
-                    pass
-                elif isinstance(message, AIMessage):
-                    if message.content != "":
-                        self._console.print(f"#{self._iteration} AI:", style="bold green")
-                        self._console.print(message.content)
-                    if len(message.tool_calls) > 0:
-                        for tool_call in message.tool_calls:
-                            self._console.print(f"Running tool {format_tool_call(tool_call)}", style="bold white")
-                elif isinstance(message, ToolMessage):
-                    self._console.print(f"Tool {message.name} has finished", style="bold white")
-                else:
-                    self._console.print(f"#{self._iteration} Unknown({message.type}):", style="bold red")
+    def _process_model_output(self, messages: List[BaseMessage]):
+        for message in messages:
+            if isinstance(message, AIMessage):
+                if message.content != "":
+                    self._console.print(f"#{self._iteration} AI:", style="bold green")
                     self._console.print(message.content)
-                self._messages.append(message)
-                logger.debug(f"Appending {repr(message)} to session history")
+                if len(message.tool_calls) > 0:
+                    for tool_call in message.tool_calls:
+                        self._console.print(f"Running tool {format_tool_call(tool_call)}", style="bold white")
+            elif isinstance(message, ToolMessage):
+                self._console.print(f"Tool {message.name} has finished", style="bold white")
+            else:
+                self._console.print(f"#{self._iteration} Unknown({message.type}):", style="bold red")
+                self._console.print(message.content)
+            self._messages.append(message)
+            logger.debug("Appending to session history:\n%r", LazyPrettyRepr(message))
 
 
 

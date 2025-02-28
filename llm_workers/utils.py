@@ -5,7 +5,7 @@ import subprocess
 import sys
 from typing import Callable, Any, List, Union
 
-from langchain_core.messages import ToolCall
+from langchain_core.messages import ToolCall, BaseMessage
 from langchain_core.tools import ToolException
 
 logger =  logging.getLogger(__name__)
@@ -151,3 +151,17 @@ def setup_logging(console_level: int = logging.INFO, file_level: int = logging.D
     console_handler.setLevel(console_level)
     formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
     console_handler.setFormatter(formatter)
+
+
+class LazyPrettyRepr:
+    def __init__(self, target):
+        self.target = target
+
+    def __str__(self):
+        return str(self.target)
+
+    def __repr__(self):
+        if isinstance(self.target, BaseMessage):
+            return self.target.pretty_repr()
+        else:
+            return repr(self.target)
