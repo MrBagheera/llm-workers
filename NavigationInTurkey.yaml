@@ -19,6 +19,10 @@ custom_tools:
       - name: text
         description: text to summarize
         type: str
+      - name: header_level
+        description: Level of header to use for title
+        type: int
+        default: 3
     body:
       call: llm
       params:
@@ -32,7 +36,7 @@ custom_tools:
             - services and docking information (for marinas) or anchoring recommendations and protection offered (for anchorages)
             - navigational hazards
             - other information relevant to boating
-          Format using markdown, title as level 3 header, other information as separate section with bold titles. 
+          Format using markdown, title as level {header_level} header, other information as separate section with bold titles. 
           
           Text to summarize:
           {text}
@@ -46,6 +50,10 @@ custom_tools:
       - name: url
         description: URL of the page to summarize
         type: str
+      - name: header_level
+        description: Level of header to use for title
+        type: int
+        default: 3
     body:
       - call: fetch_page_markdown
         params:
@@ -53,23 +61,25 @@ custom_tools:
       - call: generate_navigation_summary
         params:
           text: "{output0}"
+          header_level: "{header_level}"
     return_direct: true
 
 cli:
   call: llm
   tool_refs:
     - fetch_page_markdown
+    - generate_navigation_summary
     - generate_navigation_summary_from_url
   params:
     prompt: >
-      Please fetch the page from {input}. For all links under section "KOY", generate navigation summary.
+      Please fetch the page from {input} and print navigation summary for this region, as well as for all bays and marinas in it.
 
 chat:
   system_message: >
     You are an assistant to a sailing boat navigator. Your job is to use provided tools
     to help user to prepare for navigation.
   default_prompt: >
-    Please fetch the page from https://www.coastguidetr.com/tr/korfez/1009/yesilova-korfezi-kadirga-burnu-arasi and list links under section "KOY"
+    Please fetch the page from https://www.coastguidetr.com/tr/korfez/1011/marmaris-kurdoglu-burnu-arasi and print navigation summary for this region, as well as for all bays and marinas in it
   tool_refs:
     - fetch_page_markdown
     - generate_navigation_summary
