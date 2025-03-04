@@ -25,3 +25,14 @@ class WorkersContext(ABC):
 
 ToolFactory = Callable[[WorkersContext, Dict[str, Any]], BaseTool]
 
+
+class WorkerException(Exception):
+    """Custom exception for worker-related errors."""
+
+    def __init__(self, message: str, cause: Exception = None):
+        super().__init__(message)
+        self.message = message
+        self.__cause__ = cause  # Pass the cause of the exception
+
+    def __str__(self):
+        return self.message

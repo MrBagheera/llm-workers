@@ -1,15 +1,19 @@
 models:
   - name: default
     provider: bedrock
-    model: us.anthropic.claude-3-5-sonnet-20241022-v2:0
+    model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
     model_params:
-      temperature: 0
-
+      temperature: 1
+      max_tokens: 32768
+  - name: t2-ai-relay
+    import_from: t2_ai_relay.T2AIRelayChat
+    model_params:
+      max_tokens: 32768
 #  - name: default
 #    provider: ollama
 #    model: llama3.3
 #    model_params:
-#      temperature: 0
+#      temperature: 1
 #      num_ctx: 16384
 #      num_predict: 16384
 
@@ -122,6 +126,7 @@ cli:
       transcript: "{output0}"
 
 chat:
+  model_ref: t2-ai-relay
   system_message: |-
     You are secretary in Small Giant Games Oy, small Finnish mobile game company. The company is fully owned
     by Zynga Inc., which is now part of Take Two Interactive.

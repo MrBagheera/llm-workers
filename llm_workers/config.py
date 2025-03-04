@@ -1,3 +1,4 @@
+from abc import ABC
 from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict
 
 import yaml
@@ -33,11 +34,16 @@ Json = TypeAliasType(
 )
 
 
-class ModelConfig(BaseModel):
+class ModelConfig(BaseModel, ABC):
     name: str
+    model_params: Json = None
+
+class StandardModelConfig(ModelConfig):
     provider: str
     model: str
-    model_params: Json = None
+
+class ImportModelConfig(ModelConfig):
+    import_from: str
 
 
 StatementDefinition = TypeAliasType(
@@ -101,7 +107,7 @@ class ChatConfig(BaseLLMConfig):
     default_prompt: Optional[str] = None
 
 class WorkersConfig(BaseModel):
-    models: list[ModelConfig]
+    models: list[StandardModelConfig | ImportModelConfig] = ()
     tools: list[str] = ()
     custom_tools: list[CustomToolDefinition] = ()
     chat: Optional[ChatConfig] = None
