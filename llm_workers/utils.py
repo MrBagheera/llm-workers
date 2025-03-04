@@ -151,6 +151,7 @@ def setup_logging(console_level: int = logging.INFO, file_level: int = logging.D
     console_handler.setLevel(console_level)
     formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
     console_handler.setFormatter(formatter)
+    logging.getLogger().addHandler(console_handler)
 
 
 class LazyPrettyRepr:
