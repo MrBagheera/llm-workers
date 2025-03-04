@@ -134,7 +134,8 @@ class ChatSession:
             target_iteration = min(self._iteration, target_iteration)
         if target_iteration == self._iteration:
             return
-        logger.debug(f"Rewinding session to {target_iteration}")
+        logger.info(f"Rewinding session to #{target_iteration}")
+        self._console.clear()
         self._iteration = target_iteration
         i = 0
         iteration = 1
