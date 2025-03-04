@@ -3,6 +3,7 @@ import sys
 from typing import Optional, Any, List
 
 from langchain.globals import get_verbose
+from langchain_core.callbacks import CallbackManager
 from langchain_core.messages import BaseMessage, SystemMessage, AIMessage, ToolMessage, ToolCall
 from langchain_core.messages.base import BaseMessageChunk
 from langchain_core.runnables import Runnable, RunnableConfig
@@ -39,7 +40,7 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
         if self._system_message is not None:
             input = [self._system_message] + input
 
-        callback_manager = get_callback_manager_for_config(ensure_config(config))
+        callback_manager: CallbackManager = get_callback_manager_for_config(ensure_config(config))
 
         output: List[BaseMessage] = []
         while True:
@@ -51,35 +52,24 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                     elif isinstance(last, BaseMessageChunk) and last.id == chunk.id:
                         last = last + chunk
                     else:
-                        logger.debug("Got intermediate LLM message:\n%r", LazyPrettyRepr(last))
-                        if get_verbose():
-                            print(last.pretty_repr(), file = sys.stderr)
-                        output.append(last)
+                        self._append_llm_message(callback_manager, output, last, "intermediate LLM message")
                         last = chunk
                 else:
                     if last is not None:
-                        logger.debug("Got intermediate LLM message:\n%r", LazyPrettyRepr(last))
-                        if get_verbose():
-                            print(last.pretty_repr(), file = sys.stderr)
-                        output.append(last)
+                        self._append_llm_message(callback_manager, output, last, "intermediate LLM message")
                     last = chunk
             if last is None:
                 return [] # no output from LLM
 
             if isinstance(last, AIMessage) and len(last.tool_calls) > 0:
-                logger.debug("Got last LLM message with tool calls:\n%r", LazyPrettyRepr(last))
-                if get_verbose():
-                    print(last.pretty_repr(), file = sys.stderr)
+                self._append_llm_message(callback_manager, output, last, "last LLM message with tool calls")
                 results = self._handle_tool_calls(last.tool_calls, config, **kwargs)
-                if isinstance(results[0], AIMessage):
-                    # informing callbacks (if any)
-                    for result in results:
-                        callback_manager.on_custom_event(
-                            name = "on_ai_message",
-                            data = result
-                        )
+                if isinstance(results[0], AIMessage):   # return_direct tool calls
+                    # remove last response from LLM
+                    output.pop()
                     # return tool calls as if LLM responded with them
-                    output.extend(results)
+                    for result in results:
+                        self._append_llm_message(callback_manager, output, result, "direct tool message")
                     return output
                 else:
                     # append calls and results to input to continue LLM conversation
@@ -87,16 +77,25 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                     input.extend(results)
                     # it is recommended to include tool calls and results in
                     # chat history for possible further use in the conversation
-                    output.append(last)
                     output.extend(results)
                     # continue to call LLM again
             else:
                 # no tool calls, return LLM response
-                logger.debug("Got last LLM message:\n%r", LazyPrettyRepr(last))
-                if get_verbose():
-                    print(last.pretty_repr(), file = sys.stderr)
-                output.append(last)
+                self._append_llm_message(callback_manager, output, last, "last LLM message")
                 return output
+
+    @staticmethod
+    def _append_llm_message(callback_manager: CallbackManager, output: List[BaseMessage], message: BaseMessage, log_info: str):
+        logger.debug("Got %s:\n%r", log_info, LazyPrettyRepr(message))
+        if get_verbose():
+            print(message.pretty_repr(), file = sys.stderr)
+        if not isinstance(message, BaseMessageChunk) and len(message.content) > 0: # chunks events are streamed automatically
+            callback_manager.on_custom_event(
+                name = "on_ai_message",
+                data = message
+            )
+        output.append(message)
+
 
     def _handle_tool_calls(self, tool_calls: List[ToolCall], config: Optional[RunnableConfig], **kwargs: Any):
         results = []
