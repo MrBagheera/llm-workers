@@ -78,14 +78,17 @@ Common flags:
 
 ## Version 0.1
 
+Basic version usable for some tasks.
+
 - [x] replace LangGraph with tool calling agent
 - [x] streaming and UI improvements
-- [ ] simplify result referencing in chains - `{last_result}` and `store_as`
+- [x] read/write files
 - [ ] import from LangChain tool/toolkit classes
 - [ ] decide how to host the source code - as SGG or as a private person
 
 ## Version 0.2
 
+- simplify result referencing in chains - `{last_result}` and `store_as`
 - `prompts` section
 - `for_each` statement
 - `exec` tool
@@ -99,7 +102,7 @@ Common flags:
 - restrict file access only to `cwd`
 - write trail
 - resume trail
-- read/write/list files
+- list files
 - shell commands
 - running python scripts
 - support acting as MCP server (expose `custom_tools`)
