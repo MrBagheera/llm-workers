@@ -9,7 +9,7 @@ from langchain_core.tools import BaseTool, BaseToolkit
 
 import llm_workers.tools.fetch
 import llm_workers.tools.llm_tool
-import llm_workers.tools.file
+import llm_workers.tools.unsafe
 from llm_workers.api import WorkersContext, ToolFactory, WorkerException
 from llm_workers.config import WorkersConfig, load_config, StandardModelConfig, ImportModelConfig
 from llm_workers.tools.custom_tool import build_custom_tool
@@ -23,8 +23,8 @@ class StandardContext(WorkersContext):
         llm_workers.tools.fetch.fetch_content,
         llm_workers.tools.fetch.fetch_page_text,
         llm_workers.tools.fetch.fetch_page_links,
-        llm_workers.tools.file.read_file_tool,
-        llm_workers.tools.file.write_file_tool,
+        llm_workers.tools.unsafe.read_file_tool,
+        llm_workers.tools.unsafe.write_file_tool,
     ]
     _builtin_tools_factories = {
         'llm': llm_workers.tools.llm_tool.build_llm_tool,
@@ -87,6 +87,8 @@ class StandardContext(WorkersContext):
                 segments = tool_def.split('.')
                 module = importlib.import_module('.'.join(segments[:-1]))
                 symbol = getattr(module, segments[-1])
+                if inspect.isclass(symbol):
+                    symbol = symbol() # use default constructor
                 if isinstance(symbol, BaseTool):
                     self._register_tool(symbol)
                 elif isinstance(symbol, BaseToolkit):
