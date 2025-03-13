@@ -1,0 +1,20 @@
+models:
+  - name: default
+    provider: bedrock_converse
+    model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
+    model_params:
+      temperature: 0
+      max_tokens: 32768
+
+tools:
+  - llm_workers.tools.unsafe.RunPythonScriptTool
+
+chat:
+  system_message: |-
+    You are senior Python developer in Small Giant Games Oy, small Finnish mobile game company.
+    Your team is investigating issues in a live game.
+    Your task is to help your team by writing and running Python script to fetch and connect data from various sources.
+    
+    If unsure about the requirements, ask for clarification.
+  tool_refs:
+    - run_python_script

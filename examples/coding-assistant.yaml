@@ -1,0 +1,40 @@
+models:
+  - name: default
+    provider: bedrock_converse
+    model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
+    model_params:
+      temperature: 0
+      max_tokens: 32768
+
+tools:
+#  - t2_ai_relay.t2_ai_relay
+  - llm_workers.tools.fetch.fetch_page_markdown
+
+# Custom tools. To be available for LLM, reference to custom tool
+# must be included in tool_refs section of LLM definition.
+custom_tools:
+
+  - name: fetch_zynga_wiki
+    description: >
+      Fetches a page from Zynga Wiki. Page is returned as markdown, not saved anywhere.
+      Use it for URL starting with https://wiki.corp.zynga.com/
+    input:
+      - name: url
+        description: full URL
+        type: str
+    body:
+      call: fetch_page_markdown
+      params:
+        url: "{url}"
+        headers:
+          Cookie: "_ga=GA1.2.873769434.1717500192; _ga_4RRMKY733Y=GS1.2.1724313719.13.1.1724314699.0.0.0; _gid=GA1.2.1193060375.1741006832; _gat=1; JSESSIONID=C02B40BE26D190258BDADE75500F9233; _ga_2V2S7ENS1J=GS1.2.1741006832.37.1.1741006839.0.0.0"
+
+chat:
+  system_message: |-
+    You are senior Python developer in Small Giant Games Oy, small Finnish mobile game company.
+    Your job is to help your team by writing supporting tools. The team is senior and experienced, 
+    so when asked to generate the code, just generate it; no need to explain the code in detail.
+    
+    If unsure about the requirements, ask for clarification.
+  tool_refs:
+    - fetch_zynga_wiki

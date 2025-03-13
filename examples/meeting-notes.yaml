@@ -3,7 +3,7 @@ models:
     provider: bedrock
     model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
     model_params:
-      temperature: 1
+      temperature: 0.5
       max_tokens: 32768
   - name: t2-ai-relay
     import_from: t2_ai_relay.T2AIRelayChat
@@ -39,10 +39,17 @@ custom_tools:
     body:
       call: whisper_cpp
       params:
-        model: "/Users/dmikhaylov/Private/whisper.cpp/models/ggml-large-v3-turbo.bin"
+        model: "/Users/dmikhaylov/Private/whisper.cpp/models/ggml-large-v3.bin"
         file: "{file}"
         skip_seconds: "{skip_seconds}"
-        extra_args": "--entropy-thold 2.8 --max-context 64"
+        extra_args: "--entropy-thold 2.8 --max-context 64 --language en"
+        # note that whisper doesn't follow the prompt, but uses it as example for transcription
+#        prompt: |
+#          Glossary: Empires & Puzzles, Puzzle Combat, Tower, Castle Defense, MDS, events, rare quests,
+#          alliance war, mystic titan, PvP, PvE, raid, tournament, hero, troop, summon, Player Ops, Live Ops,
+#          Dev Ops, Marketing team, Admin team.
+#          Split text into individual sentences. Use capital letters and punctuation.
+        max_length: 1000
         write_timestamps: false
     return_direct: true
 
@@ -140,7 +147,7 @@ chat:
     
     After getting transcript make a summary of it using appropriate tool. If any has tool failed, show tool error message.
   default_prompt: |-
-    Please make and print transcript of following presentation:
+    Please make and print transcript of following file:
   tool_refs:
     - generate_meeting_transcript
     - generate_presentation_transcript
