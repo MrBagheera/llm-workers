@@ -25,6 +25,9 @@ dev = [
     "boto3 (>=1.37.8)",
 ]
 
+[project.urls]
+Homepage = "https://github.com/MrBagheera/llm-workers"
+Issues = "https://github.com/MrBagheera/llm-workers/issues"
 
 [project.scripts]
 llm-workers-chat = "llm_workers.chat:main"
