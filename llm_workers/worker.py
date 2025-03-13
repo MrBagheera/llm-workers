@@ -14,7 +14,7 @@ from langchain_core.runnables.config import (
 
 from llm_workers.api import WorkersContext
 from llm_workers.config import BaseLLMConfig
-from llm_workers.utils import LazyPrettyRepr
+from llm_workers.utils import LazyFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
 
     @staticmethod
     def _append_llm_message(callback_manager: CallbackManager, output: List[BaseMessage], message: BaseMessage, log_info: str):
-        logger.debug("Got %s:\n%r", log_info, LazyPrettyRepr(message))
+        logger.debug("Got %s:\n%r", log_info, LazyFormatter(message))
         if get_verbose():
             print(message.pretty_repr(), file = sys.stderr)
         if not isinstance(message, BaseMessageChunk) and len(message.content) > 0: # chunks events are streamed automatically
@@ -119,7 +119,7 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                 response = AIMessage(content = tool_output, tool_call_id = tool_call['id'])
             else:
                 response = ToolMessage(content = tool_output, tool_call_id = tool_call['id'], name = tool.name)
-            logger.debug("Tool call result:\n%r", LazyPrettyRepr(response))
+            logger.debug("Tool call result:\n%r", LazyFormatter(response))
             if get_verbose():
                 print(response.pretty_repr(), file = sys.stderr)
             results.append(response)

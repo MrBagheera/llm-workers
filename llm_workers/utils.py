@@ -75,9 +75,14 @@ def multi_cached(
         raise
 
 
-def run_process(cmd: List[str], stdout_transform: Callable[[str], Any] = None):
-    cmd_str = " ".join(cmd)
-    logger.debug(f"Running {cmd_str}")
+class RunProcessException(IOError):
+    def __init__(self, message: str, cause: Exception = None):
+        super().__init__(message)
+        self.cause = cause
+
+def run_process(cmd: List[str]) -> str:
+    cmd_str = LazyFormatter(cmd, custom_formatter = lambda x: " ".join(x))
+    logger.debug("Running %s", cmd_str)
     try:
         process = subprocess.Popen(
             cmd,
@@ -85,26 +90,17 @@ def run_process(cmd: List[str], stdout_transform: Callable[[str], Any] = None):
             stderr=subprocess.PIPE,
             text=True
         )
-        if stdout_transform is not None:
-            result = []
-            for line in process.stdout:
-                transformed = stdout_transform(line)
-                if transformed is not None:
-                    result.append(transformed)
-            stderr_data = process.stderr.read()  # Capture remaining stderr
-        else:
-            (result, stderr_data) = process.communicate()
+        (result, stderr_data) = process.communicate()
         exit_code = process.wait()
-        message = f"Sub-process [{cmd_str}] finished with exit code {exit_code}, result_len={len(result)}, stderr:\n{stderr_data}"
-        if exit_code == 0:
-            logger.debug(message)
-            return result
-        else:
-            raise ToolException(message)
-    except FileNotFoundError:
-        raise ToolException("ffmpeg not found. Please install it.")
+    except FileNotFoundError as e:
+        raise e
     except Exception as e:
-        raise ToolException(f"Running sub-process [{cmd_str}] failed with error: {e}")
+        raise RunProcessException(f"Running sub-process [{cmd_str}] failed with error: {e}", e)
+    if exit_code == 0:
+        logger.debug("Sub-process [%s] finished with exit code %s, result_len=%s, stderr:\n%s", cmd_str, exit_code, len(result), stderr_data)
+        return result
+    else:
+        raise RunProcessException(f"Sub-process [{cmd_str}] finished with exit code {exit_code}, result_len={len(result)}, stderr:\n{stderr_data}")
 
 
 def get_environment_variable(name: str, default: str | None) -> str | None:
@@ -154,15 +150,29 @@ def setup_logging(console_level: int = logging.INFO, file_level: int = logging.D
     logging.getLogger().addHandler(console_handler)
 
 
-class LazyPrettyRepr:
-    def __init__(self, target):
+class LazyFormatter:
+    def __init__(self, target, custom_formatter: Callable[[Any], str] = None):
         self.target = target
+        self.custom_formatter = custom_formatter
+        self.repr = None
+        self.str = None
 
     def __str__(self):
-        return str(self.target)
+        if self.str is None:
+            if self.custom_formatter is not None:
+                self.str = self.custom_formatter(self.target)
+                self.repr = self.str
+            else:
+                self.str = str(self.target)
+        return self.str
 
     def __repr__(self):
-        if isinstance(self.target, BaseMessage):
-            return self.target.pretty_repr()
-        else:
-            return repr(self.target)
+        if self.repr is None:
+            if self.custom_formatter is not None:
+                self.str = self.custom_formatter(self.target)
+                self.repr = self.str
+            elif isinstance(self.target, BaseMessage):
+                self.repr = self.target.pretty_repr()
+            else:
+                self.repr = repr(self.target)
+        return self.repr

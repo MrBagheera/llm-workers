@@ -16,7 +16,7 @@ from prompt_toolkit.history import InMemoryHistory
 from rich.console import Console
 
 from llm_workers.context import StandardContext
-from llm_workers.utils import setup_logging, LazyPrettyRepr
+from llm_workers.utils import setup_logging, LazyFormatter
 from llm_workers.worker import Worker
 
 logger = getLogger(__name__)
@@ -66,7 +66,7 @@ class ChatSession:
                 message = HumanMessage(text)
                 self._messages.append(message)
                 self._chunks_len = 0
-                logger.debug("Running new prompt for #%s:\n%r", self._iteration, LazyPrettyRepr(message))
+                logger.debug("Running new prompt for #%s:\n%r", self._iteration, LazyFormatter(message))
                 self._messages.extend(self._worker.invoke(self._messages, config={"callbacks": self._callbacks}))
                 self._iteration = self._iteration + 1
         except KeyboardInterrupt:
