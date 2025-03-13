@@ -13,8 +13,7 @@ cli:
   - call: llm
     params:
       prompt: |-
-        You are senior Scala developer in Small Giant Games Oy.
-        Your job is to reformat give file according to the rules below. 
+        You are senior Scala developer. Your job is to reformat give file according to the rules below. 
         
         Rules:
         

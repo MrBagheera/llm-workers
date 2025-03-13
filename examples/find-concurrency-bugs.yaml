@@ -17,8 +17,7 @@ cli:
   - call: llm
     params:
       prompt: |-
-        You are senior C# developer in Small Giant Games Oy.
-        Your job is to inspect given file looking for potential concurrency issues. 
+        You are senior C# developer. Your job is to inspect given file looking for potential concurrency issues. 
         
         Example:
         ```csharp
