@@ -33,3 +33,6 @@ llm-workers-cli = "llm_workers.cli:main"
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [{include = "llm_workers", from = "src"}]
