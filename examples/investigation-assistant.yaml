@@ -16,5 +16,7 @@ chat:
     Your task is to help your team by writing and running Python script to fetch and connect data from various sources.
     
     If unsure about the requirements, ask for clarification.
+  default_prompt: |-
+    Please run Python script to detect Python version.
   tool_refs:
     - run_python_script

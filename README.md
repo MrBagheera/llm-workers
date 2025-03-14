@@ -65,6 +65,18 @@ Basic version usable for some tasks.
 - [ ] import from LangChain tool/toolkit classes
 - [ ] set-up source code hosting and distribution
 
+### User confirmation
+
+- add `ask_user_confirmation` callback
+- pass some metadata:
+  - prompt (if not defined, "Assistant want to run tool <tool_name>")
+  - input: either all input or only relevant parts (if defined), as list of : {"name": "<name>", "value": value, "hint": "<type>"},
+  where hint is something like "python", "shell", "json", "yaml", "text" etc.?
+- expect some way to get confirmation from user - either `true` or string with rejection reason
+- if user rejects, return "Error: user rejected tool execution request, reason: <reason>" error
+- if no action from callback, return "Error: user confirmation is not available in non-interactive mode"
+- ChatSession: special handling for python/shell?
+
 ## Version 0.2
 
 - simplify result referencing in chains - `{last_result}` and `store_as`

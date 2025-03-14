@@ -2,68 +2,77 @@ import logging
 import os
 import subprocess
 import time
-from typing import Type
+from typing import Type, Any
 
 from langchain_core.tools import StructuredTool, BaseTool
 from pydantic import BaseModel, Field
 
-from llm_workers.api import WorkerException
+from llm_workers.api import WorkerException, ConfirmationRequest, ConfirmationRequestParam
+from llm_workers.api import ToolWithConfirmation
 from llm_workers.utils import LazyFormatter
 
 logger = logging.getLogger(__name__)
 
 
-def _read_file(filename: str) -> str:
-    """Read a file and return its content. File should be under working directory.
-
-    Args:
-        filename: path to the file to read
-    """
-    _verify_file_in_working_directory(filename)
-
-    try:
-        with open(filename, 'r') as file:
-            return file.read()
-    except Exception as e:
-        raise WorkerException(f"Error reading file {filename}: {e}")
+def _not_in_working_directory(file_path) -> bool:
+    return file_path.startswith("/") or ".." in file_path.split("/")
 
 
-def _write_file(filename: str, content: str):
-    """Write content to a file. File should be under working directory.
+class ReadFileToolSchema(BaseModel):
+    filename: str = Field(..., description="Path to the file to read")
 
-    Args:
-        filename: path to the file to write
-        content: content to write to the file
-    """
-    _verify_file_in_working_directory(filename)
+class ReadFileTool(BaseTool, ToolWithConfirmation):
+    name: str = "read_file"
+    description: str = "Reads a file and returns its content"
+    args_schema: Type[ReadFileToolSchema] = ReadFileToolSchema
 
-    try:
-        with open(filename, 'w') as file:
-            file.write(content)
-    except Exception as e:
-        raise WorkerException(f"Error writing file {filename}: {e}")
+    def needs_confirmation(self, input: dict[str, Any]) -> bool:
+        return _not_in_working_directory(input['filename'])
+
+    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequest:
+        filename = input['filename']
+        return ConfirmationRequest(
+            action = f"read file \"{filename}\" outside working directory" if _not_in_working_directory(filename)
+            else f"read file \"{filename}\"",
+            params = [ ]
+        )
+
+    def _run(self, filename: str) -> str:
+        try:
+            with open(filename, 'r') as file:
+                return file.read()
+        except Exception as e:
+            raise WorkerException(f"Error reading file {filename}: {e}")
 
 
-def _verify_file_in_working_directory(file_path):
-    if file_path.startswith("/"):
-        raise WorkerException("File path should be relative to working directory")
+class WriteFileToolSchema(BaseModel):
+    filename: str = Field(..., description="Path to the file to write")
+    content: str = Field(..., description="Content to write")
 
-    if ".." in file_path.split("/"):
-        raise WorkerException("File path should be within working directory")
 
-read_file_tool = StructuredTool.from_function(
-    _read_file,
-    name="read_file",
-    parse_docstring=True,
-    error_on_invalid_docstring=True
-)
+class WriteFileTool(BaseTool, ToolWithConfirmation):
+    name: str = "write_file"
+    description: str = "Writes content to a file"
+    args_schema: Type[WriteFileToolSchema] = WriteFileToolSchema
 
-write_file_tool = StructuredTool.from_function(
-    _write_file,
-    name="write_file",
-    parse_docstring=True,
-    error_on_invalid_docstring=True
-)
+    def needs_confirmation(self, input: dict[str, Any]) -> bool:
+        return _not_in_working_directory(input['filename'])
+
+    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequest:
+        filename = input['filename']
+        return ConfirmationRequest(
+            action = f"write to the file \"{filename}\" outside working directory" if _not_in_working_directory(filename)
+                else f"write to the file \"{filename}\"",
+            params = []
+        )
+
+    def _run(self, filename: str, content: str):
+        try:
+            with open(filename, 'w') as file:
+                file.write(content)
+        except Exception as e:
+            raise WorkerException(f"Error writing file {filename}: {e}")
+
 
 
 class RunPythonScriptToolSchema(BaseModel):
@@ -76,7 +85,7 @@ class RunPythonScriptToolSchema(BaseModel):
         description="Python script to run. Must be a valid Python code."
     )
 
-class RunPythonScriptTool(BaseTool):
+class RunPythonScriptTool(BaseTool, ToolWithConfirmation):
     """
     Tool to run Python scripts. This tool is not safe to use with untrusted code.
     """
@@ -84,21 +93,21 @@ class RunPythonScriptTool(BaseTool):
     name: str = "run_python_script"
     description: str = "Run a Python script and return its output."
     args_schema: Type[RunPythonScriptToolSchema] = RunPythonScriptToolSchema
+    require_confirmation: bool = True
+
+    def needs_confirmation(self, input: dict[str, Any]) -> bool:
+        return self.require_confirmation
+
+    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequest:
+        return ConfirmationRequest(
+            action = "run Python script",
+            params = [ ConfirmationRequestParam(name = "script", value = input["script"], format = "python" ) ]
+        )
 
     def _run(self, script: str) -> str:
-        # TODO change to more general confirmation UI
-        # Show script to user and get confirmation
-        print("\n=== AI Assistant wants to execute the following code ===")
-        print(script)
-        print("=== End of code ===\n")
-
-        confirmation = input("Allow execution? (Yes/No): ").strip().lower()
-        if confirmation not in ["yes", "y"]:
-            raise WorkerException("Script execution cancelled by user")
-
-        # run the script
         file_path = f"script_{time.strftime('%Y%m%d_%H%M%S')}.py"
-        _write_file(file_path, script)
+        with open(file_path, 'w') as file:
+            file.write(script)
         try:
             cmd = ["python3", file_path]
             cmd_str = LazyFormatter(cmd, custom_formatter = lambda x: " ".join(x))

@@ -11,10 +11,12 @@ from langchain_community.callbacks import get_openai_callback
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.outputs import GenerationChunk, ChatGenerationChunk
-from prompt_toolkit import PromptSession
+from prompt_toolkit import PromptSession, prompt
 from prompt_toolkit.history import InMemoryHistory
 from rich.console import Console
+from rich.syntax import Syntax
 
+from llm_workers.api import ConfirmationRequest
 from llm_workers.context import StandardContext
 from llm_workers.utils import setup_logging, LazyFormatter
 from llm_workers.worker import Worker
@@ -172,6 +174,30 @@ class ChatSession:
             self._chunks_len = 0
         self._console.print(f"Running tool {name}", style="bold white")
 
+    def process_confirmation_request(self, request: ConfirmationRequest):
+        self._console.print("\n\n")
+        self._console.print(f"AI assistant wants to {request.action}:", style="bold green")
+        if len(request.args) == 1:
+            arg = request.args[0]
+            if arg.format is not None:
+                self._console.print(Syntax(arg.value, arg.format))
+            else:
+                self._console.print(f"{arg.value}:", style="bold white")
+        else:
+            for arg in request.args:
+                self._console.print(f"{arg.name}:")
+                if arg.format is not None:
+                    self._console.print(Syntax(arg.value, arg.format))
+                else:
+                    self._console.print(f"{arg.value}:", style="bold white")
+
+        self._console.print("Do you approve?", style="bold green", end="")
+        self._console.print(" Answer \"yes\" to proceed, anything else to reject with reason: (Meta+Enter or Escape,Enter to submit)", style="grey69 italic")
+        user_input = prompt(multiline=True)
+        if user_input.lower() in ["yes", "y"]:
+            request.approved = True
+        else:
+            request.reject_reason = user_input
 
 class ChatSessionCallbackDelegate(BaseCallbackHandler):
     """Delegates selected callbacks to ChatSession"""
@@ -199,6 +225,8 @@ class ChatSessionCallbackDelegate(BaseCallbackHandler):
                         metadata: Optional[dict[str, Any]] = None, **kwargs: Any) -> Any:
         if name == "on_ai_message":
             self._chat_session.process_model_message(data)
+        elif name == "request_confirmation":
+            self._chat_session.process_confirmation_request(data)
 
 
 def main():

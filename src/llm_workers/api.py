@@ -1,6 +1,6 @@
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Callable
+from typing import Any, Dict, Optional, Callable, List
 from langchain_core.tools import BaseTool
 from langchain_core.language_models import BaseChatModel
 
@@ -36,3 +36,50 @@ class WorkerException(Exception):
 
     def __str__(self):
         return self.message
+
+
+class ConfirmationRequestParam:
+    """Class representing a parameter for a confirmation request."""
+    name: str
+    value: Any
+    format: Optional[str] = None
+
+    def __init__(self, name: str, value: Any, format: Optional[str] = None):
+        self.name = name
+        self.value = value
+        self.format = format
+
+class ConfirmationRequest:
+    """Class representing a confirmation request."""
+    action: str
+    params: List[ConfirmationRequestParam]
+    approved: bool = False
+    reject_reason: Optional[str] = None
+
+    def __init__(self, action: str, params: List[ConfirmationRequestParam]):
+        self.action = action
+        self.args = params
+
+
+class ToolExecutionRejectedException(Exception):
+    """Custom exception for rejected tool execution."""
+    def __init__(self, reason: Optional[str]):
+        super().__init__(reason)
+        self.reason = reason
+
+    def __str__(self):
+        return f"ToolExecutionRejectedException({self.reason})"
+
+
+class ToolWithConfirmation(ABC):
+    """Abstract base class for tools with custom confirmation."""
+
+    def needs_confirmation(self, input: dict[str, Any]) -> bool:
+        """Check if the tool requires confirmation for the given input."""
+        return False
+
+    @abstractmethod
+    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequest:
+        """Create a confirmation request based on the input."""
+        pass
+

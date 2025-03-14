@@ -23,8 +23,6 @@ class StandardContext(WorkersContext):
         llm_workers.tools.fetch.fetch_content,
         llm_workers.tools.fetch.fetch_page_text,
         llm_workers.tools.fetch.fetch_page_links,
-        llm_workers.tools.unsafe.read_file_tool,
-        llm_workers.tools.unsafe.write_file_tool,
     ]
     _builtin_tools_factories = {
         'llm': llm_workers.tools.llm_tool.build_llm_tool,
