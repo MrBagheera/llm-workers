@@ -140,6 +140,7 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
 
     @staticmethod
     def _request_confirmation(callback_manager: CallbackManager, tool: BaseTool, args: dict[str, Any]):
+        # TODO support confirmation_prompt and confirmation_params in tool config
         request: ConfirmationRequest
         if isinstance(tool, ToolWithConfirmation):
             request = tool.make_confirmation_request(args)

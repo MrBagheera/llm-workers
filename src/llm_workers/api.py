@@ -15,7 +15,7 @@ class WorkersContext(ABC):
         pass
 
     @abstractmethod
-    def get_tool(self, tool_name: str, config: Optional[Dict[str, Any]] = None) -> BaseTool:
+    def get_tool(self, tool_name: str) -> BaseTool:
         pass
 
     @abstractmethod

@@ -7,12 +7,10 @@ models:
       max_tokens: 32768
 
 tools:
-  - llm_workers.tools.unsafe.ReadFileTool
-  - llm_workers.tools.unsafe.WriteFileTool
-
-# Custom tools. To be available for LLM, reference to custom tool
-# must be included in tool_refs section of LLM definition.
-#custom_tools:
+  - name: read_file
+    class: llm_workers.tools.unsafe.ReadFileTool
+  - name: write_file
+    class: llm_workers.tools.unsafe.WriteFileTool
 
 chat:
   system_message: |-

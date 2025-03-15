@@ -1,17 +1,15 @@
 import importlib
 import inspect
 import logging
-from typing import Dict, Optional, Any
 
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
-from langchain_core.tools import BaseTool, BaseToolkit
+from langchain_core.tools import BaseTool
 
 import llm_workers.tools.fetch
-import llm_workers.tools.llm_tool
 import llm_workers.tools.unsafe
-from llm_workers.api import WorkersContext, ToolFactory, WorkerException
-from llm_workers.config import WorkersConfig, load_config, StandardModelConfig, ImportModelConfig
+from llm_workers.api import WorkersContext, WorkerException
+from llm_workers.config import WorkersConfig, load_config, StandardModelConfig, ImportModelConfig, ToolDefinition
 from llm_workers.tools.custom_tool import build_custom_tool
 
 logger = logging.getLogger(__name__)
@@ -24,20 +22,14 @@ class StandardContext(WorkersContext):
         llm_workers.tools.fetch.fetch_page_text,
         llm_workers.tools.fetch.fetch_page_links,
     ]
-    _builtin_tools_factories = {
-        'llm': llm_workers.tools.llm_tool.build_llm_tool,
-     }
 
     def __init__(self, config: WorkersConfig):
         self._config = config
         self._models = dict[str, BaseChatModel]()
-        self._tool_factories = dict[str, ToolFactory]()
         self._tools = dict[str, BaseTool]()
         self._register_models()
-        self._register_builtin_tools_factories()
         self._register_builtin_tools()
         self._register_tools()
-        self._register_custom_tools()
 
     def _register_models(self):
         # register models
@@ -75,48 +67,75 @@ class StandardContext(WorkersContext):
             self._models[model_config.name] = model
             logger.info(f"Registered model {model_config.name}")
 
-    def _register_builtin_tools_factories(self):
-        for tool_name, tool_factory in self._builtin_tools_factories.items():
-            self._tool_factories[tool_name] = tool_factory
-
     def _register_tools(self):
         for tool_def in self._config.tools:
+            if tool_def.name in self._tools:
+                raise WorkerException(f"Failed to create tool {tool_def.name}: tool already defined")
             try:
-                segments = tool_def.split('.')
-                module = importlib.import_module('.'.join(segments[:-1]))
-                symbol = getattr(module, segments[-1])
-                if inspect.isclass(symbol):
-                    symbol = symbol() # use default constructor
-                if isinstance(symbol, BaseTool):
-                    self._register_tool(symbol)
-                elif isinstance(symbol, BaseToolkit):
-                    for tool_name, tool in symbol.tools.items():
-                        self._register_tool(tool)
-                elif callable(symbol):
-                    if len(symbol.__annotations__) == 2 and 'context' in symbol.__annotations__ and 'config' in symbol.__annotations__:
-                        self._tool_factories[symbol.__name__] = symbol
-                        logger.info(f"Registered tool factory {symbol.__name__}")
-                    else:
-                        raise ValueError("invalid tool factory signature")
+                if tool_def.clazz is not None:
+                    tool = self._create_tool_from_class(tool_def)
+                elif tool_def.factory is not None:
+                    tool = self._create_tool_from_factory(tool_def)
+                else:
+                    tool = build_custom_tool(tool_def, self)
+                # common post-processing
+                # noinspection DuplicatedCode
+                if tool_def.return_direct is not None:
+                    tool.return_direct = tool_def.return_direct
+                if tool_def.ui_hint is not None:
+                    tool.ui_hint = tool_def.ui_hint
+                if tool_def.require_confirmation is not None:
+                    tool.require_confirmation = tool_def.require_confirmation
+                if tool_def.confirmation_prompt is not None:
+                    tool.confirmation_prompt = tool_def.confirmation_prompt
+                if tool_def.confirmation_params is not None:
+                    tool.confirmation_params = tool_def.confirmation_params
+                self._tools[tool.name] = tool
+                logger.info(f"Registered tool {tool.name}")
+            except ImportError as e:
+                raise WorkerException(f"Failed to import module for tool {tool_def.name}: {e}")
             except Exception as e:
-                raise WorkerException(f"Failed to import module {tool_def}: {e}", e)
+                raise WorkerException(f"Failed to create tool {tool_def.name}: {e}", e)
+
+    # noinspection PyMethodMayBeStatic
+    def _create_tool_from_class(self, tool_def: ToolDefinition) -> BaseTool:
+        segments = tool_def.clazz.split('.')
+        module = importlib.import_module('.'.join(segments[:-1]))
+        tool = getattr(module, segments[-1])
+        if not inspect.isclass(tool):
+            raise ValueError(f"Not a class: {tool_def.clazz}")
+        tool = tool() # use default constructor
+        if not isinstance(tool, BaseTool):
+            raise ValueError(f"Not a BaseTool: {type(tool)}")
+        # overrides
+        tool.name = tool_def.name
+        if tool_def.description is not None:
+            tool.description = tool_def.description
+        return tool
+
+    def _create_tool_from_factory(self, tool_def: ToolDefinition) -> BaseTool:
+        segments = tool_def.factory.split('.')
+        module = importlib.import_module('.'.join(segments[:-1]))
+        factory = getattr(module, segments[-1])
+        if not callable(factory):
+            raise ValueError(f"Not a callable: {tool_def.factory}")
+        if len(factory.__annotations__) >= 2 and 'context' in factory.__annotations__ and 'tool_config' in factory.__annotations__:
+            tool_config = tool_def.tool_config if tool_def.tool_config is not None else {}
+            tool = factory(context = self, tool_config = tool_config)
+        else:
+            raise ValueError("Invalid tool factory signature, must be `def factory(context: WorkersContext, tool_config: dict[str, any]) -> BaseTool`")
+        if not isinstance(tool, BaseTool):
+            raise ValueError(f"Not a BaseTool: {type(tool)}")
+        # overrides
+        tool.name = tool_def.name
+        if tool_def.description is not None:
+            tool.description = tool_def.description
+        return tool
 
     def _register_builtin_tools(self):
         for tool in self._builtin_tools:
             self._register_tool(tool)
         pass
-
-    def _register_custom_tools(self):
-        # register custom tools
-        for definition in self._config.custom_tools:
-            try:
-                tool = build_custom_tool(definition, self)
-            except Exception as e:
-                raise WorkerException(f"Failed to create custom tool {definition.name}: {e}", e)
-            if tool.name in self._tools:
-                raise WorkerException(f"Failed to create custom tool {definition.name}: tool already defined")
-            self._tools[tool.name] = tool
-            logger.info(f"Registered tool {tool.name}")
 
     @classmethod
     def from_file(cls, file_path: str):
@@ -135,36 +154,13 @@ class StandardContext(WorkersContext):
         else:
             logger.info(f"Registered tool {tool.name}")
 
-    def get_tool(self, tool_name: str, config: Optional[Dict[str, Any]] = None) -> BaseTool:
-        if config is None:
-            config = {}
-        has_config = len(config) > 0
-        if not has_config:
-            if tool_name in self._tools:
-                return self._tools[tool_name]
-            if tool_name in self._tool_factories:
-                try:
-                    tool = self._builtin_tools_factories[tool_name](self, config)
-                except Exception as e:
-                    raise WorkerException(f"Failed to create tool {tool_name}: {e}", e)
-                self._register_tool(tool)
-                return tool
-            else:
-                available_tools = list(self._tools.keys()) + list(self._builtin_tools_factories.keys())
-                available_tools = list(dict.fromkeys(available_tools)) # remove duplicates
-                raise ValueError(f"Tool {tool_name} not found, available tools: {available_tools}")
+    def get_tool(self, tool_name: str) -> BaseTool:
+        if tool_name in self._tools:
+            return self._tools[tool_name]
         else:
-            if tool_name in self._builtin_tools_factories:
-                try:
-                    tool = self._builtin_tools_factories[tool_name](self, config)
-                    logger.info(f"Created tool {tool_name}")
-                    return tool
-                except Exception as e:
-                    raise WorkerException(f"Failed to create tool {tool_name} with custom config: {e}", e)
-            else:
-                available_tools = list(self._tools.keys()) + list(self._builtin_tools_factories.keys())
-                available_tools = list(dict.fromkeys(available_tools)) # remove duplicates
-                raise WorkerException(f"Cannot create tool {tool_name} with custom config, known tools: {available_tools}")
+            available_tools = list(self._tools.keys())
+            available_tools.sort()
+            raise ValueError(f"Tool {tool_name} not found, available tools: {available_tools}")
 
     def get_llm(self, llm_name: str):
         if llm_name in self._models:

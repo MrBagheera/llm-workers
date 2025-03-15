@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, create_model
 
 from llm_workers.api import WorkersContext
 from llm_workers.config import Json, CustomToolParamsDefinition, \
-    CallDefinition, ResultDefinition, StatementDefinition, MatchDefinition, CustomToolDefinition
+    CallDefinition, ResultDefinition, StatementDefinition, MatchDefinition, ToolDefinition
 
 
 class TemplateHelper:
@@ -116,7 +116,7 @@ class ResultStatement(Runnable[Dict[str, Json], Json]):
 class CallStatement(Runnable[Dict[str, Json], Json]):
 
     def __init__(self, valid_template_vars: List[str], model: CallDefinition, context: WorkersContext):
-        self._tool = context.get_tool(model.call, model.__pydantic_extra__)
+        self._tool = context.get_tool(model.call)
         self._template_helper = TemplateHelper.from_valid_template_vars(valid_template_vars, model.params)
 
     def invoke(self, input: Dict[str, Json], config: Optional[RunnableConfig] = None, **kwargs: Any) -> Json:
@@ -250,7 +250,7 @@ def create_dynamic_schema(name: str, params: list[CustomToolParamsDefinition]) -
     return create_model(model_name, **fields)
 
 
-def build_custom_tool(definition: CustomToolDefinition, context: WorkersContext) -> StructuredTool:
+def build_custom_tool(definition: ToolDefinition, context: WorkersContext) -> StructuredTool:
     valid_template_vars = [param.name for param in definition.input]
     args_schema = create_dynamic_schema(definition.name, definition.input)
     body = create_statement_from_model(valid_template_vars, definition.body, context)

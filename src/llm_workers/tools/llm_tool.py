@@ -10,8 +10,8 @@ from llm_workers.worker import Worker
 
 logger = logging.getLogger(__name__)
 
-def build_llm_tool(context: WorkersContext, raw_config: Dict[str, Any]) -> BaseTool:
-    config = BaseLLMConfig(**raw_config)
+def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> BaseTool:
+    config = BaseLLMConfig(**tool_config)
     agent = Worker(config, context)
 
     def extract_result(result: List[BaseMessage]) -> str:

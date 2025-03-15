@@ -51,7 +51,12 @@ def main():
     context = StandardContext.from_file(args.script_file)
     if context.config.cli is None:
         parser.error(f"No CLI configuration found in {args.script_file}.")
-    worker: Runnable[dict[str, Any], Any] = create_statement_from_model(["input"], context.config.cli, context)
+    worker: Runnable[dict[str, Any], Any]
+    try:
+        worker = create_statement_from_model(["input"], context.config.cli, context)
+    except Exception as e:
+        logging.error("Failed to create worker from CLI configuration", exc_info=True)
+        parser.error(f"Failed to create worker from CLI configuration: {e}")
 
     with get_openai_callback() as cb:
         # Determine the input mode

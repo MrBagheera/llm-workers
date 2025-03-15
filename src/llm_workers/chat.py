@@ -219,6 +219,7 @@ class ChatSessionCallbackDelegate(BaseCallbackHandler):
                       parent_run_id: Optional[UUID] = None, tags: Optional[list[str]] = None,
                       metadata: Optional[dict[str, Any]] = None, inputs: Optional[dict[str, Any]] = None,
                       **kwargs: Any) -> Any:
+        # TODO support ui_hint
         self._chat_session.process_tool_start(serialized.get("name", "<tool>"))
 
     def on_custom_event(self, name: str, data: Any, *, run_id: UUID, tags: Optional[list[str]] = None,

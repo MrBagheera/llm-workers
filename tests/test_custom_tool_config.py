@@ -2,14 +2,13 @@ import unittest
 
 import yaml
 
-from llm_workers.config import CallDefinition, ResultDefinition, CustomToolDefinition, \
-    MatchDefinition
+from llm_workers.config import CallDefinition, ResultDefinition, MatchDefinition, ToolDefinition
 
 
 class TestCustomToolDefinition(unittest.TestCase):
 
     def test_single_step_body(self):
-        definition = CustomToolDefinition(**yaml.safe_load("""
+        definition = ToolDefinition(**yaml.safe_load("""
 name: ExampleTool
 description: This is an example tool
 input:
@@ -36,7 +35,7 @@ return_direct: false"""))
         assert definition.body.params == {"key1": "value1", "key2": 42}
 
     def test_multi_step_body(self):
-        definition = CustomToolDefinition(**yaml.safe_load("""
+        definition = ToolDefinition(**yaml.safe_load("""
 name: ExampleTool
 description: This is an example tool
 input:
@@ -65,7 +64,7 @@ return_direct: true"""))
         assert isinstance(definition.body[1], ResultDefinition)
 
     def test_match_body(self):
-        definition = CustomToolDefinition(**yaml.safe_load("""
+        definition = ToolDefinition(**yaml.safe_load("""
 name: ExampleTool
 description: This is an example tool
 input:

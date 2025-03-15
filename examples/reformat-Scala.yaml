@@ -6,10 +6,18 @@ models:
       temperature: 0
       max_tokens: 32768
 
+tools:
+  - name: read_file
+    class: llm_workers.tools.unsafe.ReadFileTool
+  - name: write_file
+    class: llm_workers.tools.unsafe.WriteFileTool
+  - name: llm
+    factory: llm_workers.tools.llm_tool.build_llm_tool
+
 cli:
   - call: read_file
     params:
-      file_path: "{input}"
+      filename: "{input}"
   - call: llm
     params:
       prompt: |-
@@ -67,6 +75,6 @@ cli:
     default:
       - call: write_file
         params:
-          file_path: "{input}"
+          filename: "{input}"
           content: "{output1}"
       - result: "{input}: FIXED"

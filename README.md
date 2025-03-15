@@ -58,24 +58,15 @@ Common flags:
 
 Basic version usable for some tasks.
 
-- [ ] change tool import: support importing from LangChain tool classes
-- [ ] when importing tool, override name and allow specifying description
-- [ ] automatically use all "public" tools if `tool_ref` not specified
-- [ ] support "confidential" tools - imply `return_direct`, output of those is not shown to LLM
-- [ ] import from LangChain tool/toolkit classes
-- [ ] set-up source code hosting and distribution
-
-### User confirmation
-
-- add `ask_user_confirmation` callback
-- pass some metadata:
-  - prompt (if not defined, "Assistant want to run tool <tool_name>")
-  - input: either all input or only relevant parts (if defined), as list of : {"name": "<name>", "value": value, "hint": "<type>"},
-  where hint is something like "python", "shell", "json", "yaml", "text" etc.?
-- expect some way to get confirmation from user - either `true` or string with rejection reason
-- if user rejects, return "Error: user rejected tool execution request, reason: <reason>" error
-- if no action from callback, return "Error: user confirmation is not available in non-interactive mode"
-- ChatSession: special handling for python/shell?
+- automatically use all "public" tools if `tool_ref` not specified
+- support "confidential" tools - imply `return_direct`, output of those is not shown to LLM
+- support `ui_hint` tool flag
+- support `confirmation_prompt`/`confirmation_args` tool flags
+- support `confidential` tool flag
+- support `first_lines` / `last_lines` for `ReadFileTool`
+- support `append` for `ReadFileTool`
+- add `ListFileTool`
+- add `ShellTool`
 
 ## Version 0.2
 
