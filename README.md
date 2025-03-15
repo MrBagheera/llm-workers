@@ -58,7 +58,6 @@ Common flags:
 
 Basic version usable for some tasks.
 
-- automatically use all "public" tools if `tool_ref` not specified
 - support "confidential" tools - imply `return_direct`, output of those is not shown to LLM
 - support `ui_hint` tool flag
 - support `confirmation_prompt`/`confirmation_args` tool flags

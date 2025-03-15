@@ -7,9 +7,11 @@ models:
     model: gpt-4o
 
 tools:
-  - llm_workers.tools.fetch.fetch_page_markdown
+  - name: fetch_page_markdown
+    class: llm_workers.tools.fetch.FetchPageMarkdownTool
 
-custom_tools:
+  - name: _llm
+    factory: llm_workers.tools.llm_tool.build_llm_tool
 
   - name: generate_navigation_summary
     description: >
@@ -24,7 +26,7 @@ custom_tools:
         type: int
         default: 3
     body:
-      call: llm
+      call: _llm
       params:
         prompt: |
           You are an assistant to a sailing boat navigator.
@@ -65,7 +67,7 @@ custom_tools:
     return_direct: true
 
 cli:
-  call: llm
+  call: _llm
   tool_refs:
     - fetch_page_markdown
     - generate_navigation_summary
@@ -80,7 +82,3 @@ chat:
     to help user to prepare for navigation.
   default_prompt: >
     Please fetch the page from https://www.coastguidetr.com/tr/korfez/1011/marmaris-kurdoglu-burnu-arasi and print navigation summary for this region, as well as for all bays and marinas in it
-  tool_refs:
-    - fetch_page_markdown
-    - generate_navigation_summary
-    - generate_navigation_summary_from_url

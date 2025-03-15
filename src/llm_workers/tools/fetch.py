@@ -1,11 +1,12 @@
 import os
-from typing import Optional, Literal, Annotated
+from typing import Optional, Literal, Annotated, Any
 from urllib.parse import urlparse
 
 import html2text
 import html_text
 import requests
-from langchain_core.tools import StructuredTool, ToolException, InjectedToolArg
+from langchain_core.tools import ToolException, InjectedToolArg, BaseTool
+from langchain_core.tools.base import create_schema_from_function
 from lxml import html
 from lxml.html import defs
 from lxml_html_clean import Cleaner
@@ -13,6 +14,23 @@ from pydantic import BaseModel
 from requests import RequestException
 
 from llm_workers.config import Json
+
+
+def _handle_error(url: str, e: IOError, on_error: Literal['raise_exception', 'return_error', 'return_empty'], empty: Json) -> Json:
+    if on_error == "raise_exception":
+        raise ToolException(f"Error fetching {url}: {e}", e)
+    elif on_error == "return_error":
+        return {'error': str(e), 'url': url}
+    else:
+        return empty
+
+def _handle_no_content(url: str, xpath: str, on_no_content: Literal['raise_exception', 'return_error', 'return_empty'], empty: Json) -> Json:
+    if on_no_content == "raise_exception":
+        raise ToolException(f"No content matching '{xpath}' found at url {url}")
+    elif on_no_content == "return_error":
+        return {'error': f"No content matching '{xpath}' found", 'url': url}
+    else:
+        return empty
 
 
 def _fetch_content(
@@ -50,29 +68,18 @@ def _fetch_content(
     except IOError as e:
         return _handle_error(url, e, on_error, empty = "")
 
-fetch_content = StructuredTool.from_function(
-    _fetch_content,
-    name="fetch_content",
-    parse_docstring=True,
-    error_on_invalid_docstring=True
-)
+class FetchContentTool(BaseTool):
+    name: str = "fetch_content"
+    description: str = "Fetches text content from a URL and returns it as a string."
+    args_schema: type[BaseModel] = create_schema_from_function(
+        name,
+        _fetch_content,
+        parse_docstring=True,
+        error_on_invalid_docstring=True,
+    )
+    def _run(self, *args: Any, **kwargs: Any) -> Any:
+        return _fetch_content(**kwargs)
 
-
-def _handle_error(url: str, e: IOError, on_error: Literal['raise_exception', 'return_error', 'return_empty'], empty: Json) -> Json:
-    if on_error == "raise_exception":
-        raise ToolException(f"Error fetching {url}: {e}", e)
-    elif on_error == "return_error":
-        return {'error': str(e), 'url': url}
-    else:
-        return empty
-
-def _handle_no_content(url: str, xpath: str, on_no_content: Literal['raise_exception', 'return_error', 'return_empty'], empty: Json) -> Json:
-    if on_no_content == "raise_exception":
-        raise ToolException(f"No content matching '{xpath}' found at url {url}")
-    elif on_no_content == "return_error":
-        return {'error': f"No content matching '{xpath}' found", 'url': url}
-    else:
-        return empty
 
 _cleaner = Cleaner(
     scripts=True,
@@ -131,12 +138,17 @@ def _fetch_page_markdown(
         return '\n'.join(texts)
 
 
-fetch_page_markdown = StructuredTool.from_function(
-    _fetch_page_markdown,
-    name="fetch_page_markdown",
-    parse_docstring=True,
-    error_on_invalid_docstring=True
-)
+class FetchPageMarkdownTool(BaseTool):
+    name: str = "fetch_page_markdown"
+    description: str = "Fetches web page or web page element and converts it to markdown."
+    args_schema: type[BaseModel] = create_schema_from_function(
+        name,
+        _fetch_page_markdown,
+        parse_docstring=True,
+        error_on_invalid_docstring=True,
+    )
+    def _run(self, *args: Any, **kwargs: Any) -> Any:
+        return _fetch_page_markdown(**kwargs)
 
 
 def _fetch_page_text(
@@ -170,12 +182,17 @@ def _fetch_page_text(
             return _handle_no_content(url, xpath, on_no_content, empty="")
         return '\n'.join(texts)
 
-fetch_page_text = StructuredTool.from_function(
-    _fetch_page_text,
-    name="fetch_page_text",
-    parse_docstring=True,
-    error_on_invalid_docstring=True
-)
+class FetchPageTextTool(BaseTool):
+    name: str = "fetch_page_text"
+    description: str = "Fetches the text from web page or web page element."
+    args_schema: type[BaseModel] = create_schema_from_function(
+        name,
+        _fetch_page_text,
+        parse_docstring=True,
+        error_on_invalid_docstring=True,
+    )
+    def _run(self, *args: Any, **kwargs: Any) -> Any:
+        return _fetch_page_text(**kwargs)
 
 
 class LinkTextPair(BaseModel):
@@ -222,9 +239,14 @@ def _fetch_page_links(
         return _handle_no_content(url, xpath, on_no_content, empty = [])
     return links
 
-fetch_page_links = StructuredTool.from_function(
-    _fetch_page_links,
-    name="fetch_page_links",
-    parse_docstring=True,
-    error_on_invalid_docstring=True
-)
+class FetchPageLinksTool(BaseTool):
+    name: str = "fetch_page_links"
+    description: str = "Fetches the links from web page or web page element."
+    args_schema: type[BaseModel] = create_schema_from_function(
+        name,
+        _fetch_page_links,
+        parse_docstring=True,
+        error_on_invalid_docstring=True,
+    )
+    def _run(self, *args: Any, **kwargs: Any) -> Any:
+        return _fetch_page_links(**kwargs)

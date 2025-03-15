@@ -6,8 +6,6 @@ from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
-import llm_workers.tools.fetch
-import llm_workers.tools.unsafe
 from llm_workers.api import WorkersContext, WorkerException
 from llm_workers.config import WorkersConfig, load_config, StandardModelConfig, ImportModelConfig, ToolDefinition
 from llm_workers.tools.custom_tool import build_custom_tool
@@ -17,18 +15,11 @@ logger = logging.getLogger(__name__)
 
 class StandardContext(WorkersContext):
 
-    _builtin_tools = [
-        llm_workers.tools.fetch.fetch_content,
-        llm_workers.tools.fetch.fetch_page_text,
-        llm_workers.tools.fetch.fetch_page_links,
-    ]
-
     def __init__(self, config: WorkersConfig):
         self._config = config
         self._models = dict[str, BaseChatModel]()
         self._tools = dict[str, BaseTool]()
         self._register_models()
-        self._register_builtin_tools()
         self._register_tools()
 
     def _register_models(self):
@@ -131,11 +122,6 @@ class StandardContext(WorkersContext):
         if tool_def.description is not None:
             tool.description = tool_def.description
         return tool
-
-    def _register_builtin_tools(self):
-        for tool in self._builtin_tools:
-            self._register_tool(tool)
-        pass
 
     @classmethod
     def from_file(cls, file_path: str):
