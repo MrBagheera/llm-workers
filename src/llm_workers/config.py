@@ -140,7 +140,7 @@ class ToolDefinition(BaseModel):
 class BaseLLMConfig(BaseModel):
     model_ref: str = "default"
     system_message: str = None
-    tool_refs: List[str] = ()   # TODO make Optional[List[str]]
+    tool_refs: Optional[List[str]] = None
 
 
 class ChatConfig(BaseLLMConfig):

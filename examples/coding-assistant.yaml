@@ -19,6 +19,3 @@ chat:
     so when asked to generate the code, just generate it; no need to explain the code in detail.
     
     If unsure about the requirements, ask for clarification.
-  tool_refs:
-    - read_file
-    - write_file

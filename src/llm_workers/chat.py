@@ -30,7 +30,7 @@ class ChatSession:
         self._context = StandardContext.from_file(script_file)
         if not self._context.config.chat:
             raise ValueError(f"'chat' section is missing from '{self._script_file}'")
-        self._worker = Worker(self._context.config.chat, self._context)
+        self._worker = Worker(self._context.config.chat, self._context, top_level=True)
         self._iteration = 1
         self._messages = list[BaseMessage]()
         self._history = InMemoryHistory()
@@ -115,7 +115,7 @@ class ChatSession:
         self._context = StandardContext.from_file(script_file)
         if not self._context.config.chat:
             raise ValueError(f"'chat' section is missing from '{self._script_file}'")
-        self._worker = Worker(self._context.config.chat, self._context)
+        self._worker = Worker(self._context.config.chat, self._context, top_level=True)
 
     def _rewind(self, params: list[str]):
         """[N] - Rewinds chat session to input N (default to previous)"""

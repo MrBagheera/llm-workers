@@ -23,14 +23,20 @@ logger = logging.getLogger(__name__)
 
 class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
 
-    def __init__(self, llm_config: BaseLLMConfig, context: WorkersContext):
+    def __init__(self, llm_config: BaseLLMConfig, context: WorkersContext, top_level: bool = False):
         self._system_message: Optional[SystemMessage] = None
         if llm_config.system_message is not None:
             self._system_message = SystemMessage(llm_config.system_message)
         self._llm = context.get_llm(llm_config.model_ref)
         self._tools = {}
         tools = []
-        for tool_name in llm_config.tool_refs:
+        tool_refs = llm_config.tool_refs
+        if tool_refs is None:
+            if top_level:
+                tool_refs = [tool_def.name for tool_def in context.config.tools if not tool_def.name.startswith("_")]
+            else:
+                tool_refs = []
+        for tool_name in tool_refs:
             tool = context.get_tool(tool_name)
             self._tools[tool_name] = tool
             tools.append(tool)
