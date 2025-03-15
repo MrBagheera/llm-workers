@@ -54,29 +54,30 @@ Common flags:
 
 # To Do
 
-## Version 0.1
+## Version 0.1.0-alpha4
 
 Basic version usable for some tasks.
 
-- support "confidential" tools - imply `return_direct`, output of those is not shown to LLM
+- support `confidential` tool flag - imply `return_direct`, output of those is not shown to LLM
 - support `ui_hint` tool flag
 - support `confirmation_prompt`/`confirmation_args` tool flags
-- support `confidential` tool flag
-- support `first_lines` / `last_lines` for `ReadFileTool`
-- support `append` for `ReadFileTool`
-- add `ListFileTool`
-- add `ShellTool`
 
-## Version 0.2
+## Version 0.1.0-alpha5
 
 - simplify result referencing in chains - `{last_result}` and `store_as`
 - `prompts` section
 - `for_each` statement
 - `exec` tool
-- list files
-- shell commands
+- `ReadFileTool`: support `first_lines` / `last_lines`
+- `WriteFileTool`: support `append`
+- add `ListFilesTool`
+- add `ShellTool`
 - support accessing nested JSON elements in templates
-- split configuration into public and private (API tokens, model locations etc.) parts 
+
+## Version 0.1.0-rc1
+
+- review error handling
+- split configuration into public and private (API tokens, model locations etc.) parts
 
 ## Further Ideas
 
