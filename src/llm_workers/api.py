@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional, Callable, List
 from langchain_core.tools import BaseTool
 from langchain_core.language_models import BaseChatModel
 
-from llm_workers.config import WorkersConfig
+from llm_workers.config import WorkersConfig, ToolDefinition
 
 
 class WorkersContext(ABC):
@@ -16,6 +16,10 @@ class WorkersContext(ABC):
 
     @abstractmethod
     def get_tool(self, tool_name: str) -> BaseTool:
+        pass
+
+    @abstractmethod
+    def get_tool_definition(self, tool_name: str) -> ToolDefinition:
         pass
 
     @abstractmethod
@@ -71,15 +75,16 @@ class ToolExecutionRejectedException(Exception):
         return f"ToolExecutionRejectedException({self.reason})"
 
 
-class ToolWithConfirmation(ABC):
-    """Abstract base class for tools with custom confirmation."""
+class ExtendedBaseTool(ABC):
+    """Abstract base class for tools with extended properties."""
+
+    confidential: bool = False
 
     def needs_confirmation(self, input: dict[str, Any]) -> bool:
         """Check if the tool requires confirmation for the given input."""
         return False
 
-    @abstractmethod
-    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequest:
-        """Create a confirmation request based on the input."""
-        pass
+    def make_confirmation_request(self, input: dict[str, Any]) -> Optional[ConfirmationRequest]:
+        """Create a custom confirmation request based on the input."""
+        return None
 

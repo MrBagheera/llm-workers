@@ -2,7 +2,7 @@ from abc import ABC
 from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict
 
 import yaml
-from pydantic import BaseModel, ConfigDict, model_validator, Field
+from pydantic import BaseModel, model_validator, Field
 from pydantic import ValidationError, WrapValidator
 from pydantic_core import PydanticCustomError
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler, ValidationInfo
@@ -116,10 +116,7 @@ class ToolDefinition(BaseModel):
     tool_config: Optional[dict[str, Json]] = None # only for imported tools
     return_direct: Optional[bool] = None
     confidential: Optional[bool] = None
-    ui_hint: Optional[str] = None
     require_confirmation: Optional[bool] = None
-    confirmation_prompt: Optional[str] = None
-    confirmation_params: Optional[List[str]] = None
     # actual implementation definition (only one of these)
     clazz: Optional[str] = Field(alias='class', default=None)
     factory: Optional[str] = None

@@ -14,8 +14,8 @@ from langchain_core.runnables.config import (
 from langchain_core.tools import BaseTool
 
 from llm_workers.api import WorkersContext, ConfirmationRequest, ConfirmationRequestParam, \
-    ToolExecutionRejectedException, ToolWithConfirmation
-from llm_workers.config import BaseLLMConfig
+    ToolExecutionRejectedException, ExtendedBaseTool
+from llm_workers.config import BaseLLMConfig, ToolDefinition
 from llm_workers.utils import LazyFormatter
 
 logger = logging.getLogger(__name__)
@@ -29,6 +29,7 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
             self._system_message = SystemMessage(llm_config.system_message)
         self._llm = context.get_llm(llm_config.model_ref)
         self._tools = {}
+        self._tool_definitions = {}
         tools = []
         tool_refs = llm_config.tool_refs
         if tool_refs is None:
@@ -39,6 +40,7 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
         for tool_name in tool_refs:
             tool = context.get_tool(tool_name)
             self._tools[tool_name] = tool
+            self._tool_definitions[tool_name] = context.get_tool_definition(tool_name)
             tools.append(tool)
         if len(tools) > 0:
             self._llm = self._llm.bind_tools(tools)
@@ -120,15 +122,13 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                 use_direct_results = True
                 break
         for tool_call in tool_calls:
-            tool = self._tools[tool_call['name']]
+            tool: BaseTool = self._tools[tool_call['name']]
+            tool_definition: ToolDefinition = self._tool_definitions[tool_call['name']]
             args: dict[str, Any] = tool_call['args']
             logger.info("Calling tool %s with args: %r", tool.name, args)
+            execution_rejected = False
             try:
-                if getattr(tool, 'require_confirmation', False):
-                    self._request_confirmation(callback_manager, tool, args)
-                elif isinstance(tool, ToolWithConfirmation) and tool.needs_confirmation(args):
-                    # noinspection PyTypeChecker
-                    self._request_confirmation(callback_manager, tool, args)
+                self._request_confirmation_if_needed(callback_manager, tool, tool_definition, args)
                 tool_output = tool.invoke(args, config, **kwargs)
             except ToolExecutionRejectedException as e:
                 logger.info("Execution of tool %s rejected, reason: %s", tool.name, e.reason)
@@ -136,6 +136,7 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                     tool_output = f"Tool Error: execution rejected by user, reason: {e.reason}"
                 else:
                     tool_output = f"Tool Error: execution rejected, reason: cannot ask confirmation in non-interactive environment"
+                execution_rejected = True
             except Exception as e:
                 logger.warning("Failed to call tool %s", tool.name, exc_info=True)
                 tool_output = f"Tool Error: {e}"
@@ -143,8 +144,8 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                 if not tool.return_direct:
                     logger.warning("Returning results of %s tool call as direct, as it is mixed with other return_direct tool calls", tool.name)
                 response = AIMessage(content = tool_output, tool_call_id = tool_call['id'])
-                if getattr(tool, 'confidential', False):
-                    response.confidential = True
+                if not execution_rejected:
+                    response.confidential = self._is_confidential(tool, tool_definition)
             else:
                 response = ToolMessage(content = tool_output, tool_call_id = tool_call['id'], name = tool.name)
             logger.debug("Tool call result:\n%r", LazyFormatter(response))
@@ -154,14 +155,29 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
         return results
 
     @staticmethod
-    def _request_confirmation(callback_manager: CallbackManager, tool: BaseTool, args: dict[str, Any]):
+    def _is_confidential(tool: BaseTool, tool_definition: ToolDefinition) -> bool:
+        if tool_definition.confidential is not None:
+            return tool_definition.confidential
+        elif isinstance(tool, ExtendedBaseTool):
+            return tool.confidential
+        return False
+
+    @staticmethod
+    def _request_confirmation_if_needed(callback_manager: CallbackManager, tool: BaseTool, tool_definition: ToolDefinition, args: dict[str, Any]):
+        if tool_definition.require_confirmation is not None:
+            if not tool_definition.require_confirmation:
+                return
+        elif isinstance(tool, ExtendedBaseTool):
+            if not tool.needs_confirmation(args):
+                return
+
         # TODO support confirmation_prompt and confirmation_params in tool config
-        request: ConfirmationRequest
-        if isinstance(tool, ToolWithConfirmation):
+        request: Optional[ConfirmationRequest] = None
+        if isinstance(tool, ExtendedBaseTool):
             request = tool.make_confirmation_request(args)
-        else:
+        if request is None:
             request = ConfirmationRequest(
-                action = getattr(tool, 'confirmation_prompt', f"run the tool {tool.name} with following input"),
+                action = f"run the tool {tool.name} with following input",
                 params = [ConfirmationRequestParam(name=key, value=value) for key, value in args.items()]
             )
 

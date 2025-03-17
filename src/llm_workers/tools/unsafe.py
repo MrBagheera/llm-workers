@@ -8,7 +8,7 @@ from langchain_core.tools import StructuredTool, BaseTool
 from pydantic import BaseModel, Field
 
 from llm_workers.api import WorkerException, ConfirmationRequest, ConfirmationRequestParam
-from llm_workers.api import ToolWithConfirmation
+from llm_workers.api import ExtendedBaseTool
 from llm_workers.utils import LazyFormatter
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ def _not_in_working_directory(file_path) -> bool:
 class ReadFileToolSchema(BaseModel):
     filename: str = Field(..., description="Path to the file to read")
 
-class ReadFileTool(BaseTool, ToolWithConfirmation):
+class ReadFileTool(BaseTool, ExtendedBaseTool):
     name: str = "read_file"
     description: str = "Reads a file and returns its content"
     args_schema: Type[ReadFileToolSchema] = ReadFileToolSchema
@@ -50,7 +50,7 @@ class WriteFileToolSchema(BaseModel):
     content: str = Field(..., description="Content to write")
 
 
-class WriteFileTool(BaseTool, ToolWithConfirmation):
+class WriteFileTool(BaseTool, ExtendedBaseTool):
     name: str = "write_file"
     description: str = "Writes content to a file"
     args_schema: Type[WriteFileToolSchema] = WriteFileToolSchema
@@ -85,7 +85,7 @@ class RunPythonScriptToolSchema(BaseModel):
         description="Python script to run. Must be a valid Python code."
     )
 
-class RunPythonScriptTool(BaseTool, ToolWithConfirmation):
+class RunPythonScriptTool(BaseTool, ExtendedBaseTool):
     """
     Tool to run Python scripts. This tool is not safe to use with untrusted code.
     """
@@ -94,10 +94,9 @@ class RunPythonScriptTool(BaseTool, ToolWithConfirmation):
     description: str = "Run a Python script and return its output."
     args_schema: Type[RunPythonScriptToolSchema] = RunPythonScriptToolSchema
     require_confirmation: bool = True
-    confidential: bool = False  # TODO make it a part of base tool class
 
     def needs_confirmation(self, input: dict[str, Any]) -> bool:
-        return self.require_confirmation
+        return True
 
     def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequest:
         return ConfirmationRequest(

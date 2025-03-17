@@ -19,6 +19,7 @@ class StandardContext(WorkersContext):
         self._config = config
         self._models = dict[str, BaseChatModel]()
         self._tools = dict[str, BaseTool]()
+        self._tools_definitions = dict[str, ToolDefinition]()
         self._register_models()
         self._register_tools()
 
@@ -63,6 +64,7 @@ class StandardContext(WorkersContext):
         for tool_def in self._config.tools:
             if tool_def.name in self._tools:
                 raise WorkerException(f"Failed to create tool {tool_def.name}: tool already defined")
+            self._tools_definitions[tool_def.name] = tool_def
             try:
                 if tool_def.clazz is not None:
                     tool = self._create_tool_from_class(tool_def)
@@ -73,18 +75,8 @@ class StandardContext(WorkersContext):
                 # common post-processing
                 if tool_def.return_direct is not None:
                     tool.return_direct = tool_def.return_direct
-                if tool_def.confidential is not None:
-                    tool.confidential = tool_def.confidential
-                    if tool_def.confidential:
-                        tool.return_direct = True
-                if tool_def.ui_hint is not None:
-                    tool.ui_hint = tool_def.ui_hint
-                if tool_def.require_confirmation is not None:
-                    tool.require_confirmation = tool_def.require_confirmation
-                if tool_def.confirmation_prompt is not None:
-                    tool.confirmation_prompt = tool_def.confirmation_prompt
-                if tool_def.confirmation_params is not None:
-                    tool.confirmation_params = tool_def.confirmation_params
+                if tool_def.confidential:   # confidential implies return_direct
+                    tool.return_direct = True
                 self._tools[tool.name] = tool
                 logger.info(f"Registered tool {tool.name}")
             except ImportError as e:
@@ -151,6 +143,9 @@ class StandardContext(WorkersContext):
             available_tools = list(self._tools.keys())
             available_tools.sort()
             raise ValueError(f"Tool {tool_name} not found, available tools: {available_tools}")
+
+    def get_tool_definition(self, tool_name: str) -> ToolDefinition:
+        return self._tools_definitions[tool_name]
 
     def get_llm(self, llm_name: str):
         if llm_name in self._models:
