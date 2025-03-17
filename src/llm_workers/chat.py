@@ -64,7 +64,7 @@ class ChatSession:
                 if self._parse_and_run_command(text):
                     continue
                 # submitting input to the worker
-                self._console.print(f"#{self._iteration} AI:", style="bold green")
+                self._console.print(f"#{self._iteration} AI Assistant:", style="bold green")
                 message = HumanMessage(text)
                 self._messages.append(message)
                 self._chunks_len = 0
@@ -166,7 +166,12 @@ class ChatSession:
         if self._chunks_len > 0:
             print()
             self._chunks_len = 0
+        confidential = getattr(message, 'confidential', False)
+        if confidential:
+            self._console.print("[Message marked as confidential, not shown to AI Assistant]", style="bold red")
         self._console.print(message.content)
+        if confidential:
+            self._console.print("[Message marked as confidential, not shown to AI Assistant]", style="bold red")
 
     def process_tool_start(self, name: str):
         if self._chunks_len > 0:

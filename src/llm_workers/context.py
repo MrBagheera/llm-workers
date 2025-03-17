@@ -58,6 +58,7 @@ class StandardContext(WorkersContext):
             self._models[model_config.name] = model
             logger.info(f"Registered model {model_config.name}")
 
+    # noinspection DuplicatedCode
     def _register_tools(self):
         for tool_def in self._config.tools:
             if tool_def.name in self._tools:
@@ -70,9 +71,12 @@ class StandardContext(WorkersContext):
                 else:
                     tool = build_custom_tool(tool_def, self)
                 # common post-processing
-                # noinspection DuplicatedCode
                 if tool_def.return_direct is not None:
                     tool.return_direct = tool_def.return_direct
+                if tool_def.confidential is not None:
+                    tool.confidential = tool_def.confidential
+                    if tool_def.confidential:
+                        tool.return_direct = True
                 if tool_def.ui_hint is not None:
                     tool.ui_hint = tool_def.ui_hint
                 if tool_def.require_confirmation is not None:

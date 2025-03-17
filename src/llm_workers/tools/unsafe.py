@@ -94,6 +94,7 @@ class RunPythonScriptTool(BaseTool, ToolWithConfirmation):
     description: str = "Run a Python script and return its output."
     args_schema: Type[RunPythonScriptToolSchema] = RunPythonScriptToolSchema
     require_confirmation: bool = True
+    confidential: bool = False  # TODO make it a part of base tool class
 
     def needs_confirmation(self, input: dict[str, Any]) -> bool:
         return self.require_confirmation

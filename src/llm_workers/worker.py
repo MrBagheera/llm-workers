@@ -47,12 +47,19 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
     def invoke(self, input: List[BaseMessage], config: Optional[RunnableConfig] = None, **kwargs: Any) -> List[BaseMessage]:
         if self._system_message is not None:
             input = [self._system_message] + input
+        else:
+            input = input.copy()
 
         callback_manager: CallbackManager = get_callback_manager_for_config(ensure_config(config))
 
         output: List[BaseMessage] = []
         while True:
             last: Optional[BaseMessage] = None
+            # skip confidential messages
+            for i in range(len(input)):
+                if isinstance(input[i], AIMessage) and getattr(input[i], 'confidential', False):
+                    input[i] = input[i].model_copy(update={'content': '[CONFIDENTIAL]'}, deep=False)
+
             for chunk in self._llm.stream(input, config, **kwargs):
                 if isinstance(chunk, BaseMessageChunk):
                     if last is None:
@@ -136,6 +143,8 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                 if not tool.return_direct:
                     logger.warning("Returning results of %s tool call as direct, as it is mixed with other return_direct tool calls", tool.name)
                 response = AIMessage(content = tool_output, tool_call_id = tool_call['id'])
+                if getattr(tool, 'confidential', False):
+                    response.confidential = True
             else:
                 response = ToolMessage(content = tool_output, tool_call_id = tool_call['id'], name = tool.name)
             logger.debug("Tool call result:\n%r", LazyFormatter(response))

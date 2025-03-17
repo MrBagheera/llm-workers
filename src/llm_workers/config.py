@@ -115,6 +115,7 @@ class ToolDefinition(BaseModel):
     input: Optional[List[CustomToolParamsDefinition]] = None # only for custom tools
     tool_config: Optional[dict[str, Json]] = None # only for imported tools
     return_direct: Optional[bool] = None
+    confidential: Optional[bool] = None
     ui_hint: Optional[str] = None
     require_confirmation: Optional[bool] = None
     confirmation_prompt: Optional[str] = None
