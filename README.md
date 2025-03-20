@@ -52,32 +52,27 @@ Common flags:
 - `--verbose` flag triggers some debug prints to stderr
 - `--debug` - enables LangChain's debug mode, which prints additional information about script execution
 
-# To Do
+# Releases
 
-## Version 0.1.0-alpha4
+## Next
 
-Basic version usable for some tasks.
+- [0.1.0-alpha5](https://github.com/MrBagheera/llm-workers/milestone/1)
 
-- support `confidential` tool flag - imply `return_direct`, output of those is not shown to LLM
-- support `ui_hint` tool flag
-- support `confirmation_prompt`/`confirmation_args` tool flags
-
-## Version 0.1.0-alpha5
+## Version 0.1.0
 
 - simplify result referencing in chains - `{last_result}` and `store_as`
 - `prompts` section
 - `for_each` statement
-- `exec` tool
 - `ReadFileTool`: support `first_lines` / `last_lines`
 - `WriteFileTool`: support `append`
 - add `ListFilesTool`
 - add `ShellTool`
+- add `Execute` tool
+- support `ui_hint` tool flag
+- support `confirmation_prompt`/`confirmation_args` tool flags
 - support accessing nested JSON elements in templates
-
-## Version 0.1.0-rc1
-
 - review error handling
-- split configuration into public and private (API tokens, model locations etc.) parts
+- improve documentation - installing, running, developing
 
 ## Further Ideas
 
