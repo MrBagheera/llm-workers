@@ -170,6 +170,8 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
         elif isinstance(tool, ExtendedBaseTool):
             if not tool.needs_confirmation(args):
                 return
+        else:
+            return
 
         # TODO support confirmation_prompt and confirmation_params in tool config
         request: Optional[ConfirmationRequest] = None
