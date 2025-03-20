@@ -16,7 +16,7 @@ from prompt_toolkit.history import InMemoryHistory
 from rich.console import Console
 from rich.syntax import Syntax
 
-from llm_workers.api import ConfirmationRequest
+from llm_workers.api import ConfirmationRequest, CONFIDENTIAL
 from llm_workers.context import StandardContext
 from llm_workers.utils import setup_logging, LazyFormatter
 from llm_workers.worker import Worker
@@ -166,12 +166,12 @@ class ChatSession:
         if self._chunks_len > 0:
             print()
             self._chunks_len = 0
-        confidential = getattr(message, 'confidential', False)
+        confidential = getattr(message, CONFIDENTIAL, False)
         if confidential:
-            self._console.print("[Message marked as confidential, not shown to AI Assistant]", style="bold red")
+            self._console.print("[Message below is confidential, not shown to AI Assistant]", style="bold red")
         self._console.print(message.content)
         if confidential:
-            self._console.print("[Message marked as confidential, not shown to AI Assistant]", style="bold red")
+            self._console.print("[Message above is confidential, not shown to AI Assistant]", style="bold red")
 
     def process_tool_start(self, name: str):
         if self._chunks_len > 0:

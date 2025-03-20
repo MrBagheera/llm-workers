@@ -14,7 +14,7 @@ from langchain_core.runnables.config import (
 from langchain_core.tools import BaseTool
 
 from llm_workers.api import WorkersContext, ConfirmationRequest, ConfirmationRequestParam, \
-    ToolExecutionRejectedException, ExtendedBaseTool
+    ToolExecutionRejectedException, ExtendedBaseTool, CONFIDENTIAL
 from llm_workers.config import BaseLLMConfig, ToolDefinition
 from llm_workers.utils import LazyFormatter
 
@@ -59,7 +59,7 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
             last: Optional[BaseMessage] = None
             # skip confidential messages
             for i in range(len(input)):
-                if isinstance(input[i], AIMessage) and getattr(input[i], 'confidential', False):
+                if isinstance(input[i], AIMessage) and getattr(input[i], CONFIDENTIAL, False):
                     input[i] = input[i].model_copy(update={'content': '[CONFIDENTIAL]'}, deep=False)
 
             for chunk in self._llm.stream(input, config, **kwargs):
@@ -145,7 +145,7 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                     logger.warning("Returning results of %s tool call as direct, as it is mixed with other return_direct tool calls", tool.name)
                 response = AIMessage(content = tool_output, tool_call_id = tool_call['id'])
                 if not execution_rejected:
-                    response.confidential = self._is_confidential(tool, tool_definition)
+                    response[CONFIDENTIAL] = self._is_confidential(tool, tool_definition)
             else:
                 response = ToolMessage(content = tool_output, tool_call_id = tool_call['id'], name = tool.name)
             logger.debug("Tool call result:\n%r", LazyFormatter(response))

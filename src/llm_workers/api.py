@@ -6,6 +6,10 @@ from langchain_core.language_models import BaseChatModel
 
 from llm_workers.config import WorkersConfig, ToolDefinition
 
+# Flag for confidential messages (not shown to LLM)
+CONFIDENTIAL: str = 'confidential'
+
+
 
 class WorkersContext(ABC):
 
