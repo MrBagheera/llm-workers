@@ -1,11 +1,13 @@
 import argparse
 import logging
+import os
 import sys
+from argparse import ArgumentParser, Namespace
 from logging import getLogger
 from typing import Optional, Union, Any
 from uuid import UUID
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from langchain.globals import set_verbose, set_debug
 from langchain_community.callbacks import get_openai_callback
 from langchain_core.callbacks import BaseCallbackHandler
@@ -24,12 +26,12 @@ from llm_workers.worker import Worker
 logger = getLogger(__name__)
 
 class ChatSession:
-    def __init__(self, console: Console, script_file: str):
-        self._script_file = script_file
+    def __init__(self, console: Console, script_name: str):
+        self._script_name = script_name
         self._console = console
-        self._context = StandardContext.from_file(script_file)
+        self._context = StandardContext.load(script_name)
         if not self._context.config.chat:
-            raise ValueError(f"'chat' section is missing from '{self._script_file}'")
+            raise ValueError(f"'chat' section is missing from '{self._script_name}'")
         self._worker = Worker(self._context.config.chat, self._context, top_level=True)
         self._iteration = 1
         self._messages = list[BaseMessage]()
@@ -108,7 +110,7 @@ class ChatSession:
     def _reload(self, params: list[str]):
         """[<script.yaml>] - Reloads given LLM script (defaults to current)"""
         if len(params) == 0:
-            script_file = self._script_file
+            script_file = self._script_name
         elif len(params) == 1:
             script_file = params[0]
         else:
@@ -116,10 +118,10 @@ class ChatSession:
             return
 
         self._console.print(f"(Re)loading LLM script from {script_file}", style="bold white")
-        self._script_file = script_file
-        self._context = StandardContext.from_file(script_file)
+        self._script_name = script_file
+        self._context = StandardContext.load(script_file)
         if not self._context.config.chat:
-            raise ValueError(f"'chat' section is missing from '{self._script_file}'")
+            raise ValueError(f"'chat' section is missing from '{self._script_name}'")
         self._worker = Worker(self._context.config.chat, self._context, top_level=True)
 
     def _rewind(self, params: list[str]):
@@ -289,6 +291,57 @@ class ChatSessionCallbackDelegate(BaseCallbackHandler):
             self._chat_session.process_confirmation_request(data)
 
 
+def _find_dotenv() -> Optional[str]:
+    """
+    Find the .env file. The search is done in the following order:
+    - Current working directory
+    - Parent directories
+
+    Returns:
+        Optional[str]: The path to the .env file, or None if not found.
+    """
+    env_path = find_dotenv(usecwd=True)
+    if env_path and os.path.exists(env_path):
+        return env_path
+    return None
+
+def build_and_run(script_name: str, args: Namespace):
+    """
+    Build and run the script with the given arguments.
+
+    Args:
+        script_name (str): The name of the script to run. Can be either file name or `module_name:resource.yaml`.
+        args (Namespace): The arguments to pass to the script.
+    """
+    # Set verbosity and debug mode based on command-line arguments
+    if args.verbose:
+        set_verbose(True)
+    if args.debug:
+        set_debug(True)
+
+    # Setup logging
+    setup_logging(console_level=logging.DEBUG if args.debug else logging.WARN)
+
+    # Load environment variables from .env file in working directory
+    dotenv_path=_find_dotenv()
+    if dotenv_path:
+        logger.info(f"Loading {dotenv_path}")
+        load_dotenv(dotenv_path)
+
+    # Create a console object for output
+    console = Console()
+
+    # Create a chat session and run it
+    chat_session = ChatSession(console, script_name)
+    with get_openai_callback() as cb:
+        chat_session.run()
+
+    print(f"Total Tokens: {cb.total_tokens}", file=sys.stderr)
+    print(f"Prompt Tokens: {cb.prompt_tokens}", file=sys.stderr)
+    print(f"Completion Tokens: {cb.completion_tokens}", file=sys.stderr)
+    print(f"Total Cost (USD): ${cb.total_cost}", file=sys.stderr)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="CLI tool to run LLM scripts with prompts from command-line or stdin."
@@ -298,26 +351,7 @@ def main():
     parser.add_argument('script_file', type=str, help="Path to the script file.")
     args = parser.parse_args()
 
-    load_dotenv()
-    _console = Console()
-    if args.verbose:
-        set_verbose(True)
-    if args.debug:
-        set_debug(True)
-    if args.debug:
-        setup_logging(console_level=logging.DEBUG)
-    else:
-        setup_logging(console_level=logging.WARN)
-
-    chat_session = ChatSession(_console, args.script_file)
-
-    with get_openai_callback() as cb:
-        chat_session.run()
-
-    print(f"Total Tokens: {cb.total_tokens}", file=sys.stderr)
-    print(f"Prompt Tokens: {cb.prompt_tokens}", file=sys.stderr)
-    print(f"Completion Tokens: {cb.completion_tokens}", file=sys.stderr)
-    print(f"Total Cost (USD): ${cb.total_cost}", file=sys.stderr)
+    build_and_run(args.script_file, args)
 
 
 if __name__ == "__main__":

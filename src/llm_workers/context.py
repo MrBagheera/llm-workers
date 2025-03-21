@@ -120,9 +120,9 @@ class StandardContext(WorkersContext):
         return tool
 
     @classmethod
-    def from_file(cls, file_path: str):
-        logger.info(f"Loading from {file_path}")
-        return cls(load_config(file_path))
+    def load(cls, script_name: str):
+        logger.info(f"Loading {script_name}")
+        return cls(load_config(script_name))
 
     @property
     def config(self) -> WorkersConfig:

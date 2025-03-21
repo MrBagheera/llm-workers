@@ -1,5 +1,6 @@
+import importlib.resources
 from abc import ABC
-from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict
+from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict, TextIO
 
 import yaml
 from pydantic import BaseModel, model_validator, Field
@@ -155,7 +156,15 @@ class WorkersConfig(BaseModel):
     cli: Optional[BodyDefinition] = None
 
 
-def load_config(file_path: str) -> WorkersConfig:
-    with open(file_path, 'r') as file:
+def load_config(name: str) -> WorkersConfig:
+    # if name has module:resource format, load it as a module
+    if ':' in name:
+        module, resource = name.split(':', 1)
+        if len(module) > 1: # ignore volume names on windows
+            with importlib.resources.files(module).joinpath(resource).open("r") as file:
+                config_data = yaml.safe_load(file)
+            return WorkersConfig(**config_data)
+    # try loading as file
+    with open(name, 'r') as file:
         config_data = yaml.safe_load(file)
     return WorkersConfig(**config_data)

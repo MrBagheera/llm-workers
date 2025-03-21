@@ -1,0 +1,21 @@
+models:
+  - name: default
+    provider: bedrock_converse
+    model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
+    model_params:
+      temperature: 0
+      max_tokens: 32768
+
+tools:
+  - name: read_file
+    class: llm_workers.tools.unsafe.ReadFileTool
+  - name: write_file
+    class: llm_workers.tools.unsafe.WriteFileTool
+
+chat:
+  system_message: |-
+    You are senior developer. You are proficient in Python, Scala, C#, Mongo database and Redis.
+    Your job is to help your team to write backend code and supporting tools. The team is senior and experienced, 
+    so when asked to generate the code, just generate it; no need to explain the code in detail.
+    
+    If unsure about the requirements, ask for clarification.

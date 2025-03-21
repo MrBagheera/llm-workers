@@ -48,7 +48,7 @@ def main():
     else:
         setup_logging(console_level=logging.WARNING)
 
-    context = StandardContext.from_file(args.script_file)
+    context = StandardContext.load(args.script_file)
     if context.config.cli is None:
         parser.error(f"No CLI configuration found in {args.script_file}.")
     worker: Runnable[dict[str, Any], Any]
