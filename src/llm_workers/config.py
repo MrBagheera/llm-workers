@@ -139,6 +139,8 @@ class BaseLLMConfig(BaseModel):
     model_ref: str = "default"
     system_message: str = None
     tool_refs: Optional[List[str]] = None
+    remove_past_reasoning: bool = False # experimental - to test on bigger chats.
+                                        # If it proves to bring no benefits, remove it
 
 
 class ChatConfig(BaseLLMConfig):

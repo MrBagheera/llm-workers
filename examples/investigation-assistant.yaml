@@ -20,10 +20,10 @@ models:
 tools:
   - name: run_python_script
     class: llm_workers.tools.unsafe.RunPythonScriptTool
-    confidential: true
 
 chat:
   model_ref: thinking
+  remove_past_reasoning: true
   system_message: |-
     You are AI assistant in a mobile game company.
     Your team is investigating issues in a live game. Your task is to help your team by writing 

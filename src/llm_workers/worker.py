@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
 
     def __init__(self, llm_config: BaseLLMConfig, context: WorkersContext, top_level: bool = False):
+        self._llm_config = llm_config
         self._system_message: Optional[SystemMessage] = None
         if llm_config.system_message is not None:
             self._system_message = SystemMessage(llm_config.system_message)
@@ -61,25 +62,20 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
             input = [self._system_message] + input
         else:
             input = input.copy()
+        self._filter_outgoing_messages(input, 0)
 
         callback_manager: CallbackManager = get_callback_manager_for_config(ensure_config(config))
 
         while True:
-            # skip confidential messages
-            for i in range(len(input)):
-                if isinstance(input[i], AIMessage) and getattr(input[i], CONFIDENTIAL, False):
-                    input[i] = input[i].model_copy(update={'content': '[CONFIDENTIAL]'}, deep=False)
-
             response = self._invoke_llm(stream, input, config, **kwargs)
 
             if isinstance(response, AIMessage) and len(response.tool_calls) > 0:
                 self._log_llm_message(response, "LLM message with tool calls")
                 if self._use_direct_results(response.tool_calls):
                     # include LLM message without tool calls, if not empty
-                    if len(response.content) > 0:
-                        stripped = response.model_copy(deep=False)
-                        stripped.tool_calls = []
-                        yield stripped
+                    text = response.text()
+                    if len(text) > 0:
+                        yield AIMessage(content=text)
                     # return tool call results as if LLM responded with them
                     results = self._handle_tool_calls(callback_manager, response.tool_calls, True, config, **kwargs)
                     for result in results:
@@ -101,6 +97,28 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                 self._log_llm_message(response, "LLM message")
                 yield response
                 return
+
+    def _filter_outgoing_messages(self, input, next_index):
+        for i in range(next_index, len(input)):
+            message = input[i]
+            if isinstance(message, AIMessage):
+                # filter confidential messages
+                if getattr(message, CONFIDENTIAL, False):
+                    message = message.model_copy(update={'content': '[CONFIDENTIAL]'}, deep=False)
+                    input[i] = message
+                if self._llm_config.remove_past_reasoning:
+                    # do not send reasoning content
+                    if isinstance(message.content, list):
+                        fixed_content: Optional[list] = None
+                        for block in message.content:
+                            if isinstance(block, dict):
+                                if block.get("type") == "reasoning_content":
+                                    if fixed_content is None:
+                                        fixed_content = message.content.copy()
+                                    fixed_content.remove(block)
+                        if fixed_content is not None:
+                            message = message.model_copy(update={'content': fixed_content}, deep=False)
+                            input[i] = message
 
     def _invoke_llm(self, stream: bool, input: List[BaseMessage], config: Optional[RunnableConfig], **kwargs: Any) -> BaseMessage:
         # converse-bedrock doesn't support "stream" attribute, have to work around it
