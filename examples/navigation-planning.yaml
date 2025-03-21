@@ -1,10 +1,13 @@
 models:
   - name: default
-#    provider: ollama
-#    model: llama3.3
-#    model: deepseek-r1:70b
     provider: openai
     model: gpt-4o
+  - name: claude_bedrock
+    provider: bedrock_converse
+    model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
+    model_params:
+      temperature: 0
+      max_tokens: 32768
 
 tools:
   - name: fetch_page_markdown
@@ -77,8 +80,9 @@ cli:
       Please fetch the page from {input} and print navigation summary for this region, as well as for all bays and marinas in it.
 
 chat:
+#  model_ref: claude_bedrock
   system_message: >
     You are an assistant to a sailing boat navigator. Your job is to use provided tools
     to help user to prepare for navigation.
   default_prompt: >
-    Please fetch the page from https://www.coastguidetr.com/tr/korfez/1011/marmaris-kurdoglu-burnu-arasi and print navigation summary for this region, as well as for all bays and marinas in it
+    Please print navigation summary for https://www.coastguidetr.com/tr/korfez/1011/marmaris-kurdoglu-burnu-arasi, as well as for all bays and marinas in this region

@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from langchain.globals import set_verbose, set_debug
 from langchain_community.callbacks import get_openai_callback
 from langchain_core.callbacks import BaseCallbackHandler
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langchain_core.outputs import GenerationChunk, ChatGenerationChunk
 from prompt_toolkit import PromptSession, prompt
 from prompt_toolkit.history import InMemoryHistory
@@ -43,7 +43,8 @@ class ChatSession:
         self._finished = False
         self._pre_input = ""
         self._callbacks = [ChatSessionCallbackDelegate(self)]
-        self._chunks_len = 0
+        self._streamed_message_id = None
+        self._has_unfinished_output = False
 
     def run(self):
         config = self._context.config.chat
@@ -67,9 +68,11 @@ class ChatSession:
                 self._console.print(f"#{self._iteration} AI Assistant:", style="bold green")
                 message = HumanMessage(text)
                 self._messages.append(message)
-                self._chunks_len = 0
+                self._has_unfinished_output = False
+                self._streamed_message_id = None
                 logger.debug("Running new prompt for #%s:\n%r", self._iteration, LazyFormatter(message))
-                self._messages.extend(self._worker.invoke(self._messages, config={"callbacks": self._callbacks}))
+                for message in self._worker.stream(self._messages, stream=True, config={"callbacks": self._callbacks}):
+                    self.process_model_message(message[0])
                 self._iteration = self._iteration + 1
         except KeyboardInterrupt:
             self._finished = True
@@ -158,25 +161,33 @@ class ChatSession:
         """- Ends chat session"""
         self._finished = True
 
-    def process_model_chunk(self, token: str):
-        self._chunks_len = self._chunks_len + len(token)
+    def process_model_chunk(self, token: str, message_id: any):
+        self._has_unfinished_output = self._has_unfinished_output or len(token) > 0
+        self._streamed_message_id = message_id
         print(token, end="", flush=True)
 
     def process_model_message(self, message: BaseMessage):
-        if self._chunks_len > 0:
+        self._messages.append(message)
+        if not isinstance(message, AIMessage):
+            return
+        if self._has_unfinished_output:
             print()
-            self._chunks_len = 0
+            self._has_unfinished_output = False
+        if self._streamed_message_id is not None and self._streamed_message_id == message.id:
+            if isinstance(message, AIMessage):
+                self._streamed_message_id = None
+                return
         confidential = getattr(message, CONFIDENTIAL, False)
         if confidential:
             self._console.print("[Message below is confidential, not shown to AI Assistant]", style="bold red")
-        self._console.print(message.content)
+        self._console.print(message.text())
         if confidential:
             self._console.print("[Message above is confidential, not shown to AI Assistant]", style="bold red")
 
     def process_tool_start(self, name: str):
-        if self._chunks_len > 0:
+        if self._has_unfinished_output:
             print()
-            self._chunks_len = 0
+            self._has_unfinished_output = False
         self._console.print(f"Running tool {name}", style="bold white")
 
     def process_confirmation_request(self, request: ConfirmationRequest):
@@ -213,12 +224,10 @@ class ChatSessionCallbackDelegate(BaseCallbackHandler):
     def on_llm_new_token(self, token: str, *, chunk: Optional[Union[GenerationChunk, ChatGenerationChunk]] = None,
                          run_id: UUID, parent_run_id: Optional[UUID] = None, **kwargs: Any) -> Any:
         # prefer chunk.text as token is broken for AWS Bedrock
-        if chunk is not None and isinstance(chunk, ChatGenerationChunk):
-            token = chunk.text
-        elif chunk is not None and isinstance(chunk, GenerationChunk):
-            token = chunk.text
-        if len(token) > 0:
-            self._chat_session.process_model_chunk(token)
+        if chunk is not None:
+            self._chat_session.process_model_chunk(chunk.text, chunk.message.id)
+        else:
+            self._chat_session.process_model_chunk(token, message_id=run_id)
 
     def on_tool_start(self, serialized: dict[str, Any], input_str: str, *, run_id: UUID,
                       parent_run_id: Optional[UUID] = None, tags: Optional[list[str]] = None,
@@ -229,9 +238,7 @@ class ChatSessionCallbackDelegate(BaseCallbackHandler):
 
     def on_custom_event(self, name: str, data: Any, *, run_id: UUID, tags: Optional[list[str]] = None,
                         metadata: Optional[dict[str, Any]] = None, **kwargs: Any) -> Any:
-        if name == "on_ai_message":
-            self._chat_session.process_model_message(data)
-        elif name == "request_confirmation":
+        if name == "request_confirmation":
             self._chat_session.process_confirmation_request(data)
 
 

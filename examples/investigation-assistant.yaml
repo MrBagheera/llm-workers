@@ -5,6 +5,17 @@ models:
     model_params:
       temperature: 0
       max_tokens: 32768
+  - name: thinking
+    provider: bedrock_converse
+    model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
+    model_params:
+      temperature: 1
+      max_tokens: 32768
+      disable_streaming: true
+      additional_model_request_fields:
+        thinking:
+          type: enabled
+          budget_tokens: 16000
 
 tools:
   - name: run_python_script
@@ -12,6 +23,7 @@ tools:
     confidential: true
 
 chat:
+  model_ref: thinking
   system_message: |-
     You are AI assistant in a mobile game company.
     Your team is investigating issues in a live game. Your task is to help your team by writing 

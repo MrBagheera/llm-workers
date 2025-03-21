@@ -1,11 +1,10 @@
 import logging
 import sys
-from typing import Optional, Any, List
+from typing import Optional, Any, List, Iterator
 
 from langchain.globals import get_verbose
 from langchain_core.callbacks import CallbackManager
 from langchain_core.messages import BaseMessage, SystemMessage, AIMessage, ToolMessage, ToolCall
-from langchain_core.messages.base import BaseMessageChunk
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.runnables.config import (
     ensure_config,
@@ -46,7 +45,18 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
             self._llm = self._llm.bind_tools(tools)
         self._direct_tools = set([tool.name for tool in tools if tool.return_direct])
 
-    def invoke(self, input: List[BaseMessage], config: Optional[RunnableConfig] = None, **kwargs: Any) -> List[BaseMessage]:
+    def invoke(self, input: List[BaseMessage], config: Optional[RunnableConfig] = None, stream: bool = False, **kwargs: Any) -> List[BaseMessage]:
+        result = []
+        for message in self._stream(input, config, stream, **kwargs):
+            result.append(message)
+        return result
+
+    def stream(self, input: List[BaseMessage], config: Optional[RunnableConfig] = None, stream: bool = False, **kwargs: Optional[Any]) -> Iterator[List[BaseMessage]]:
+        for message in self._stream(input, config, stream, **kwargs):
+            yield [ message ]
+
+    def _stream(self, input: List[BaseMessage], config: Optional[RunnableConfig], stream: bool, **kwargs: Any) -> Iterator[BaseMessage]:
+
         if self._system_message is not None:
             input = [self._system_message] + input
         else:
@@ -54,73 +64,73 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
 
         callback_manager: CallbackManager = get_callback_manager_for_config(ensure_config(config))
 
-        output: List[BaseMessage] = []
         while True:
-            last: Optional[BaseMessage] = None
             # skip confidential messages
             for i in range(len(input)):
                 if isinstance(input[i], AIMessage) and getattr(input[i], CONFIDENTIAL, False):
                     input[i] = input[i].model_copy(update={'content': '[CONFIDENTIAL]'}, deep=False)
 
-            for chunk in self._llm.stream(input, config, **kwargs):
-                if isinstance(chunk, BaseMessageChunk):
-                    if last is None:
-                        last = chunk
-                    elif isinstance(last, BaseMessageChunk) and last.id == chunk.id:
-                        last = last + chunk
-                    else:
-                        self._append_llm_message(callback_manager, output, last, "intermediate LLM message")
-                        last = chunk
-                else:
-                    if last is not None:
-                        self._append_llm_message(callback_manager, output, last, "intermediate LLM message")
-                    last = chunk
-            if last is None:
-                return [] # no output from LLM
+            response = self._invoke_llm(stream, input, config, **kwargs)
 
-            if isinstance(last, AIMessage) and len(last.tool_calls) > 0:
-                self._append_llm_message(callback_manager, output, last, "last LLM message with tool calls")
-                results = self._handle_tool_calls(callback_manager, last.tool_calls, config, **kwargs)
-                if isinstance(results[0], AIMessage):   # return_direct tool calls
-                    # remove last response from LLM
-                    output.pop()
-                    # return tool calls as if LLM responded with them
+            if isinstance(response, AIMessage) and len(response.tool_calls) > 0:
+                self._log_llm_message(response, "LLM message with tool calls")
+                if self._use_direct_results(response.tool_calls):
+                    # include LLM message without tool calls, if not empty
+                    if len(response.content) > 0:
+                        stripped = response.model_copy(deep=False)
+                        stripped.tool_calls = []
+                        yield stripped
+                    # return tool call results as if LLM responded with them
+                    results = self._handle_tool_calls(callback_manager, response.tool_calls, True, config, **kwargs)
                     for result in results:
-                        self._append_llm_message(callback_manager, output, result, "direct tool message")
-                    return output
+                        yield result
+                    return
                 else:
-                    # append calls and results to input to continue LLM conversation
-                    input.append(last)
-                    input.extend(results)
+                    yield response
+                    results = self._handle_tool_calls(callback_manager, response.tool_calls, False, config, **kwargs)
                     # it is recommended to include tool calls and results in
                     # chat history for possible further use in the conversation
-                    output.extend(results)
+                    for result in results:
+                        yield result
+                    # append calls and results to input to continue LLM conversation
+                    input.append(response)
+                    input.extend(results)
                     # continue to call LLM again
             else:
                 # no tool calls, return LLM response
-                self._append_llm_message(callback_manager, output, last, "last LLM message")
-                return output
+                self._log_llm_message(response, "LLM message")
+                yield response
+                return
+
+    def _invoke_llm(self, stream: bool, input: List[BaseMessage], config: Optional[RunnableConfig], **kwargs: Any) -> BaseMessage:
+        # converse-bedrock doesn't support "stream" attribute, have to work around it
+        if stream:
+            # reassembling message from chunks
+            last: Optional[BaseMessage] = None
+            for message in self._llm.stream(input, config, **kwargs):
+                if last is None:
+                    last = message
+                else:
+                    last += message
+            return last
+        else:
+            return self._llm.invoke(input, config, **{**kwargs, "stream": stream})
 
     @staticmethod
-    def _append_llm_message(callback_manager: CallbackManager, output: List[BaseMessage], message: BaseMessage, log_info: str):
+    def _log_llm_message(message: BaseMessage, log_info: str):
         logger.debug("Got %s:\n%r", log_info, LazyFormatter(message))
         if get_verbose():
             print(message.pretty_repr(), file = sys.stderr)
-        if not isinstance(message, BaseMessageChunk) and len(message.content) > 0: # chunks events are streamed automatically
-            callback_manager.on_custom_event(
-                name = "on_ai_message",
-                data = message
-            )
-        output.append(message)
 
-
-    def _handle_tool_calls(self, callback_manager: CallbackManager, tool_calls: List[ToolCall], config: Optional[RunnableConfig], **kwargs: Any):
-        results = []
-        use_direct_results = False
+    def _use_direct_results(self, tool_calls: List[ToolCall]):
+        """Check if any of the tool calls are direct_result tools."""
         for tool_call in tool_calls:
             if tool_call['name'] in self._direct_tools:
-                use_direct_results = True
-                break
+                return True
+        return False
+
+    def _handle_tool_calls(self, callback_manager: CallbackManager, tool_calls: List[ToolCall], use_direct_results: bool, config: Optional[RunnableConfig], **kwargs: Any):
+        results = []
         for tool_call in tool_calls:
             tool: BaseTool = self._tools[tool_call['name']]
             tool_definition: ToolDefinition = self._tool_definitions[tool_call['name']]
@@ -144,13 +154,12 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                 if not tool.return_direct:
                     logger.warning("Returning results of %s tool call as direct, as it is mixed with other return_direct tool calls", tool.name)
                 response = AIMessage(content = tool_output, tool_call_id = tool_call['id'])
-                if not execution_rejected:
-                    response[CONFIDENTIAL] = self._is_confidential(tool, tool_definition)
+                if not execution_rejected and self._is_confidential(tool, tool_definition):
+                    response = response.model_copy(update={CONFIDENTIAL: '[CONFIDENTIAL]'}, deep=False)
+                self._log_llm_message(response, "direct tool message")
             else:
                 response = ToolMessage(content = tool_output, tool_call_id = tool_call['id'], name = tool.name)
-            logger.debug("Tool call result:\n%r", LazyFormatter(response))
-            if get_verbose():
-                print(response.pretty_repr(), file = sys.stderr)
+                self._log_llm_message(response, "tool call message")
             results.append(response)
         return results
 
