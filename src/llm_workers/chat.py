@@ -1,14 +1,10 @@
 import argparse
-import logging
-import os
 import sys
-from argparse import ArgumentParser, Namespace
+from argparse import Namespace
 from logging import getLogger
 from typing import Optional, Union, Any
 from uuid import UUID
 
-from dotenv import load_dotenv, find_dotenv
-from langchain.globals import set_verbose, set_debug
 from langchain_community.callbacks import get_openai_callback
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
@@ -20,7 +16,7 @@ from rich.syntax import Syntax
 
 from llm_workers.api import ConfirmationRequest, CONFIDENTIAL
 from llm_workers.context import StandardContext
-from llm_workers.utils import setup_logging, LazyFormatter
+from llm_workers.utils import setup_logging, LazyFormatter, find_and_load_dotenv
 from llm_workers.worker import Worker
 
 logger = getLogger(__name__)
@@ -291,42 +287,15 @@ class ChatSessionCallbackDelegate(BaseCallbackHandler):
             self._chat_session.process_confirmation_request(data)
 
 
-def _find_dotenv() -> Optional[str]:
+def chat_with_llm_script(script_name: str, args: Namespace):
     """
-    Find the .env file. The search is done in the following order:
-    - Current working directory
-    - Parent directories
-
-    Returns:
-        Optional[str]: The path to the .env file, or None if not found.
-    """
-    env_path = find_dotenv(usecwd=True)
-    if env_path and os.path.exists(env_path):
-        return env_path
-    return None
-
-def build_and_run(script_name: str, args: Namespace):
-    """
-    Build and run the script with the given arguments.
+    Load LLM script and chat with it.
 
     Args:
-        script_name (str): The name of the script to run. Can be either file name or `module_name:resource.yaml`.
-        args (Namespace): The arguments to pass to the script.
+        script_name: The name of the script to run. Can be either file name or `module_name:resource.yaml`.
+        args: command line arguments to look for `--verbose` and `--debug`
     """
-    # Set verbosity and debug mode based on command-line arguments
-    if args.verbose:
-        set_verbose(True)
-    if args.debug:
-        set_debug(True)
-
-    # Setup logging
-    setup_logging(console_level=logging.DEBUG if args.debug else logging.WARN)
-
-    # Load environment variables from .env file in working directory
-    dotenv_path=_find_dotenv()
-    if dotenv_path:
-        logger.info(f"Loading {dotenv_path}")
-        load_dotenv(dotenv_path)
+    find_and_load_dotenv(".config/llm-workers/.env")
 
     # Create a console object for output
     console = Console()
@@ -351,7 +320,9 @@ def main():
     parser.add_argument('script_file', type=str, help="Path to the script file.")
     args = parser.parse_args()
 
-    build_and_run(args.script_file, args)
+    setup_logging(args, log_filename = "llm-workers.log")
+
+    chat_with_llm_script(args.script_file, args)
 
 
 if __name__ == "__main__":

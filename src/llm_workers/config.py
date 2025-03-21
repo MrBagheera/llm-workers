@@ -1,6 +1,6 @@
 import importlib.resources
 from abc import ABC
-from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict, TextIO
+from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict
 
 import yaml
 from pydantic import BaseModel, model_validator, Field

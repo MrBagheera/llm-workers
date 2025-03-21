@@ -1,10 +1,12 @@
-import os
-import logging
 import hashlib
+import logging
+import os
 import subprocess
 import sys
-from typing import Callable, Any, List, Union
+from argparse import Namespace
+from typing import Callable, Any, List, Optional
 
+from dotenv import load_dotenv, find_dotenv
 from langchain_core.messages import ToolCall, BaseMessage
 from langchain_core.tools import ToolException
 
@@ -135,10 +137,24 @@ def format_tool_invocation(name: str, args: Any) -> str:
         return f"{name} \"{args}\""
 
 
-def setup_logging(console_level: int = logging.INFO, file_level: int = logging.DEBUG) -> None:
-    """Configures logging to console and file"""
+def setup_logging(args: Namespace, log_filename: Optional[str] = None) -> None:
+    """Configures logging to console and file in a standard way.
+    Args:
+        args: command line arguments to look for `--verbose` and `--debug`
+        log_filename: (optional) name of the log file, if not specified name will be derived from script name
+    """
+    if log_filename is None:
+        log_filename = os.path.splitext(os.path.basename(sys.argv[0]))[0] + ".log"
+
+    console_level: int = logging.WARNING
+    file_level: int = logging.INFO
+    if args.verbose:
+        console_level = logging.INFO
+    if args.debug:
+        file_level = logging.DEBUG
+
     logging.basicConfig(
-        filename="llm-workers.log",
+        filename=log_filename,
         filemode="w",
         format="%(asctime)s: %(name)s - %(levelname)s - %(message)s",
         level=file_level
@@ -176,3 +192,31 @@ class LazyFormatter:
             else:
                 self.repr = repr(self.target)
         return self.repr
+
+
+def find_and_load_dotenv(path_from_home_dir: str):
+    """Tries to find and load .env file. Order:
+    1. Current directory
+    2. Parent directories of current directory
+    3. Home directory
+
+    Args:
+        path_from_home_dir: path of the file within home directory
+    """
+    env_path = None
+    # 1. check current directory and parent directories
+    std_env_path = find_dotenv(usecwd=True)
+    if std_env_path and os.path.exists(std_env_path):
+        env_path = std_env_path
+
+    # 2. check path within home directory
+    if not env_path:
+        home_dir = os.path.expanduser("~")
+        path = os.path.join(home_dir, path_from_home_dir)
+        if os.path.exists(path):
+            env_path = path
+
+    if env_path:
+        logger.info(f"Loading {env_path}")
+        return load_dotenv(env_path)
+    return False

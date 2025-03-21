@@ -1,6 +1,7 @@
 import argparse
 
-from llm_workers.chat import build_and_run
+from llm_workers.chat import chat_with_llm_script
+from llm_workers.utils import setup_logging
 
 if __name__ == "__main__":
     parser: argparse.ArgumentParser = argparse.ArgumentParser(
@@ -10,4 +11,6 @@ if __name__ == "__main__":
     parser.add_argument('--debug', action='store_true', help="Enable debug mode.")
     args: argparse.Namespace = parser.parse_args()
 
-    build_and_run("llm_workers:coding-assistant.yaml", args)
+    setup_logging(args)
+
+    chat_with_llm_script("llm_workers:coding-assistant.yaml", args)
