@@ -11,7 +11,7 @@ models:
     model_params:
       temperature: 1
       max_tokens: 32768
-      disable_streaming: true
+#      disable_streaming: true
       additional_model_request_fields:
         thinking:
           type: enabled
