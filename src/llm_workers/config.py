@@ -145,6 +145,7 @@ class BaseLLMConfig(BaseModel):
 
 class ChatConfig(BaseLLMConfig):
     default_prompt: Optional[str] = None
+    show_reasoning: bool = False
 
 
 class WorkersConfig(BaseModel):

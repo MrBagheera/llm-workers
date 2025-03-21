@@ -180,9 +180,31 @@ class ChatSession:
         confidential = getattr(message, CONFIDENTIAL, False)
         if confidential:
             self._console.print("[Message below is confidential, not shown to AI Assistant]", style="bold red")
+        if self._context.config.chat.show_reasoning:
+            reasoning = self._extract_reasoning(message)
+            if len(reasoning) > 0:
+                self._console.print("Reasoning:", style="bold white")
+                for block in reasoning:
+                    self._console.print(Syntax(block, "markdown"))
         self._console.print(message.text())
         if confidential:
             self._console.print("[Message above is confidential, not shown to AI Assistant]", style="bold red")
+
+    @staticmethod
+    def _extract_reasoning(message: AIMessage) -> list[str]:
+        reasoning: list[str] = []
+        if isinstance(message.content, list):
+            for block in message.content:
+                if not isinstance(block, dict):
+                    continue
+                # noinspection PyShadowingBuiltins
+                type = block.get('type', None)
+                if type == 'reasoning_content':
+                    reasoning_content = block.get("reasoning_content", {})
+                    text = reasoning_content.get("text", None)
+                    if text is not None:
+                        reasoning.append(str(text))
+        return reasoning
 
     def process_tool_start(self, name: str):
         if self._has_unfinished_output:
