@@ -2,7 +2,7 @@ import unittest
 
 from langchain_core.tools import tool
 
-from llm_workers.tools.custom_tools import TemplateHelper, create_statement_from_model
+from llm_workers.tools.custom_tool import TemplateHelper, create_statement_from_model
 from llm_workers.config import CustomToolParamsDefinition, CallDefinition, ResultDefinition, \
     MatchDefinition, MatchClauseDefinition
 

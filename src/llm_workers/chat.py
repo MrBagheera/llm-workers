@@ -9,7 +9,7 @@ from langchain_community.callbacks import get_openai_callback
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langchain_core.outputs import GenerationChunk, ChatGenerationChunk
-from prompt_toolkit import PromptSession, prompt
+from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
 from rich.console import Console
 from rich.syntax import Syntax
@@ -252,13 +252,17 @@ class ChatSession:
                 else:
                     self._console.print(f"{arg.value}:", style="bold white")
 
-        self._console.print("Do you approve?", style="bold green", end="")
-        self._console.print(" Answer \"yes\" to proceed, anything else to reject with reason: (Meta+Enter or Escape,Enter to submit)", style="grey69 italic")
-        user_input = prompt(multiline=True)
-        if user_input.lower() in ["yes", "y"]:
-            request.approved = True
-        else:
-            request.reject_reason = user_input
+        while True:
+            self._console.print("Do you approve (y/n)?", style="bold green", end="")
+            response = sys.stdin.readline().lower().strip()
+            if response == 'y':
+                request.approved = True
+                return
+            elif response == 'n':
+                request.approved = False
+                return
+            else:
+                print()
 
 class ChatSessionCallbackDelegate(BaseCallbackHandler):
     """Delegates selected callbacks to ChatSession"""
