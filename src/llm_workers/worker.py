@@ -13,7 +13,7 @@ from langchain_core.runnables.config import (
 from langchain_core.tools import BaseTool
 
 from llm_workers.api import WorkersContext, ConfirmationRequest, ConfirmationRequestParam, \
-    ToolExecutionRejectedException, ExtendedBaseTool, CONFIDENTIAL
+    ExtendedBaseTool, CONFIDENTIAL
 from llm_workers.config import BaseLLMConfig, ToolDefinition
 from llm_workers.utils import LazyFormatter
 
@@ -66,36 +66,49 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
 
         callback_manager: CallbackManager = get_callback_manager_for_config(ensure_config(config))
 
+        delayed_messages: List[BaseMessage] = []
         while True:
             response = self._invoke_llm(stream, input, config, **kwargs)
+            self._log_llm_message(response, "LLM message")
+            yield response # return LLM message (possibly with calls)
 
             if isinstance(response, AIMessage) and len(response.tool_calls) > 0:
-                self._log_llm_message(response, "LLM message with tool calls")
-                if self._use_direct_results(response.tool_calls):
-                    # include LLM message without tool calls, if not empty
-                    text = response.text()
-                    if len(text) > 0:
-                        yield AIMessage(content=text)
-                    # return tool call results as if LLM responded with them
-                    results = self._handle_tool_calls(callback_manager, response.tool_calls, True, config, **kwargs)
-                    for result in results:
-                        yield result
+                if self._check_if_user_cancels_execution(callback_manager, response.tool_calls):
+                    for tool_call in response.tool_calls:
+                        cancel_message = ToolMessage(
+                            content = "Tool error: execution canceled by user",
+                            tool_call_id = tool_call['id'],
+                            name = tool_call['name']
+                        )
+                        self._log_llm_message(cancel_message, "canceled tool call")
+                        yield cancel_message # return canceled tool call
+                    for message in delayed_messages:
+                        yield message # return delayed messages from previous tool call cycles
                     return
-                else:
-                    yield response
-                    results = self._handle_tool_calls(callback_manager, response.tool_calls, False, config, **kwargs)
-                    # it is recommended to include tool calls and results in
-                    # chat history for possible further use in the conversation
-                    for result in results:
-                        yield result
-                    # append calls and results to input to continue LLM conversation
-                    input.append(response)
-                    input.extend(results)
-                    # continue to call LLM again
+
+                results = self._handle_tool_calls(response.tool_calls, False, config, **kwargs)
+                # it is recommended to include tool calls and results in
+                # chat history for possible further use in the conversation
+                has_tool_messages = False
+                for result in results:
+                    if isinstance(result, ToolMessage):
+                        has_tool_messages = True
+                        yield result    # return tool call message
+                    else:
+                        delayed_messages.append(result) # queue direct results
+                if not has_tool_messages:
+                    # all results were direct, no need to call LLM again
+                    for message in delayed_messages:
+                        yield message # return delayed messages from previous and this tool call cycles
+                    return
+                # append calls and results to input to continue LLM conversation
+                input.append(response)
+                input.extend(results)
+                # continue to call LLM again
             else:
                 # no tool calls, return LLM response
-                self._log_llm_message(response, "LLM message")
-                yield response
+                for message in delayed_messages:
+                    yield message # return delayed messages from previous tool call cycles
                 return
 
     def _filter_outgoing_messages(self, input, next_index):
@@ -147,38 +160,33 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                 return True
         return False
 
-    def _handle_tool_calls(self, callback_manager: CallbackManager, tool_calls: List[ToolCall], use_direct_results: bool, config: Optional[RunnableConfig], **kwargs: Any):
+    def _handle_tool_calls(self, tool_calls: List[ToolCall], use_direct_results: bool, config: Optional[RunnableConfig], **kwargs: Any):
         results = []
         for tool_call in tool_calls:
             tool: BaseTool = self._tools[tool_call['name']]
             tool_definition: ToolDefinition = self._tool_definitions[tool_call['name']]
             args: dict[str, Any] = tool_call['args']
             logger.info("Calling tool %s with args: %r", tool.name, args)
-            execution_rejected = False
             try:
-                self._request_confirmation_if_needed(callback_manager, tool, tool_definition, args)
                 tool_output = tool.invoke(args, config, **kwargs)
-            except ToolExecutionRejectedException as e:
-                logger.info("Execution of tool %s rejected, reason: %s", tool.name, e.reason)
-                if e.reason is not None:
-                    tool_output = f"Tool Error: execution rejected by user, reason: {e.reason}"
-                else:
-                    tool_output = f"Tool Error: execution rejected, reason: cannot ask confirmation in non-interactive environment"
-                execution_rejected = True
             except Exception as e:
                 logger.warning("Failed to call tool %s", tool.name, exc_info=True)
                 tool_output = f"Tool Error: {e}"
-            if use_direct_results:
-                if not tool.return_direct:
-                    logger.warning("Returning results of %s tool call as direct, as it is mixed with other return_direct tool calls", tool.name)
-                response = AIMessage(content = tool_output, tool_call_id = tool_call['id'])
-                if not execution_rejected and self._is_confidential(tool, tool_definition):
-                    response = response.model_copy(update={CONFIDENTIAL: '[CONFIDENTIAL]'}, deep=False)
+            if tool.return_direct:
+                results.append(ToolMessage(
+                    content = "Tool call result shown directly to user, no need for further actions",
+                    tool_call_id = tool_call['id'],
+                    name = tool.name
+                ))
+                response = AIMessage(content = tool_output)
+                if self._is_confidential(tool, tool_definition):
+                    response = response.model_copy(update={CONFIDENTIAL: True}, deep=False)
                 self._log_llm_message(response, "direct tool message")
+                results.append(response)
             else:
                 response = ToolMessage(content = tool_output, tool_call_id = tool_call['id'], name = tool.name)
                 self._log_llm_message(response, "tool call message")
-            results.append(response)
+                results.append(response)
         return results
 
     @staticmethod
@@ -189,31 +197,36 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
             return tool.confidential
         return False
 
-    @staticmethod
-    def _request_confirmation_if_needed(callback_manager: CallbackManager, tool: BaseTool, tool_definition: ToolDefinition, args: dict[str, Any]):
-        if tool_definition.require_confirmation is not None:
-            if not tool_definition.require_confirmation:
-                return
-        elif isinstance(tool, ExtendedBaseTool):
-            if not tool.needs_confirmation(args):
-                return
-        else:
-            return
+    def _check_if_user_cancels_execution(self, callback_manager: CallbackManager, tool_calls: list[ToolCall]) -> bool:
+        for tool_call in tool_calls:
+            tool: BaseTool = self._tools[tool_call['name']]
+            tool_definition: ToolDefinition = self._tool_definitions[tool_call['name']]
+            args: dict[str, Any] = tool_call['args']
 
-        # TODO support confirmation_prompt and confirmation_params in tool config
-        request: Optional[ConfirmationRequest] = None
-        if isinstance(tool, ExtendedBaseTool):
-            request = tool.make_confirmation_request(args)
-        if request is None:
-            request = ConfirmationRequest(
-                action = f"run the tool {tool.name} with following input",
-                params = [ConfirmationRequestParam(name=key, value=value) for key, value in args.items()]
+            if tool_definition.require_confirmation is not None:
+                if not tool_definition.require_confirmation:
+                    continue
+            elif isinstance(tool, ExtendedBaseTool):
+                if not tool.needs_confirmation(args):
+                    continue
+            else:
+                continue
+
+            request: Optional[ConfirmationRequest] = None
+            if isinstance(tool, ExtendedBaseTool):
+                request = tool.make_confirmation_request(args)
+            if request is None:
+                request = ConfirmationRequest(
+                    action = f"run the tool {tool.name} with following input",
+                    params = [ConfirmationRequestParam(name=key, value=value) for key, value in args.items()]
+                )
+
+            callback_manager.on_custom_event(
+                name = 'request_confirmation',
+                data = request
             )
 
-        callback_manager.on_custom_event(
-            name = 'request_confirmation',
-            data = request
-        )
+            if not request.approved:
+                return True
 
-        if not request.approved:
-            raise ToolExecutionRejectedException(request.reject_reason)
+        return False

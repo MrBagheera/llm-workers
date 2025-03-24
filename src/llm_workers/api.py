@@ -69,16 +69,6 @@ class ConfirmationRequest:
         self.args = params
 
 
-class ToolExecutionRejectedException(Exception):
-    """Custom exception for rejected tool execution."""
-    def __init__(self, reason: Optional[str]):
-        super().__init__(reason)
-        self.reason = reason
-
-    def __str__(self):
-        return f"ToolExecutionRejectedException({self.reason})"
-
-
 class ExtendedBaseTool(ABC):
     """Abstract base class for tools with extended properties."""
 
