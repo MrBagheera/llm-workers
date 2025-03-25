@@ -16,19 +16,35 @@ from rich.syntax import Syntax
 
 from llm_workers.api import ConfirmationRequest, CONFIDENTIAL
 from llm_workers.context import StandardContext
-from llm_workers.utils import setup_logging, LazyFormatter, find_and_load_dotenv
+from llm_workers.utils import setup_logging, LazyFormatter, find_and_load_dotenv, FileChangeDetector, \
+    open_file_in_default_app, is_safe_to_open
 from llm_workers.worker import Worker
 
 logger = getLogger(__name__)
 
+
+class _ChatSessionContext:
+    worker: Worker
+    context: StandardContext
+    script_name: str
+
+    def __init__(self, script_file: str):
+        self.script_name = script_file
+        self.context = StandardContext.load(script_file)
+        if not self.context.config.chat:
+            raise ValueError(f"'chat' section is missing from '{self.script_name}'")
+        self.worker = Worker(self.context.config.chat, self.context, top_level=True)
+        self.file_monitor = FileChangeDetector(
+            path='.',
+            included_patterns=self.context.config.chat.file_monitor_include,
+            excluded_patterns=self.context.config.chat.file_monitor_exclude)
+
+
 class ChatSession:
     def __init__(self, console: Console, script_name: str):
-        self._script_name = script_name
         self._console = console
-        self._context = StandardContext.load(script_name)
-        if not self._context.config.chat:
-            raise ValueError(f"'chat' section is missing from '{self._script_name}'")
-        self._worker = Worker(self._context.config.chat, self._context, top_level=True)
+        self._chat_context = _ChatSessionContext(script_name)
+        self._file_monitor: Optional[FileChangeDetector] = None
         self._iteration = 1
         self._messages = list[BaseMessage]()
         self._history = InMemoryHistory()
@@ -45,10 +61,13 @@ class ChatSession:
         self._streamed_reasoning_index: Optional[int] = None
         self._has_unfinished_output = False
 
+    @property
+    def _chat_config(self):
+        return self._chat_context.context.config.chat
+
     def run(self):
-        config = self._context.config.chat
-        if config.default_prompt is not None:
-            self._pre_input = config.default_prompt
+        if self._chat_config.default_prompt is not None:
+            self._pre_input = self._chat_config.default_prompt
 
         session = PromptSession(history = self._history)
         try:
@@ -70,9 +89,11 @@ class ChatSession:
                 self._streamed_reasoning_index = None
                 self._has_unfinished_output = False
                 self._streamed_message_id = None
+                self._chat_context.file_monitor.check_changes() # reset
                 logger.debug("Running new prompt for #%s:\n%r", self._iteration, LazyFormatter(message))
-                for message in self._worker.stream(self._messages, stream=True, config={"callbacks": self._callbacks}):
+                for message in self._chat_context.worker.stream(self._messages, stream=True, config={"callbacks": self._callbacks}):
                     self.process_model_message(message[0])
+                self._handle_changed_files()
                 self._iteration = self._iteration + 1
         except KeyboardInterrupt:
             self._finished = True
@@ -106,7 +127,7 @@ class ChatSession:
     def _reload(self, params: list[str]):
         """[<script.yaml>] - Reloads given LLM script (defaults to current)"""
         if len(params) == 0:
-            script_file = self._script_name
+            script_file = self._chat_context.script_name
         elif len(params) == 1:
             script_file = params[0]
         else:
@@ -114,11 +135,12 @@ class ChatSession:
             return
 
         self._console.print(f"(Re)loading LLM script from {script_file}", style="bold white")
-        self._script_name = script_file
-        self._context = StandardContext.load(script_file)
-        if not self._context.config.chat:
-            raise ValueError(f"'chat' section is missing from '{self._script_name}'")
-        self._worker = Worker(self._context.config.chat, self._context, top_level=True)
+        logger.debug(f"Reloading LLM script from {script_file}")
+        try:
+            self._chat_context = _ChatSessionContext(script_file)
+        except Exception as e:
+            self._console.print(f"Failed to load LLM script from {script_file}: {e}", style="bold red")
+            logger.warning(f"Failed to load LLM script from {script_file}: {e}", exc_info=True)
 
     def _rewind(self, params: list[str]):
         """[N] - Rewinds chat session to input N (default to previous)"""
@@ -163,7 +185,7 @@ class ChatSession:
 
     def process_model_chunk(self, token: str, message: Optional[BaseMessage]):
         self._streamed_message_id = message.id if message is not None else None
-        if message is not None and isinstance(message, AIMessage) and self._context.config.chat.show_reasoning:
+        if message is not None and isinstance(message, AIMessage) and self._chat_config.show_reasoning:
             reasoning = self._extract_reasoning(message)
             if len(reasoning) > 0:
                 if self._has_unfinished_output:
@@ -196,7 +218,7 @@ class ChatSession:
             if isinstance(message, AIMessage):
                 self._streamed_message_id = None
                 return
-        if self._context.config.chat.show_reasoning:
+        if self._chat_config.show_reasoning:
             reasoning = self._extract_reasoning(message)
             if len(reasoning) > 0:
                 self._console.print("Reasoning:", style="bold white")
@@ -263,6 +285,28 @@ class ChatSession:
                 return
             else:
                 print()
+
+    def _handle_changed_files(self):
+        changes = self._chat_context.file_monitor.check_changes()
+        to_open = []
+        created = changes.get('created', [])
+        if len(created) > 0:
+            to_open += created
+            self._console.print(f"Files created: {', '.join(created)}", style="bold white")
+        modified = changes.get('modified', [])
+        if len(modified) > 0:
+            to_open += modified
+            self._console.print(f"Files updated: {', '.join(modified)}", style="bold white")
+        deleted = changes.get('deleted', [])
+        if len(deleted) > 0:
+            self._console.print(f"Files deleted: {', '.join(deleted)}", style="bold white")
+        if not self._chat_config.auto_open_changed_files:
+            return
+        for filename in to_open:
+            if not is_safe_to_open(filename):
+                continue
+            open_file_in_default_app(filename)
+
 
 class ChatSessionCallbackDelegate(BaseCallbackHandler):
     """Delegates selected callbacks to ChatSession"""

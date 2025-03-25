@@ -4,12 +4,13 @@ import subprocess
 import time
 from typing import Type, Any
 
-from langchain_core.tools import StructuredTool, BaseTool
+from langchain_core.tools import BaseTool
+from langchain_core.tools.base import ToolException
 from pydantic import BaseModel, Field
 
-from llm_workers.api import WorkerException, ConfirmationRequest, ConfirmationRequestParam
 from llm_workers.api import ExtendedBaseTool
-from llm_workers.utils import LazyFormatter
+from llm_workers.api import WorkerException, ConfirmationRequest, ConfirmationRequestParam
+from llm_workers.utils import LazyFormatter, open_file_in_default_app, is_safe_to_open
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ def _not_in_working_directory(file_path) -> bool:
 
 class ReadFileToolSchema(BaseModel):
     filename: str = Field(..., description="Path to the file to read")
+    lines: int = Field(0, description="Number of lines to read. If 0 (default), read the entire file. If negative, read from the end of file (tail).")
 
 class ReadFileTool(BaseTool, ExtendedBaseTool):
     name: str = "read_file"
@@ -37,10 +39,17 @@ class ReadFileTool(BaseTool, ExtendedBaseTool):
             params = [ ]
         )
 
-    def _run(self, filename: str) -> str:
+    def _run(self, filename: str, lines: int) -> str:
         try:
             with open(filename, 'r') as file:
-                return file.read()
+                if lines == 0:
+                    return file.read()
+                else:
+                    file_lines: list[str] = file.readlines()
+                    if lines > 0:
+                        return '\n'.join(file_lines[:lines])
+                    else:
+                        return '\n'.join(file_lines[lines:])
         except Exception as e:
             raise WorkerException(f"Error reading file {filename}: {e}")
 
@@ -48,6 +57,7 @@ class ReadFileTool(BaseTool, ExtendedBaseTool):
 class WriteFileToolSchema(BaseModel):
     filename: str = Field(..., description="Path to the file to write")
     content: str = Field(..., description="Content to write")
+    append: bool = Field(False, description="If true, append to the file instead of overwriting it")
 
 
 class WriteFileTool(BaseTool, ExtendedBaseTool):
@@ -66,10 +76,14 @@ class WriteFileTool(BaseTool, ExtendedBaseTool):
             params = []
         )
 
-    def _run(self, filename: str, content: str):
+    def _run(self, filename: str, content: str, append: bool):
         try:
-            with open(filename, 'w') as file:
-                file.write(content)
+            if append:
+                with open(filename, 'a') as file:
+                    file.write(content)
+            else:
+                with open(filename, 'w') as file:
+                    file.write(content)
         except Exception as e:
             raise WorkerException(f"Error writing file {filename}: {e}")
 
@@ -134,3 +148,29 @@ class RunPythonScriptTool(BaseTool, ExtendedBaseTool):
                     os.remove(file_path)
                 except Exception as e:
                     logger.warning(f"Failed to delete script file {file_path}: {e}")
+
+
+class ShowFileToolSchema(BaseModel):
+    filename: str = Field(..., description="Path to the file")
+
+class ShowFileTool(BaseTool, ExtendedBaseTool):
+    name: str = "show_file"
+    description: str = "Show file to the user using OS-default application"
+    args_schema: Type[ShowFileToolSchema] = ShowFileToolSchema
+
+    def needs_confirmation(self, input: dict[str, Any]) -> bool:
+        return _not_in_working_directory(input['filename'])
+
+    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequest:
+        filename = input['filename']
+        return ConfirmationRequest(
+            action=f"open the file \"{filename}\" outside working directory in OS-default application" if _not_in_working_directory(
+                filename)
+            else f"open the file \"{filename}\" in OS-default application",
+            params=[]
+        )
+
+    def _run(self, filename: str):
+        if not is_safe_to_open(filename):
+            raise ToolException(f"File {filename} is not safe to open")
+        open_file_in_default_app(filename)

@@ -147,6 +147,9 @@ class BaseLLMConfig(BaseModel):
 class ChatConfig(BaseLLMConfig):
     default_prompt: Optional[str] = None
     show_reasoning: bool = False
+    auto_open_changed_files: bool = False
+    file_monitor_include: list[str] = ['*']
+    file_monitor_exclude: list[str] = ['.*', '*.log']
 
 
 class WorkersConfig(BaseModel):

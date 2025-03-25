@@ -1,9 +1,13 @@
+import fnmatch
 import hashlib
 import logging
-import os
+import mimetypes
+import platform
 import subprocess
+import os
 import sys
 from argparse import Namespace
+from pathlib import Path
 from typing import Callable, Any, List, Optional
 
 from dotenv import load_dotenv, find_dotenv
@@ -220,3 +224,86 @@ def find_and_load_dotenv(path_from_home_dir: str):
         logger.info(f"Loading {env_path}")
         return load_dotenv(env_path)
     return False
+
+
+
+class FileChangeDetector:
+    def __init__(self, path: str, included_patterns: list[str], excluded_patterns: list[str]):
+        self.path = path
+        self.included_patterns = included_patterns
+        self.excluded_patterns = excluded_patterns
+        self.last_snapshot = self._snapshot()
+
+    def _should_include(self, filename):
+        included = any(fnmatch.fnmatch(filename, pattern) for pattern in self.included_patterns)
+        if not included:
+            return False
+        excluded = any(fnmatch.fnmatch(filename, pattern) for pattern in self.excluded_patterns)
+        return not excluded
+
+    def _snapshot(self):
+        """Take a snapshot of all non-ignored files and their modification times."""
+        return {
+            f: os.path.getmtime(os.path.join(self.path, f))
+            for f in os.listdir(self.path)
+            if os.path.isfile(os.path.join(self.path, f)) and self._should_include(f)
+        }
+
+    def check_changes(self):
+        """Compare current snapshot to previous, and return changes."""
+        current_snapshot = self._snapshot()
+
+        created = [f for f in current_snapshot if f not in self.last_snapshot]
+        deleted = [f for f in self.last_snapshot if f not in current_snapshot]
+        modified = [
+            f for f in current_snapshot
+            if f in self.last_snapshot and current_snapshot[f] != self.last_snapshot[f]
+        ]
+
+        self.last_snapshot = current_snapshot
+        return {'created': created, 'deleted': deleted, 'modified': modified}
+
+
+DANGEROUS_EXTENSIONS = {
+    '.exe', '.bat', '.cmd', '.com', '.scr', '.ps1',
+    '.sh', '.bash', '.zsh', '.py', '.pyw', '.pl', '.rb',
+    '.app', '.desktop', '.jar', '.msi', '.vb', '.wsf'
+}
+
+def is_safe_to_open(filepath: Path | str) -> bool:
+    if not isinstance(filepath, Path):
+        filepath = Path(str(filepath))
+    ext = filepath.suffix.lower()
+    if ext in DANGEROUS_EXTENSIONS:
+        return False
+
+    mime_type, _ = mimetypes.guess_type(filepath)
+    if mime_type:
+        if mime_type.startswith('application/x-executable') or \
+                mime_type.startswith('application/x-msdownload') or \
+                mime_type.startswith('application/x-sh'):
+            return False
+    return True
+
+def open_file_in_default_app(filepath: str) -> bool:
+    path = Path(filepath)
+    if not path.exists():
+        logger.warning(f"Cannot open file {filepath} in default app: file does not exist")
+        return False
+
+    if not is_safe_to_open(path):
+        logger.warning(f"Blocked potentially dangerous file {filepath} from opening in default app")
+        return False
+
+    try:
+        system = platform.system()
+        if system == 'Windows':
+            os.startfile(path)
+        elif system == 'Darwin':
+            subprocess.run(['open', str(path)])
+        else:
+            subprocess.run(['xdg-open', str(path)])
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to open file {filepath} in default app: {e}", exc_info=True)
+        return False
