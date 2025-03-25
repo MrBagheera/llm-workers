@@ -84,3 +84,11 @@ Common flags:
 - resume trail
 - support acting as MCP server (expose `custom_tools`)
 - support acting as MCP host (use tools from configured MCP servers)
+
+# Devlopment
+
+## Packaging for release
+
+- Bump up version in `pyproject.toml`
+- Run `poetry build`
+- Run `poetry publish` to publish to PyPI
