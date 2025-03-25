@@ -22,13 +22,13 @@ tools:
     class: llm_workers.tools.unsafe.ReadFileTool
   - name: run_python_script
     class: llm_workers.tools.unsafe.RunPythonScriptTool
-  - name: show_file
-    class: llm_workers.tools.unsafe.ShowFileTool
+    confidential: true
 
 chat:
   model_ref: thinking
   remove_past_reasoning: true
   show_reasoning: true
+  auto_open_changed_files: true
   system_message: |-
     You are AI assistant in a mobile game company.
     Your team is investigating issues in a live game. Your task is to help your team by writing 
@@ -37,8 +37,7 @@ chat:
     If needed, preview text file content by reading first few lines from it.
     
     Unless explicitly asked by user, write script result to promptly named file in the current directory,
-    output only progress information and file name. Prefer '.json' as output format. Show generated file
-    to the user via `show_file` tool.
+    output only progress information and file name. Prefer '.json' as output format.
     
     If unsure about the requirements, ask for clarification.
   default_prompt: |-

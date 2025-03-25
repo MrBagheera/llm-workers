@@ -86,24 +86,22 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                         yield message # return delayed messages from previous tool call cycles
                     return
 
-                results = self._handle_tool_calls(response.tool_calls, False, config, **kwargs)
+                (tool_results, direct_results) = self._handle_tool_calls(response.tool_calls, config, **kwargs)
                 # it is recommended to include tool calls and results in
                 # chat history for possible further use in the conversation
-                has_tool_messages = False
-                for result in results:
-                    if isinstance(result, ToolMessage):
-                        has_tool_messages = True
-                        yield result    # return tool call message
-                    else:
-                        delayed_messages.append(result) # queue direct results
-                if not has_tool_messages:
+                for result in tool_results:
+                    yield result
+                for result in direct_results:
+                    delayed_messages.append(result) # queue direct results
+                has_pending_tool_results = len(tool_results) > len(direct_results)
+                if not has_pending_tool_results:
                     # all results were direct, no need to call LLM again
                     for message in delayed_messages:
                         yield message # return delayed messages from previous and this tool call cycles
                     return
                 # append calls and results to input to continue LLM conversation
                 input.append(response)
-                input.extend(results)
+                input.extend(tool_results)
                 # continue to call LLM again
             else:
                 # no tool calls, return LLM response
@@ -160,8 +158,9 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                 return True
         return False
 
-    def _handle_tool_calls(self, tool_calls: List[ToolCall], use_direct_results: bool, config: Optional[RunnableConfig], **kwargs: Any):
-        results = []
+    def _handle_tool_calls(self, tool_calls: List[ToolCall], config: Optional[RunnableConfig], **kwargs: Any) -> (list[ToolMessage], list[AIMessage]):
+        tool_results = []
+        direct_results = []
         for tool_call in tool_calls:
             tool: BaseTool = self._tools[tool_call['name']]
             tool_definition: ToolDefinition = self._tool_definitions[tool_call['name']]
@@ -173,21 +172,21 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                 logger.warning("Failed to call tool %s", tool.name, exc_info=True)
                 tool_output = f"Tool Error: {e}"
             if tool.return_direct:
-                results.append(ToolMessage(
+                tool_results.append(ToolMessage(
                     content = "Tool call result shown directly to user, no need for further actions",
                     tool_call_id = tool_call['id'],
                     name = tool.name
                 ))
-                response = AIMessage(content = tool_output)
+                response = AIMessage(content = tool_output.strip())
                 if self._is_confidential(tool, tool_definition):
                     response = response.model_copy(update={CONFIDENTIAL: True}, deep=False)
                 self._log_llm_message(response, "direct tool message")
-                results.append(response)
+                direct_results.append(response)
             else:
                 response = ToolMessage(content = tool_output, tool_call_id = tool_call['id'], name = tool.name)
                 self._log_llm_message(response, "tool call message")
-                results.append(response)
-        return results
+                tool_results.append(response)
+        return tool_results, direct_results
 
     @staticmethod
     def _is_confidential(tool: BaseTool, tool_definition: ToolDefinition) -> bool:
