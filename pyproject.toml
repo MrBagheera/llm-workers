@@ -1,6 +1,6 @@
 [project]
 name = "llm-workers"
-version = "0.1.0-alpha5"
+version = "0.1.0-alpha6"
 description = "Simple library and command-line tools for experimenting with LLMs"
 authors = [
     {name = "Dmitry Mikhaylov", email = "mikhailov.dmitry@gmail.com"}
