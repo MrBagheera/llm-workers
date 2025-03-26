@@ -277,5 +277,5 @@ def build_custom_tool(definition: ToolDefinition, context: WorkersContext) -> St
         name = definition.name,
         description = definition.description,
         args_schema = create_dynamic_schema(definition.name, definition.input),
-        return_direct = definition.return_direct,
+        return_direct = definition.return_direct or False,
     )

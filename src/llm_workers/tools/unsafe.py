@@ -39,7 +39,7 @@ class ReadFileTool(BaseTool, ExtendedBaseTool):
             params = [ ]
         )
 
-    def _run(self, filename: str, lines: int) -> str:
+    def _run(self, filename: str, lines: int = 0) -> str:
         try:
             with open(filename, 'r') as file:
                 if lines == 0:
@@ -76,7 +76,7 @@ class WriteFileTool(BaseTool, ExtendedBaseTool):
             params = []
         )
 
-    def _run(self, filename: str, content: str, append: bool):
+    def _run(self, filename: str, content: str, append: bool = False):
         try:
             if append:
                 with open(filename, 'a') as file:
