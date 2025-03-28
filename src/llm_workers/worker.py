@@ -143,7 +143,7 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                     last += message
             return last
         else:
-            return self._llm.invoke(input, config, **{**kwargs, "stream": stream})
+            return self._llm.invoke(input, config)
 
     @staticmethod
     def _log_llm_message(message: BaseMessage, log_info: str):
