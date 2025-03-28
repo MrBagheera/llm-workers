@@ -91,14 +91,19 @@ class ChatSession:
                 self._streamed_message_id = None
                 self._chat_context.file_monitor.check_changes() # reset
                 logger.debug("Running new prompt for #%s:\n%r", self._iteration, LazyFormatter(message))
-                for message in self._chat_context.worker.stream(self._messages, stream=True, config={"callbacks": self._callbacks}):
-                    self.process_model_message(message[0])
+                try:
+                    for message in self._chat_context.worker.stream(self._messages, stream=True, config={"callbacks": self._callbacks}):
+                        self.process_model_message(message[0])
+                except Exception as e:
+                    logger.error(f"Error: {e}", exc_info=True)
+                    self._console.print(f"Unexpected error in worker: {e}", style="bold red")
+                    self._console.print(f"If subsequent conversation fails, try rewinding to previous message", style="bold red")
                 self._handle_changed_files()
                 self._iteration = self._iteration + 1
         except KeyboardInterrupt:
             self._finished = True
         except EOFError:
-            pass
+            self._finished = True
 
     def _parse_and_run_command(self, message: str) -> bool:
         message = message.strip()
