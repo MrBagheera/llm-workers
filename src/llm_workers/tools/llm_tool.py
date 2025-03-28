@@ -18,10 +18,10 @@ def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> Base
         if len(result) == 0:
             return ""
         if len(result) == 1:
-            return str(result[0].content)
+            return str(result[0].text())
         if len(result) > 1:
             # return only AI message(s)
-            return "\n".join([message.content for message in result if isinstance(message, AIMessage)])
+            return "\n".join([message.text() for message in result if isinstance(message, AIMessage)])
 
     def tool_logic(prompt: str) -> str:
         """
