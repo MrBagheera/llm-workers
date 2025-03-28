@@ -3,7 +3,7 @@ models:
     provider: bedrock_converse
     model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
     model_params:
-      temperature: 0
+      temperature: 1
       max_tokens: 32768
       additional_model_request_fields:
         thinking:
@@ -19,7 +19,7 @@ tools:
 cli:
   - call: read_file
     params:
-      file_path: "{input}"
+      filename: "{input}"
   - call: llm
     params:
       prompt: |-
