@@ -11,6 +11,7 @@ from langchain_core.runnables.config import (
     get_callback_manager_for_config,
 )
 from langchain_core.tools import BaseTool
+from langchain_core.tools.base import ToolException
 
 from llm_workers.api import WorkersContext, ConfirmationRequest, ConfirmationRequestParam, \
     ExtendedBaseTool, CONFIDENTIAL
@@ -168,7 +169,7 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
             logger.info("Calling tool %s with args: %r", tool.name, args)
             try:
                 tool_output = tool.invoke(args, config, **kwargs)
-            except Exception as e:
+            except ToolException as e:
                 logger.warning("Failed to call tool %s", tool.name, exc_info=True)
                 tool_output = f"Tool Error: {e}"
             if tool.return_direct:

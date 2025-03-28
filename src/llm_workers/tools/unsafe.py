@@ -8,8 +8,8 @@ from langchain_core.tools import BaseTool
 from langchain_core.tools.base import ToolException
 from pydantic import BaseModel, Field
 
+from llm_workers.api import ConfirmationRequest, ConfirmationRequestParam
 from llm_workers.api import ExtendedBaseTool
-from llm_workers.api import WorkerException, ConfirmationRequest, ConfirmationRequestParam
 from llm_workers.utils import LazyFormatter, open_file_in_default_app, is_safe_to_open
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ class ReadFileTool(BaseTool, ExtendedBaseTool):
                     else:
                         return '\n'.join(file_lines[lines:])
         except Exception as e:
-            raise WorkerException(f"Error reading file {filename}: {e}")
+            raise ToolException(f"Error reading file {filename}: {e}")
 
 
 class WriteFileToolSchema(BaseModel):
@@ -85,7 +85,7 @@ class WriteFileTool(BaseTool, ExtendedBaseTool):
                 with open(filename, 'w') as file:
                     file.write(content)
         except Exception as e:
-            raise WorkerException(f"Error writing file {filename}: {e}")
+            raise ToolException(f"Error writing file {filename}: {e}")
 
 
 
@@ -136,12 +136,12 @@ class RunPythonScriptTool(BaseTool, ExtendedBaseTool):
             exit_code = process.wait()
 
             if exit_code != 0:
-                raise WorkerException(f"Running Python script returned code {exit_code}:\n{stderr}")
+                raise ToolException(f"Running Python script returned code {exit_code}:\n{stderr}")
             return result
-        except WorkerException as e:
+        except ToolException as e:
             raise e
         except Exception as e:
-            raise WorkerException(f"Error running Python script: {e}")
+            raise ToolException(f"Error running Python script: {e}", e)
         finally:
             if file_path:
                 try:

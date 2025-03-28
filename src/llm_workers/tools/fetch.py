@@ -18,17 +18,17 @@ from llm_workers.config import Json
 
 def _handle_error(url: str, e: IOError, on_error: Literal['raise_exception', 'return_error', 'return_empty'], empty: Json) -> Json:
     if on_error == "raise_exception":
-        raise ToolException(f"Error fetching {url}: {e}", e)
+        raise RequestException(f"Error fetching {url}: {e}", e)
     elif on_error == "return_error":
-        return {'error': str(e), 'url': url}
+        raise ToolException(f"Error fetching {url}: {e}")
     else:
         return empty
 
 def _handle_no_content(url: str, xpath: str, on_no_content: Literal['raise_exception', 'return_error', 'return_empty'], empty: Json) -> Json:
     if on_no_content == "raise_exception":
-        raise ToolException(f"No content matching '{xpath}' found at url {url}")
+        raise ValueError(f"No content matching '{xpath}' found at url {url}")
     elif on_no_content == "return_error":
-        return {'error': f"No content matching '{xpath}' found", 'url': url}
+        raise ToolException(f"No content matching '{xpath}' found at url {url}")
     else:
         return empty
 
@@ -62,7 +62,7 @@ def _fetch_content(
             if response.status_code == 404:
                 return _handle_no_content(url, '', on_no_content, empty="")
             else:
-                raise RequestException(f"HTTP status code {response.status_code}")
+                raise RequestException(f"Got HTTP status code {response.status_code} for {url}")
         # TODO handle non-text content
         return response.content.decode('utf-8', errors='ignore')
     except IOError as e:

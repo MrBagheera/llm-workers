@@ -2,9 +2,9 @@ import fnmatch
 import hashlib
 import logging
 import mimetypes
+import os
 import platform
 import subprocess
-import os
 import sys
 from argparse import Namespace
 from pathlib import Path
@@ -12,7 +12,6 @@ from typing import Callable, Any, List, Optional
 
 from dotenv import load_dotenv, find_dotenv
 from langchain_core.messages import ToolCall, BaseMessage
-from langchain_core.tools import ToolException
 
 logger =  logging.getLogger(__name__)
 
@@ -115,7 +114,7 @@ def get_environment_variable(name: str, default: str | None) -> str | None:
 def ensure_environment_variable(name: str) -> str:
     var = os.environ.get(name)
     if var is None:
-        raise ToolException(f"Environment variable {name} not set")
+        raise OSError(f"Environment variable {name} not set")
     return var
 
 
