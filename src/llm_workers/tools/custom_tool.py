@@ -6,6 +6,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableConfig
 from langchain_core.runnables.base import Runnable
 from langchain_core.tools import StructuredTool
+from langchain_core.tools.base import ToolException
 from pydantic import BaseModel, Field, create_model
 
 from llm_workers.api import WorkersContext
@@ -118,14 +119,26 @@ class CallStatement(Runnable[Dict[str, Json], Json]):
     def __init__(self, valid_template_vars: List[str], model: CallDefinition, context: WorkersContext):
         self._tool = context.get_tool(model.call)
         self._template_helper = TemplateHelper.from_valid_template_vars(valid_template_vars, model.params)
+        if isinstance(model.catch, list):
+            self._catch = model.catch
+        elif isinstance(model.catch, str):
+            self._catch = [model.catch]
+        else:
+            self._catch = None
 
     def invoke(self, input: Dict[str, Json], config: Optional[RunnableConfig] = None, **kwargs: Any) -> Json:
         target_params = self._template_helper.render(input)
-        return self._tool.invoke(input = target_params, config = config, **kwargs)
+        try:
+            return self._tool.invoke(input = target_params, config = config, **kwargs)
+        except BaseException as e:
+            raise self._convert_error(e)
 
     async def ainvoke(self, input: Dict[str, Json], config: Optional[RunnableConfig] = None, **kwargs: Any) -> Json:
         target_params = self._template_helper.render(input)
-        return await self._tool.ainvoke(input = target_params, config = config, **kwargs)
+        try:
+            return await self._tool.ainvoke(input = target_params, config = config, **kwargs)
+        except BaseException as e:
+            raise self._convert_error(e)
 
     def stream(
         self,
@@ -134,7 +147,10 @@ class CallStatement(Runnable[Dict[str, Json], Json]):
         **kwargs: Optional[Any],
     ) -> Iterator[Json]:
         target_params = self._template_helper.render(input)
-        return self._tool.stream(input = target_params, config = config, **kwargs)
+        try:
+            return self._tool.stream(input = target_params, config = config, **kwargs)
+        except BaseException as e:
+            raise self._convert_error(e)
 
     async def astream(
         self,
@@ -143,7 +159,19 @@ class CallStatement(Runnable[Dict[str, Json], Json]):
         **kwargs: Optional[Any],
     ) -> AsyncIterator[Json]:
         target_params = self._template_helper.render(input)
-        return self._tool.astream(input = target_params, config = config, **kwargs)
+        try:
+            return self._tool.astream(input = target_params, config = config, **kwargs)
+        except BaseException as e:
+            raise self._convert_error(e)
+
+    def _convert_error(self, e: BaseException) -> BaseException:
+        if self._catch:
+            exception_type = type(e).__name__
+            for catch in self._catch:
+                if catch == '*' or catch == 'all' or exception_type == catch:
+                    return ToolException(str(e), e)
+        return e
+
 
 
 class FlowStatement(Runnable[Dict[str, Json], Json]):

@@ -64,6 +64,7 @@ class ResultDefinition(BaseModel):
 class CallDefinition(BaseModel):
     call: str
     params: Optional[Dict[str, Json]] = None
+    catch: Optional[str | list[str]] = None
 
 class MatchClauseDefinition(BaseModel):
     case: Optional[str] = None
