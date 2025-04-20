@@ -60,23 +60,15 @@ def main():
         description="CLI tool to run LLM scripts with prompts from command-line or stdin."
     )
     # Optional arguments
-    parser.add_argument(
-        '--verbose', action='store_true', help="Enable verbose output."
-    )
-    parser.add_argument(
-        '--debug', action='store_true', help="Enable debug mode."
-    )
+    parser.add_argument('--verbose', action='count', default=0, help="Enable verbose output. Can be used multiple times to increase verbosity.")
+    parser.add_argument('--debug', action='count', default=0, help="Enable debug mode. Can be used multiple times to increase verbosity.")
     # Positional argument for the script file
-    parser.add_argument(
-        'script_file', type=str, help="Path to the script file."
-    )
+    parser.add_argument('script_file', type=str, help="Path to the script file.")
     # Optional arguments for prompts or stdin input
-    parser.add_argument(
-        'inputs', nargs='*', help="Inputs for the script (or use '--' to read from stdin)."
-    )
+    parser.add_argument('inputs', nargs='*', help="Inputs for the script (or use '--' to read from stdin).")
     args = parser.parse_args()
 
-    setup_logging(args, log_filename = "llm-workers.log")
+    setup_logging(debug_level = args.debug, verbosity = args.verbose, log_filename = "llm-workers.log")
 
     run_llm_script(args.script_file, parser, args)
 

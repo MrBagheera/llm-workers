@@ -10,6 +10,7 @@ from argparse import Namespace
 from pathlib import Path
 from typing import Callable, Any, List, Optional
 
+import yaml
 from dotenv import load_dotenv, find_dotenv
 from langchain_core.messages import ToolCall, BaseMessage
 
@@ -139,35 +140,97 @@ def format_tool_invocation(name: str, args: Any) -> str:
     else:
         return f"{name} \"{args}\""
 
+DEBUG_LOGGERS = (
+    ["llm_workers.worker"],
+    ["llm_workers"],
+)
 
-def setup_logging(args: Namespace, log_filename: Optional[str] = None) -> None:
+def setup_logging(
+        debug_level: int,
+        debug_loggers_by_debug_level: list[list[str]] = DEBUG_LOGGERS,
+        verbosity: int = 0,
+        log_filename: Optional[str] = None
+) -> None:
     """Configures logging to console and file in a standard way.
     Args:
-        args: command line arguments to look for `--verbose` and `--debug`
+        debug_level: verbosity level for file logging
+        debug_loggers_by_debug_level: list of debug loggers by debug level
+        verbosity: verbosity level for console logging (0 - ERROR & WARN, 1 - INFO, 2 - DEBUG)
         log_filename: (optional) name of the log file, if not specified name will be derived from script name
     """
+    # file logging
     if log_filename is None:
         log_filename = os.path.splitext(os.path.basename(sys.argv[0]))[0] + ".log"
-
-    console_level: int = logging.WARNING
-    file_level: int = logging.INFO
-    if args.verbose:
-        console_level = logging.INFO
-    if args.debug:
-        file_level = logging.DEBUG
-
     logging.basicConfig(
         filename=log_filename,
         filemode="w",
         format="%(asctime)s: %(name)s - %(levelname)s - %(message)s",
-        level=file_level
+        level=logging.INFO
     )
+    # adjust levels for individual loggers at given debug level
+    if debug_level >= len(debug_loggers_by_debug_level):
+        logging.getLogger().setLevel(logging.DEBUG)
+    else:
+        for logger_name in debug_loggers_by_debug_level[debug_level]:
+            logging.getLogger(logger_name).setLevel(logging.DEBUG)
+
+    # console logging
+    console_level: int = logging.WARNING
+    if verbosity == 1:
+        console_level = logging.INFO
+    elif verbosity >= 2:
+        console_level = logging.DEBUG
     console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setLevel(console_level)
-    formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+    formatter = logging.Formatter("%(name)s: %(message)s")
     console_handler.setFormatter(formatter)
     logging.getLogger().addHandler(console_handler)
 
+def _trim_recursively(data):
+    if isinstance(data, dict):
+        return {key: _trim_recursively(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [_trim_recursively(item) for item in data]
+    elif isinstance(data, str):
+        lines = data.splitlines()[0]
+        single_line = lines  # Take only the first line
+        return single_line[:77] + "..." if len(single_line) > 80 or len(lines) > 1 else single_line
+    else:
+        return data
+
+def format_message_as_yaml(message: BaseMessage, trim: bool = False) -> str:
+    """Format a BaseMessage as YAML string with optional trimming of all string fields recursively.
+
+    Args:
+        message: The BaseMessage to format
+        trim: If True, trims string fields longer than 80 characters and truncates multiline strings to the first line.
+
+    Returns:
+        A YAML-formatted string representation of the message
+    """
+    message_dict = message.model_dump()
+
+    if trim:
+        message_dict = _trim_recursively(message_dict)
+
+    return yaml.dump(message_dict, default_flow_style=False, sort_keys=False)
+
+def format_messages_as_yaml(messages: list[BaseMessage], trim: bool = True) -> str:
+    """Format a BaseMessage as YAML string with optional trimming of all string fields recursively.
+
+    Args:
+        messages: The list of BaseMessage-s to format
+        trim: If True, trims string fields longer than 80 characters and truncates multiline strings to the first line.
+
+    Returns:
+        A YAML-formatted string representation of the messages
+    """
+    raw = [message.model_dump() for message in messages]
+
+    if trim:
+        raw = _trim_recursively(raw)
+
+    return yaml.dump(raw, default_flow_style=False, sort_keys=False)
 
 class LazyFormatter:
     def __init__(self, target, custom_formatter: Callable[[Any], str] = None):
@@ -191,7 +254,7 @@ class LazyFormatter:
                 self.str = self.custom_formatter(self.target)
                 self.repr = self.str
             elif isinstance(self.target, BaseMessage):
-                self.repr = self.target.pretty_repr()
+                self.repr = format_message_as_yaml(self.target)
             else:
                 self.repr = repr(self.target)
         return self.repr

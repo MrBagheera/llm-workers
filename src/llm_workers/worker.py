@@ -1,8 +1,6 @@
 import logging
-import sys
 from typing import Optional, Any, List, Iterator
 
-from langchain.globals import get_verbose
 from langchain_core.callbacks import CallbackManager
 from langchain_core.messages import BaseMessage, SystemMessage, AIMessage, ToolMessage, ToolCall
 from langchain_core.runnables import Runnable, RunnableConfig
@@ -16,10 +14,11 @@ from langchain_core.tools.base import ToolException
 from llm_workers.api import WorkersContext, ConfirmationRequest, ConfirmationRequestParam, \
     ExtendedBaseTool, CONFIDENTIAL
 from llm_workers.config import BaseLLMConfig, ToolDefinition
-from llm_workers.utils import LazyFormatter
+from llm_workers.utils import LazyFormatter, format_messages_as_yaml
 
 logger = logging.getLogger(__name__)
 
+llm_calls_logger = logging.getLogger("llm_workers.llm_calls")
 
 class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
 
@@ -133,6 +132,8 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                             input[i] = message
 
     def _invoke_llm(self, stream: bool, input: List[BaseMessage], config: Optional[RunnableConfig], **kwargs: Any) -> BaseMessage:
+        if llm_calls_logger.isEnabledFor(logging.DEBUG):
+            llm_calls_logger.debug("Calling LLM with input:\n%s", format_messages_as_yaml(input))
         # converse-bedrock doesn't support "stream" attribute, have to work around it
         if stream:
             # reassembling message from chunks
@@ -149,8 +150,6 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
     @staticmethod
     def _log_llm_message(message: BaseMessage, log_info: str):
         logger.debug("Got %s:\n%r", log_info, LazyFormatter(message))
-        if get_verbose():
-            print(message.pretty_repr(), file = sys.stderr)
 
     def _use_direct_results(self, tool_calls: List[ToolCall]):
         """Check if any of the tool calls are direct_result tools."""
