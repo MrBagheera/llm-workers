@@ -1,3 +1,4 @@
+import logging
 import re
 from copy import deepcopy, copy
 from typing import Type, Any, Optional, Dict, TypeAlias, List, Iterator, AsyncIterator, Union
@@ -12,6 +13,9 @@ from pydantic import BaseModel, Field, create_model
 from llm_workers.api import WorkersContext
 from llm_workers.config import Json, CustomToolParamsDefinition, \
     CallDefinition, ResultDefinition, StatementDefinition, MatchDefinition, ToolDefinition
+from llm_workers.utils import LazyFormatter
+
+logger = logging.getLogger(__name__)
 
 
 class TemplateHelper:
@@ -128,6 +132,7 @@ class CallStatement(Runnable[Dict[str, Json], Json]):
 
     def invoke(self, input: Dict[str, Json], config: Optional[RunnableConfig] = None, **kwargs: Any) -> Json:
         target_params = self._template_helper.render(input)
+        logger.debug("Calling tool %s with args:\n%r", self._tool.name, LazyFormatter(target_params))
         try:
             return self._tool.invoke(input = target_params, config = config, **kwargs)
         except BaseException as e:
@@ -135,6 +140,7 @@ class CallStatement(Runnable[Dict[str, Json], Json]):
 
     async def ainvoke(self, input: Dict[str, Json], config: Optional[RunnableConfig] = None, **kwargs: Any) -> Json:
         target_params = self._template_helper.render(input)
+        logger.debug("Calling tool %s with args:\n%r", self._tool.name, LazyFormatter(target_params))
         try:
             return await self._tool.ainvoke(input = target_params, config = config, **kwargs)
         except BaseException as e:
@@ -147,6 +153,7 @@ class CallStatement(Runnable[Dict[str, Json], Json]):
         **kwargs: Optional[Any],
     ) -> Iterator[Json]:
         target_params = self._template_helper.render(input)
+        logger.debug("Calling tool %s with args:\n%r", self._tool.name, LazyFormatter(target_params))
         try:
             return self._tool.stream(input = target_params, config = config, **kwargs)
         except BaseException as e:
@@ -159,6 +166,7 @@ class CallStatement(Runnable[Dict[str, Json], Json]):
         **kwargs: Optional[Any],
     ) -> AsyncIterator[Json]:
         target_params = self._template_helper.render(input)
+        logger.debug("Calling tool %s with args:\n%r", self._tool.name, LazyFormatter(target_params))
         try:
             return self._tool.astream(input = target_params, config = config, **kwargs)
         except BaseException as e:
@@ -240,6 +248,7 @@ class MatchStatement(Runnable[Dict[str, Json], Json]):
                     probe_str = str(probe)
                 match = condition.fullmatch(probe_str)
                 if match:
+                    logger.debug("Probe [%s] matched regexp [%s]", probe_str, condition)
                     i = 0
                     input = copy(input) # shallow copy enough, we only append keys
                     for group in match.groups():
@@ -247,7 +256,9 @@ class MatchStatement(Runnable[Dict[str, Json], Json]):
                         i = i + 1
                     return statement.invoke(input, config, **kwargs)
             elif probe == condition:
+                logger.debug("Probe [%s] matched condition [%s]", probe, condition)
                 return statement.invoke(input, config, **kwargs)
+        logger.debug("Probe [%s] did not match anything", probe)
         return self._default.invoke(input, config, **kwargs)
 
 

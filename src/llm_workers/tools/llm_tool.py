@@ -1,4 +1,3 @@
-import logging
 from typing import Dict, Any, List
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
@@ -8,7 +7,6 @@ from llm_workers.api import WorkersContext
 from llm_workers.config import BaseLLMConfig
 from llm_workers.worker import Worker
 
-logger = logging.getLogger(__name__)
 
 def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> BaseTool:
     config = BaseLLMConfig(**tool_config)

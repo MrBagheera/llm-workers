@@ -6,9 +6,9 @@ import os
 import platform
 import subprocess
 import sys
-from argparse import Namespace
 from pathlib import Path
 from typing import Callable, Any, List, Optional
+from pydantic import BaseModel
 
 import yaml
 from dotenv import load_dotenv, find_dotenv
@@ -186,56 +186,53 @@ def setup_logging(
     console_handler.setFormatter(formatter)
     logging.getLogger().addHandler(console_handler)
 
+def format_as_yaml(obj: Any, trim: bool) -> str:
+    """Format given object as YAML string with optional trimming of all string fields recursively.
+
+    Args:
+        obj: object to format
+        trim: If True, trims string fields longer than 80 characters and truncates multiline strings to the first line.
+
+    Returns:
+        A YAML-formatted string representation of the messages
+    """
+    raw = _to_json_compatible(obj)
+
+    if trim:
+        raw = _trim_recursively(raw)
+
+    return yaml.dump(raw, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+def _to_json_compatible(obj):
+    if isinstance(obj, BaseModel):
+        return obj.model_dump()
+    if isinstance(obj, (str, int, float, bool)) or obj is None:
+        return obj
+    if isinstance(obj, (list, tuple, set)):
+        return [_to_json_compatible(item) for item in obj]
+    if isinstance(obj, dict):
+        return {str(key): _to_json_compatible(value) for key, value in obj.items()}
+    if hasattr(obj, '__dict__'):
+        return _to_json_compatible(vars(obj))
+    return repr(obj)
+
 def _trim_recursively(data):
     if isinstance(data, dict):
         return {key: _trim_recursively(value) for key, value in data.items()}
     elif isinstance(data, list):
         return [_trim_recursively(item) for item in data]
     elif isinstance(data, str):
-        lines = data.splitlines()[0]
-        single_line = lines  # Take only the first line
-        return single_line[:77] + "..." if len(single_line) > 80 or len(lines) > 1 else single_line
+        lines = data.splitlines()
+        line = lines[0]
+        return line[:77] + "..." if len(line) > 80 or len(lines) > 1 else line
     else:
         return data
 
-def format_message_as_yaml(message: BaseMessage, trim: bool = False) -> str:
-    """Format a BaseMessage as YAML string with optional trimming of all string fields recursively.
-
-    Args:
-        message: The BaseMessage to format
-        trim: If True, trims string fields longer than 80 characters and truncates multiline strings to the first line.
-
-    Returns:
-        A YAML-formatted string representation of the message
-    """
-    message_dict = message.model_dump()
-
-    if trim:
-        message_dict = _trim_recursively(message_dict)
-
-    return yaml.dump(message_dict, default_flow_style=False, sort_keys=False)
-
-def format_messages_as_yaml(messages: list[BaseMessage], trim: bool = True) -> str:
-    """Format a BaseMessage as YAML string with optional trimming of all string fields recursively.
-
-    Args:
-        messages: The list of BaseMessage-s to format
-        trim: If True, trims string fields longer than 80 characters and truncates multiline strings to the first line.
-
-    Returns:
-        A YAML-formatted string representation of the messages
-    """
-    raw = [message.model_dump() for message in messages]
-
-    if trim:
-        raw = _trim_recursively(raw)
-
-    return yaml.dump(raw, default_flow_style=False, sort_keys=False)
-
 class LazyFormatter:
-    def __init__(self, target, custom_formatter: Callable[[Any], str] = None):
+    def __init__(self, target, custom_formatter: Callable[[Any], str] = None, trim: bool = True):
         self.target = target
         self.custom_formatter = custom_formatter
+        self.trim = trim
         self.repr = None
         self.str = None
 
@@ -253,10 +250,8 @@ class LazyFormatter:
             if self.custom_formatter is not None:
                 self.str = self.custom_formatter(self.target)
                 self.repr = self.str
-            elif isinstance(self.target, BaseMessage):
-                self.repr = format_message_as_yaml(self.target)
             else:
-                self.repr = repr(self.target)
+                self.repr = format_as_yaml(self.target, self.trim)
         return self.repr
 
 

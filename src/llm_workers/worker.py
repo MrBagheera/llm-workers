@@ -14,7 +14,7 @@ from langchain_core.tools.base import ToolException
 from llm_workers.api import WorkersContext, ConfirmationRequest, ConfirmationRequestParam, \
     ExtendedBaseTool, CONFIDENTIAL
 from llm_workers.config import BaseLLMConfig, ToolDefinition
-from llm_workers.utils import LazyFormatter, format_messages_as_yaml
+from llm_workers.utils import LazyFormatter, format_as_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +133,7 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
 
     def _invoke_llm(self, stream: bool, input: List[BaseMessage], config: Optional[RunnableConfig], **kwargs: Any) -> BaseMessage:
         if llm_calls_logger.isEnabledFor(logging.DEBUG):
-            llm_calls_logger.debug("Calling LLM with input:\n%s", format_messages_as_yaml(input))
+            llm_calls_logger.debug("Calling LLM with input:\n%r", LazyFormatter(input))
         # converse-bedrock doesn't support "stream" attribute, have to work around it
         if stream:
             # reassembling message from chunks
@@ -149,7 +149,7 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
 
     @staticmethod
     def _log_llm_message(message: BaseMessage, log_info: str):
-        logger.debug("Got %s:\n%r", log_info, LazyFormatter(message))
+        logger.debug("Got %s:\n%r", log_info, LazyFormatter(message, trim=False))
 
     def _use_direct_results(self, tool_calls: List[ToolCall]):
         """Check if any of the tool calls are direct_result tools."""
@@ -165,7 +165,7 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
             tool: BaseTool = self._tools[tool_call['name']]
             tool_definition: ToolDefinition = self._tool_definitions[tool_call['name']]
             args: dict[str, Any] = tool_call['args']
-            logger.info("Calling tool %s with args: %r", tool.name, args)
+            logger.info("Calling tool %s with args:\n%r", tool.name, LazyFormatter(args))
             try:
                 tool_output = tool.invoke(args, config, **kwargs)
             except ToolException as e:
