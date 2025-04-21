@@ -40,8 +40,10 @@ def prepare_cache(ttl: int = 3600*24, create_dir: bool = True) -> str:
         # Only clean once every 5 minutes (300 seconds)
         if current_time - _last_cache_cleaning_time > 300:
             for file in os.listdir(cache_dir):
-                if current_time - os.path.getmtime(f'{cache_dir}/{file}') > ttl:
-                    os.remove(f'{cache_dir}/{file}')
+                file_path = f'{cache_dir}/{file}'
+                if current_time - os.path.getmtime(file_path) > ttl:
+                    logger.debug('Removing expired cache file %s', file_path)
+                    os.remove(file_path)
     else:
         if create_dir:
             os.makedirs(cache_dir)
