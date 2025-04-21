@@ -17,7 +17,7 @@ from rich.syntax import Syntax
 from llm_workers.api import ConfirmationRequest, CONFIDENTIAL
 from llm_workers.context import StandardContext
 from llm_workers.utils import setup_logging, LazyFormatter, find_and_load_dotenv, FileChangeDetector, \
-    open_file_in_default_app, is_safe_to_open
+    open_file_in_default_app, is_safe_to_open, prepare_cache
 from llm_workers.worker import Worker
 
 logger = getLogger(__name__)
@@ -349,6 +349,7 @@ def chat_with_llm_script(script_name: str, args: Namespace):
         args: command line arguments to look for `--verbose` and `--debug`
     """
     find_and_load_dotenv(".config/llm-workers/.env")
+    prepare_cache(create_dir=False)
 
     # Create a console object for output
     console = Console()

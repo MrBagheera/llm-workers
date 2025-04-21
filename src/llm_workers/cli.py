@@ -8,7 +8,7 @@ from langchain_core.runnables import Runnable
 
 from llm_workers.context import StandardContext
 from llm_workers.tools.custom_tool import create_statement_from_model
-from llm_workers.utils import setup_logging, find_and_load_dotenv
+from llm_workers.utils import setup_logging, find_and_load_dotenv, prepare_cache
 
 
 def run_llm_script(script_name: str, parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
@@ -20,6 +20,7 @@ def run_llm_script(script_name: str, parser: argparse.ArgumentParser, args: argp
         args: parsed command line arguments to look for `--verbose`, `--debug` and positional arguments.
     """
     find_and_load_dotenv(".config/llm-workers/.env")
+    prepare_cache(create_dir=False)
 
     context = StandardContext.load(script_name)
     if context.config.cli is None:

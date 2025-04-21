@@ -6,26 +6,69 @@ import os
 import platform
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Callable, Any, List, Optional
-from pydantic import BaseModel
 
 import yaml
 from dotenv import load_dotenv, find_dotenv
-from langchain_core.messages import ToolCall, BaseMessage
+from langchain_core.messages import ToolCall
+from pydantic import BaseModel
 
 logger =  logging.getLogger(__name__)
 
+####################################################
+# Cache
+####################################################
+
+# Global variable to track when we last cleaned the cache
+_last_cache_cleaning_time = 0
+
+def prepare_cache(ttl: int = 3600*24, create_dir: bool = True) -> str:
+    """Prepares cache directory and cleans up old files.
+    Args:
+        ttl: time to live for cache files in seconds
+        create_dir: if True, creates cache directory if it doesn't exist
+    Returns:
+        path to cache directory
+    """
+    global _last_cache_cleaning_time
+    cache_dir = '.cache'
+    current_time = time.time()
+
+    if os.path.exists(cache_dir):
+        # Only clean once every 5 minutes (300 seconds)
+        if current_time - _last_cache_cleaning_time > 300:
+            for file in os.listdir(cache_dir):
+                if current_time - os.path.getmtime(f'{cache_dir}/{file}') > ttl:
+                    os.remove(f'{cache_dir}/{file}')
+    else:
+        if create_dir:
+            os.makedirs(cache_dir)
+
+    _last_cache_cleaning_time = current_time
+    return cache_dir
+
+def calculate_hash(input: any) -> str:
+    """Calculate MD5 hash of given input."""
+    hasher = hashlib.md5()
+    _hash_any(input, hasher)
+    return hasher.hexdigest()
+
+def _hash_any(value: any, hasher: hashlib.md5) -> None:
+    if isinstance(value, dict):
+        for key in sorted(value.keys()):
+            hasher.update(str(key).encode())
+            _hash_any(value[key], hasher)
+    elif isinstance(value, list):
+        for item in value:
+            _hash_any(item, hasher)
+    else:
+        hasher.update(str(value).encode())
 
 def _build_cache_filename(source_file_paths: List[str], cache_file_suffix: str, discriminator: str) -> str:
-    md5 = hashlib.md5()
-    for source_file_path in source_file_paths:
-        md5.update(source_file_path.encode())
-    if discriminator is not None:
-        md5.update(discriminator.encode())
-    filename = md5.hexdigest()
+    filename = calculate_hash([source_file_paths, discriminator])
     return f"{filename}{cache_file_suffix}"
-
 
 def cached(
         input_path: str,
@@ -33,6 +76,16 @@ def cached(
         func: Callable[[str], Any],
         discriminator: str = None
 ) -> str:
+    """Calculates cache file path, and calls provided function only if the cache file is older than the input file.
+
+    Args:
+        input_path: paths to the input file
+        cache_file_suffix: suffix for file name in cache, usually extension like `.wav`
+        func: function to call if the cache file doesn't exist or is older than the input file. The sole input
+        argument to this function is the absolute path to the cache file.
+        discriminator: if specified, md5 hash of it is appended to cache filename to differentiate between different
+        parameters used in transformation process.
+    """
     return multi_cached([input_path], cache_file_suffix, func, discriminator)
 
 def multi_cached(
@@ -51,8 +104,7 @@ def multi_cached(
         discriminator: if specified, md5 hash of it is appended to cache filename to differentiate between different
         parameters used in transformation process.
     """
-    cache_dir = ".cache"
-    os.makedirs(cache_dir, exist_ok=True)
+    cache_dir = prepare_cache()
 
     cached_filename = _build_cache_filename(input_paths, cache_file_suffix, discriminator)
     cached_path = os.path.join(cache_dir, cached_filename)
@@ -80,6 +132,10 @@ def multi_cached(
             os.remove(cached_path)
         raise
 
+
+####################################################
+# Execution Environment
+####################################################
 
 class RunProcessException(IOError):
     def __init__(self, message: str, cause: Exception = None):
@@ -109,6 +165,33 @@ def run_process(cmd: List[str]) -> str:
         raise RunProcessException(f"Sub-process [{cmd_str}] finished with exit code {exit_code}, result_len={len(result)}, stderr:\n{stderr_data}")
 
 
+def find_and_load_dotenv(path_from_home_dir: str):
+    """Tries to find and load .env file. Order:
+    1. Current directory
+    2. Parent directories of current directory
+    3. Home directory
+
+    Args:
+        path_from_home_dir: path of the file within home directory
+    """
+    env_path = None
+    # 1. check current directory and parent directories
+    std_env_path = find_dotenv(usecwd=True)
+    if std_env_path and os.path.exists(std_env_path):
+        env_path = std_env_path
+
+    # 2. check path within home directory
+    if not env_path:
+        home_dir = os.path.expanduser("~")
+        path = os.path.join(home_dir, path_from_home_dir)
+        if os.path.exists(path):
+            env_path = path
+
+    if env_path:
+        logger.info(f"Loading {env_path}")
+        return load_dotenv(env_path)
+    return False
+
 def get_environment_variable(name: str, default: str | None) -> str | None:
     return os.environ.get(name, default)
 
@@ -119,26 +202,9 @@ def ensure_environment_variable(name: str) -> str:
     return var
 
 
-def format_tool_call(tc: ToolCall) -> str:
-    name = tc.get('name', '<tool>')
-    args = tc.get("args")
-    return format_tool_invocation(name, args)
-
-
-def format_tool_invocation(name: str, args: Any) -> str:
-    if isinstance(args, dict):
-        arg = next(iter(args.values()), None)
-        if arg is None:
-            return name
-        else:
-            args = str(arg)
-    else:
-        args = str(args)
-    limit = 80
-    if len(args) > limit:
-        return f"{name} \"{args[:limit]}...\""
-    else:
-        return f"{name} \"{args}\""
+####################################################
+# Logging
+####################################################
 
 DEBUG_LOGGERS = (
     ["llm_workers.worker"],
@@ -255,34 +321,29 @@ class LazyFormatter:
         return self.repr
 
 
-def find_and_load_dotenv(path_from_home_dir: str):
-    """Tries to find and load .env file. Order:
-    1. Current directory
-    2. Parent directories of current directory
-    3. Home directory
+####################################################
+# Misc.
+####################################################
 
-    Args:
-        path_from_home_dir: path of the file within home directory
-    """
-    env_path = None
-    # 1. check current directory and parent directories
-    std_env_path = find_dotenv(usecwd=True)
-    if std_env_path and os.path.exists(std_env_path):
-        env_path = std_env_path
+def format_tool_call(tc: ToolCall) -> str:
+    name = tc.get('name', '<tool>')
+    args = tc.get("args")
+    return format_tool_invocation(name, args)
 
-    # 2. check path within home directory
-    if not env_path:
-        home_dir = os.path.expanduser("~")
-        path = os.path.join(home_dir, path_from_home_dir)
-        if os.path.exists(path):
-            env_path = path
-
-    if env_path:
-        logger.info(f"Loading {env_path}")
-        return load_dotenv(env_path)
-    return False
-
-
+def format_tool_invocation(name: str, args: Any) -> str:
+    if isinstance(args, dict):
+        arg = next(iter(args.values()), None)
+        if arg is None:
+            return name
+        else:
+            args = str(arg)
+    else:
+        args = str(args)
+    limit = 80
+    if len(args) > limit:
+        return f"{name} \"{args[:limit]}...\""
+    else:
+        return f"{name} \"{args}\""
 
 class FileChangeDetector:
     def __init__(self, path: str, included_patterns: list[str], excluded_patterns: list[str]):
