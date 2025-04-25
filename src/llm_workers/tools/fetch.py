@@ -14,6 +14,7 @@ from lxml_html_clean import Cleaner
 from pydantic import BaseModel
 from requests import RequestException
 
+from llm_workers.api import ExtendedBaseTool
 from llm_workers.config import Json
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ def _fetch_content(
     except IOError as e:
         return _handle_error(url, e, on_error, empty = "")
 
-class FetchContentTool(BaseTool):
+class FetchContentTool(ExtendedBaseTool, BaseTool):
     name: str = "fetch_content"
     description: str = "Fetches text content from a URL and returns it as a string."
     args_schema: type[BaseModel] = create_schema_from_function(
@@ -83,9 +84,12 @@ class FetchContentTool(BaseTool):
         parse_docstring=True,
         error_on_invalid_docstring=True,
     )
+
     def _run(self, *args: Any, **kwargs: Any) -> Any:
         return _fetch_content(**kwargs)
 
+    def get_ui_hint(self, input: dict[str, Any]) -> str:
+        return f"Fetching {input['url']}"
 
 _cleaner = Cleaner(
     scripts=True,
@@ -144,7 +148,7 @@ def _fetch_page_markdown(
         return '\n'.join(texts)
 
 
-class FetchPageMarkdownTool(BaseTool):
+class FetchPageMarkdownTool(ExtendedBaseTool, BaseTool):
     name: str = "fetch_page_markdown"
     description: str = "Fetches web page or web page element and converts it to markdown."
     args_schema: type[BaseModel] = create_schema_from_function(
@@ -153,9 +157,12 @@ class FetchPageMarkdownTool(BaseTool):
         parse_docstring=True,
         error_on_invalid_docstring=True,
     )
+
     def _run(self, *args: Any, **kwargs: Any) -> Any:
         return _fetch_page_markdown(**kwargs)
 
+    def get_ui_hint(self, input: dict[str, Any]) -> str:
+        return f"Fetching {input['url']}"
 
 def _fetch_page_text(
     url: str,
@@ -188,7 +195,7 @@ def _fetch_page_text(
             return _handle_no_content(url, xpath, on_no_content, empty="")
         return '\n'.join(texts)
 
-class FetchPageTextTool(BaseTool):
+class FetchPageTextTool(ExtendedBaseTool, BaseTool):
     name: str = "fetch_page_text"
     description: str = "Fetches the text from web page or web page element."
     args_schema: type[BaseModel] = create_schema_from_function(
@@ -197,9 +204,12 @@ class FetchPageTextTool(BaseTool):
         parse_docstring=True,
         error_on_invalid_docstring=True,
     )
+
     def _run(self, *args: Any, **kwargs: Any) -> Any:
         return _fetch_page_text(**kwargs)
 
+    def get_ui_hint(self, input: dict[str, Any]) -> str:
+        return f"Fetching {input['url']}"
 
 class LinkTextPair(BaseModel):
     link: str
@@ -245,7 +255,7 @@ def _fetch_page_links(
         return _handle_no_content(url, xpath, on_no_content, empty = [])
     return links
 
-class FetchPageLinksTool(BaseTool):
+class FetchPageLinksTool(ExtendedBaseTool, BaseTool):
     name: str = "fetch_page_links"
     description: str = "Fetches the links from web page or web page element."
     args_schema: type[BaseModel] = create_schema_from_function(
@@ -254,5 +264,9 @@ class FetchPageLinksTool(BaseTool):
         parse_docstring=True,
         error_on_invalid_docstring=True,
     )
+
     def _run(self, *args: Any, **kwargs: Any) -> Any:
         return _fetch_page_links(**kwargs)
+
+    def get_ui_hint(self, input: dict[str, Any]) -> str:
+        return f"Fetching links from {input['url']}"

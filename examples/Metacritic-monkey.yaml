@@ -580,6 +580,7 @@ tools:
       - name: movie_year
         description: Movie release year
         type: int
+    ui_hint: Looking up Metacritic score for movie "{movie_title}" ({movie_year})
     body:
 #      - call: _fetch_page_text
 #        params:

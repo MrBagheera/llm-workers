@@ -255,12 +255,13 @@ class ChatSession:
                 i = i + 1
         return reasoning
 
-    def process_tool_start(self, name: str):
+    def process_tool_start(self, name: str, inputs: dict[str, Any]):
         if self._has_unfinished_output or self._streamed_reasoning_index is not None:
             print()
             self._has_unfinished_output = False
             self._streamed_reasoning_index = None
-        self._console.print(f"Running tool {name}", style="bold white")
+        message = self._chat_context.context.get_start_tool_message(name, inputs)
+        self._console.print(f"{message}...", style="bold white")
 
     def process_confirmation_request(self, request: ConfirmationRequest):
         self._console.print("\n\n")
@@ -331,8 +332,7 @@ class ChatSessionCallbackDelegate(BaseCallbackHandler):
                       parent_run_id: Optional[UUID] = None, tags: Optional[list[str]] = None,
                       metadata: Optional[dict[str, Any]] = None, inputs: Optional[dict[str, Any]] = None,
                       **kwargs: Any) -> Any:
-        # TODO support ui_hint
-        self._chat_session.process_tool_start(serialized.get("name", "<tool>"))
+        self._chat_session.process_tool_start(serialized.get("name", "<tool>"), inputs)
 
     def on_custom_event(self, name: str, data: Any, *, run_id: UUID, tags: Optional[list[str]] = None,
                         metadata: Optional[dict[str, Any]] = None, **kwargs: Any) -> Any:

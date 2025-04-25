@@ -30,6 +30,10 @@ class WorkersContext(ABC):
     def get_llm(self, llm_name: str) -> BaseChatModel:
         pass
 
+    @abstractmethod
+    def get_start_tool_message(self, tool_name: str, inputs: dict[str, any]) -> str:
+        pass
+
 
 ToolFactory = Callable[[WorkersContext, Dict[str, Any]], BaseTool]
 
@@ -81,4 +85,8 @@ class ExtendedBaseTool(ABC):
     def make_confirmation_request(self, input: dict[str, Any]) -> Optional[ConfirmationRequest]:
         """Create a custom confirmation request based on the input."""
         return None
+
+    @abstractmethod
+    def get_ui_hint(self, input: dict[str, Any]) -> str:
+        pass
 

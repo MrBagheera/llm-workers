@@ -28,6 +28,7 @@ tools:
         description: Level of header to use for title
         type: int
         default: 3
+    ui_hint: Generating navigation summary
     body:
       call: _llm
       params:
@@ -59,6 +60,7 @@ tools:
         description: Level of header to use for title
         type: int
         default: 3
+    ui_hint: Generating navigation summary for {url}
     body:
       - call: fetch_page_markdown
         params:

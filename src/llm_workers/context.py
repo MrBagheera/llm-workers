@@ -6,7 +6,7 @@ from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
-from llm_workers.api import WorkersContext, WorkerException
+from llm_workers.api import WorkersContext, WorkerException, ExtendedBaseTool
 from llm_workers.config import WorkersConfig, load_config, StandardModelConfig, ImportModelConfig, ToolDefinition
 from llm_workers.tools.custom_tool import build_custom_tool
 
@@ -151,3 +151,18 @@ class StandardContext(WorkersContext):
         if llm_name in self._models:
             return self._models[llm_name]
         raise WorkerException(f"LLM {llm_name} not found")
+
+    def get_start_tool_message(self, tool_name: str, inputs: dict[str, any]) -> str:
+        try:
+            # check if ui_hint is defined in tool definition
+            tool_def = self.get_tool_definition(tool_name)
+            if tool_def.ui_hint_template is not None:
+                return tool_def.ui_hint_template.format(**inputs)
+            # fallback to ExtendedBaseTool
+            tool = self._tools[tool_name]
+            if isinstance(tool, ExtendedBaseTool):
+                return tool.get_ui_hint(inputs)
+        except Exception as e:
+            logger.warning(f"Unexpected exception formating start message for tool {tool_name}: {e}", exc_info=True)
+        # default
+        return f"Running tool {tool_name}"

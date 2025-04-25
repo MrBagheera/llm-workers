@@ -291,10 +291,10 @@ def _trim_recursively(data):
         return [_trim_recursively(item) for item in data]
     elif isinstance(data, str):
         lines = data.splitlines()
-        line = lines[0]
-        return line[:77] + "..." if len(line) > 80 or len(lines) > 1 else line
-    else:
-        return data
+        if len(lines) > 0:
+            line = lines[0]
+            return line[:77] + "..." if len(line) > 80 or len(lines) > 1 else line
+    return data
 
 class LazyFormatter:
     def __init__(self, target, custom_formatter: Callable[[Any], str] = None, trim: bool = True):

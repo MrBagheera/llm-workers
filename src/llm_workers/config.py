@@ -3,12 +3,13 @@ from abc import ABC
 from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict
 
 import yaml
-from pydantic import BaseModel, model_validator, Field
+from pydantic import BaseModel, model_validator, Field, PrivateAttr
 from pydantic import ValidationError, WrapValidator
 from pydantic_core import PydanticCustomError
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler, ValidationInfo
 from typing_extensions import Self
 
+from langchain_core.prompts import PromptTemplate
 
 def json_custom_error_validator(
         value: Any,
@@ -119,6 +120,8 @@ class ToolDefinition(BaseModel):
     return_direct: Optional[bool] = None
     confidential: Optional[bool] = None
     require_confirmation: Optional[bool] = None
+    ui_hint: Optional[str] = None
+    _ui_hint_template: Optional[PromptTemplate] = PrivateAttr(default=None)  # private field
     # actual implementation definition (only one of these)
     clazz: Optional[str] = Field(alias='class', default=None)
     factory: Optional[str] = None
@@ -136,6 +139,14 @@ class ToolDefinition(BaseModel):
             _ensure_not_set(model, ['input'], 'imported tool definition')
         return model
 
+    def __init__(self, **data):
+        super().__init__(**data)
+        if self.ui_hint is not None:
+            self._ui_hint_template = PromptTemplate.from_template(self.ui_hint)
+
+    @property
+    def ui_hint_template(self) -> Optional[PromptTemplate]:
+        return self._ui_hint_template
 
 class BaseLLMConfig(BaseModel):
     model_ref: str = "default"

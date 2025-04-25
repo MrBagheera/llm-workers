@@ -39,6 +39,9 @@ class ReadFileTool(BaseTool, ExtendedBaseTool):
             params = [ ]
         )
 
+    def get_ui_hint(self, input: dict[str, Any]) -> str:
+        return f"Reading file {input['filename']}"
+
     def _run(self, filename: str, lines: int = 0) -> str:
         try:
             with open(filename, 'r') as file:
@@ -75,6 +78,9 @@ class WriteFileTool(BaseTool, ExtendedBaseTool):
                 else f"write to the file \"{filename}\"",
             params = []
         )
+
+    def get_ui_hint(self, input: dict[str, Any]) -> str:
+        return f"Writing file {input['filename']}"
 
     def _run(self, filename: str, content: str, append: bool = False):
         try:
@@ -117,6 +123,9 @@ class RunPythonScriptTool(BaseTool, ExtendedBaseTool):
             action = "run Python script",
             params = [ ConfirmationRequestParam(name = "script", value = input["script"], format = "python" ) ]
         )
+
+    def get_ui_hint(self, input: dict[str, Any]) -> str:
+        return "Running Python script"
 
     def _run(self, script: str) -> str:
         file_path = f"script_{time.strftime('%Y%m%d_%H%M%S')}.py"
@@ -169,6 +178,9 @@ class ShowFileTool(BaseTool, ExtendedBaseTool):
             else f"open the file \"{filename}\" in OS-default application",
             params=[]
         )
+
+    def get_ui_hint(self, input: dict[str, Any]) -> str:
+        return f"Opening file {input['filename']}"
 
     def _run(self, filename: str):
         if not is_safe_to_open(filename):
