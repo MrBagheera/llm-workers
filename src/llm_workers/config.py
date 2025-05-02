@@ -36,10 +36,15 @@ Json = TypeAliasType(
 )
 
 
+class RateLimiterConfig(BaseModel):
+    requests_per_second: float
+    check_every_n_seconds: float = 0.1
+    max_bucket_size: float
 
 class ModelConfig(BaseModel, ABC):
     name: str
     model_params: Json = None
+    rate_limiter: Optional[RateLimiterConfig] = None
 
 class StandardModelConfig(ModelConfig):
     provider: str

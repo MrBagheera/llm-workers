@@ -5,6 +5,7 @@ import logging
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
+from langchain_core.rate_limiters import InMemoryRateLimiter
 
 from llm_workers.api import WorkersContext, WorkerException, ExtendedBaseTool
 from llm_workers.config import WorkersConfig, load_config, StandardModelConfig, ImportModelConfig, ToolDefinition
@@ -27,11 +28,16 @@ class StandardContext(WorkersContext):
         # register models
         for model_config in self._config.models:
             model_params = model_config.model_params or {}
+            if model_config.rate_limiter:
+                model_params['rate_limiter'] = InMemoryRateLimiter(
+                    requests_per_second = model_config.rate_limiter.requests_per_second,
+                    check_every_n_seconds = model_config.rate_limiter.check_every_n_seconds,
+                    max_bucket_size = model_config.rate_limiter.max_bucket_size)
             model: BaseChatModel
             try:
                 if isinstance(model_config, StandardModelConfig):
                     model = init_chat_model(model_config.model, model_provider=model_config.provider,
-                                                               configurable_fields=None, **model_params)
+                                            configurable_fields=None, **model_params)
                 elif isinstance(model_config, ImportModelConfig):
                     # split model.import_from into module_name and symbol
                     segments = model_config.import_from.split('.')
