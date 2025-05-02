@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, create_model
 from llm_workers.api import WorkersContext
 from llm_workers.config import Json, CustomToolParamsDefinition, \
     CallDefinition, ResultDefinition, StatementDefinition, MatchDefinition, ToolDefinition
-from llm_workers.utils import LazyFormatter
+from llm_workers.utils import LazyFormatter, parse_standard_type
 
 logger = logging.getLogger(__name__)
 
@@ -281,7 +281,7 @@ def create_dynamic_schema(name: str, params: list[CustomToolParamsDefinition]) -
     model_name = f"{cc_name}DynamicSchema"
     fields = {}
     for param in params:
-        field_type = eval(param.type)  # Convert string type to Python type
+        field_type = parse_standard_type(param.type)
         if param.default is not None:
             fields[param.name] = (field_type, Field(description=param.description, default=param.default, coerce_numbers_to_str=True))
         else:

@@ -2,7 +2,7 @@ import unittest
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from llm_workers.utils import format_as_yaml
+from llm_workers.utils import format_as_yaml, parse_standard_type
 
 
 class TestFormatMessageAsYaml(unittest.TestCase):
@@ -95,6 +95,25 @@ class TestFormatMessageAsYaml(unittest.TestCase):
         self.assertIn("First", trimmed)
         self.assertNotIn("Fourth", trimmed)
 
+
+class TestTypeParsing(unittest.TestCase):
+    def test_parse_type(self):
+        self.assertEqual(parse_standard_type("str"), str)
+        self.assertEqual(parse_standard_type("int"), int)
+        self.assertEqual(parse_standard_type("float"), float)
+        self.assertEqual(parse_standard_type("bool"), bool)
+        self.assertEqual(parse_standard_type("dict"), dict)
+        self.assertEqual(parse_standard_type("list"), list)
+
+        # Test literal type
+        from typing import Literal
+        literal_type = parse_standard_type("literal:red|green|blue")
+        self.assertEqual(literal_type.__origin__, Literal)
+        self.assertEqual(literal_type.__args__, ('red', 'green', 'blue'))
+
+        # Test error case
+        with self.assertRaises(ValueError):
+            parse_standard_type("unknown_type")
 
 if __name__ == "__main__":
     unittest.main()

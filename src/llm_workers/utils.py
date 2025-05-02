@@ -427,3 +427,26 @@ def open_file_in_default_app(filepath: str) -> bool:
     except Exception as e:
         logger.warning(f"Failed to open file {filepath} in default app: {e}", exc_info=True)
         return False
+
+
+def parse_standard_type(s: str):
+    if s == "str":
+        return str
+    elif s == "int":
+        return int
+    elif s == "float":
+        return float
+    elif s == "bool":
+        return bool
+    elif s == "dict":
+        return dict
+    elif s == "list":
+        return list
+    elif s.startswith("literal:"):
+        # Extract the values after "literal:" and split by "|"
+        literal_values = s[len("literal:"):].split("|")
+        from typing import Literal
+        # Create a Literal type with the extracted values
+        return Literal[tuple(literal_values)]
+    else:
+        raise ValueError(f"Unknown type: {s}")

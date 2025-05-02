@@ -1,0 +1,192 @@
+# This is an experiment in using context help tool to provide additional information to the LLM.
+# The idea is that we have a tool that provides help on fixed list of topics, and we rely on LLM
+# to call it to get information relevant to fulfilling user request.
+
+models:
+  - name: default
+    provider: bedrock_converse
+    model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
+    model_params:
+      temperature: 0
+      max_tokens: 32768
+  - name: thinking
+    provider: bedrock_converse
+    model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
+    model_params:
+      temperature: 1
+      max_tokens: 32768
+#      disable_streaming: true
+      additional_model_request_fields:
+        thinking:
+          type: enabled
+          budget_tokens: 16000
+
+tools:
+
+  - name: read_docs
+    description: "Provides additional information on certain topics."
+    input:
+      - name: topic
+        description: "Topic to get information about"
+        type: "literal:player|game_progress|operations|conflicts|progress_logs|client_logs"
+    ui_hint: "Reading about {topic}"
+    body:
+      match: "{topic}"
+      matchers:
+        - case: "player"
+          then:
+            result: |-
+              Player data is stored as big JSON object in the database and has unique identifier.
+    
+              Here is Pydantic class describing most important fields of player JSON:
+              ```python
+              class GooglePlayLogin(BaseModel):
+                  id: str
+                  encrypted_name: str
+
+              class GameCenterLogin(BaseModel):
+                  id: str
+                  encrypted_name: str
+
+              class RegisteredInfo(BaseModel):
+                  timestamp: datetime
+                  platform: str
+                  country: str
+
+              class Player(BaseModel):
+                  id: str = Field(alias="_id")
+                  google_play_login: Optional[GooglePlayLogin]
+                  game_center_login: Optional[GameCenterLogin]
+                  version: int
+                  progress: GameProgress
+                  progress_hash: int
+                  progress_version: int
+                  last_active: datetime
+                  language: Optional[str] = None
+                  registered: Optional[RegisteredInfo] = None
+                  pending_ops: Dict[str, Any] = Field(default={{}})
+                  last_updated: datetime
+              ```
+        - case: "game_progress"
+          then:
+            result: |-
+              The data describing player's progress through the game is often referred to as "game progress" or `GameProgress`.
+    
+              `GameProgress` is stored both on the client and on the server, and is updated sequentially via operations.
+                
+              Here is Pydantic class describing most important fields of game progress JSON:
+               ```python
+              class GameProgress(BaseModel):
+                config_id: int
+                resource1: int
+                coins: int
+                resource2: int
+                random: DeterministicRandom
+                resource3: int
+                seen_trophies: int
+                time: int
+                trophies: int
+                # many other fields
+              ```
+
+        - case: "operations"
+          then:
+            result: |-
+              Player's game progress is updated via sequentially applied operations. 
+              
+              Most important fields of operations JSON:
+              ```python
+              class Operation(BaseModel):
+                  operation_type: str
+                  time: int
+                  hash: int
+                  # Additional fields depend on the operation type
+
+        - case: "conflicts"
+          then:
+            result: |-
+              If server detects that client's hash of the game progress does not match server's hash, it rejects the operation and sends
+              own version of the game progress to the client. This situation is called "conflict".
+              In case of conflict, server also writes special record to the database, called "conflict record".
+              
+              Most important fields of conflict JSON:
+              ```python
+              class Conflict(BaseModel):
+                  id: str = Field(alias="_id")
+                  device_id: str
+                  player_id: str
+                  timestamp: datetime
+                  xp_level: Optional[int]
+                  version: int
+                  operation: Operation
+                  client_hash: int
+                  error: str
+                  server_hash: int
+                  ex_hash: str
+                  client_diff: Dict[str, Any]
+                  server_progress: Optional[Dict[str, Any]]
+                  client_progress: Optional[Dict[str, Any]]
+              ```
+
+        - case: "progress_logs"
+          then:
+            result: |-
+              Each operation applied to game progress results in progress log record.
+              
+              Most important fields of progress log JSON:
+              ```python
+              class ProgressDiffItem(BaseModel):
+                  was: Any
+                  now: Any
+
+              class ProgressLog(BaseModel):
+                  operation: Operation
+                  player_id: str
+                  progress_version: int
+                  timestamp: datetime
+                  progress_diff: Dict[str, Any] # contains nested dictionaries and lists with ProgressDiffItem for changed field  
+              ```
+
+        - case: "client_logs"
+          then:
+            result: |-
+              Client application logs certain events happening during runtime and sends them to the server.
+    
+              Most important fields of client log record JSON:
+              ```python
+              class ClientLog(BaseModel):
+                  timestamp: int
+                  public_id: str
+                  device_id: str
+                  player_id: str
+                  event_type: str
+                  message: str
+                  build: str
+                  os: str
+                  ex_hash: str
+              ```
+
+      default:
+        - result: "Unknown topic {topic}"
+
+chat:
+  model_ref: thinking
+  remove_past_reasoning: true
+  show_reasoning: true
+  auto_open_changed_files: true
+  system_message: |-
+    You are AI assistant in a mobile game company.
+    
+    Your team is investigating issues in a live game. Your task is to help your team by writing 
+    and running Python scripts to fetch and connect data from various sources.
+    
+    Unless explicitly asked by user, write script result to promptly named file in the current directory,
+    output only progress information and file name. Prefer '.json' as output format.
+    
+    If unsure about the requirements or data format, DO NOT MAKE ASSUMPTIONS. 
+    Use `read_docs` tool to get more information on topics related to user's request. 
+    Call it ONLY ONCE FOR EACH TOPIC per session. If still unsure, ask for user for clarification.
+  default_prompt: |-
+    Please write Python script to read file `players.json` that contains a list of player JSON records, and print only 
+    IDs of those who have game center logins and have more than 1000 gems.
+
