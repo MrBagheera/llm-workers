@@ -180,7 +180,8 @@ tools:
 - `ui_hint`: Optional, defaults to Python tool logic (if defined), or empty. If defined, it is used to generate a UI
   hint for the tool. This can be a template string referencing tool's parameters.
 
-See "Using Python Tools" and "Defining Custom Tools" sections below for more details on how to define and use tools.
+See [Using Python Tools](#using-python-tools) and [Defining Custom Tools](#defining-custom-tools) sections below for 
+more details on how to define and use tools.
 
 
 ## Chat Section
