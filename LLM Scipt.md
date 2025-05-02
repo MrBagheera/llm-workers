@@ -297,7 +297,9 @@ cli:
 
 # Using Python tools
 
-## Importing From Classes
+## Importing
+
+### From Classes
 
 To import tools from Python class, use the `class` parameter. The class must be a fully-qualified Python class name.
 Tool class must extend `langchain_core.tools.base.BaseTool` class.
@@ -309,7 +311,7 @@ tools:
     class: llm_workers.tools.unsafe.ReadFileTool
 ```
 
-### Importing From Factory Methods
+### From Factory Methods
 
 To import tools from factory methods, use the `factory` parameter. The factory method must be a fully-qualified Python method name.
 The factory method must conform to following syntax:
