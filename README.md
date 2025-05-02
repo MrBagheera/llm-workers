@@ -1,3 +1,21 @@
+Table of Contents
+=================
+
+* [Project Overview](#project-overview)
+    * [Goals](#goals)
+    * [What This Project Is <em>Not</em>](#what-this-project-is-not)
+* [Configuration](#configuration)
+* [Running](#running)
+* [Releases](#releases)
+    * [Next](#next)
+    * [Version 0.1.0](#version-010)
+    * [Version 0.1.1](#version-011)
+    * [Further Ideas](#further-ideas)
+* [Devlopment](#devlopment)
+    * [Packaging for release](#packaging-for-release)
+
+<!-- Created by https://github.com/ekalinin/github-markdown-toc -->
+
 # Project Overview
 
 Simple library and command-line tools for experimenting with LLMs.
@@ -15,10 +33,16 @@ Provide developers with a simple way to experiment with LLMs and LangChain:
 - **Not an end-user tool**: This project is geared toward developers and researchers with knowledge of Python, LLM capabilities, and programming fundamentals.
 - **Not a complete automation system**: It relies on human oversight and guidance for optimal performance.
 
+
 # Configuration
 
-Configuration is done via YAML-based "LLM scripts". See [`examples`](examples/) directory. This is WIP and
-subject to change without notice until version 0.1.0.
+LLM scripts are YAML configuration files that define how to interact with large language models (LLMs) and what
+tools LLMs can use. You should treat them like a normal scripts. In particular - DO NOT run LLM scripts from
+unknown / untrusted. They can easily download and run malicious code on your machine, or submit your secrets to some
+web site.
+
+See [LLM Scipt.md](LLM%20Scipt.md) file for reference.
+
 
 # Running 
 
@@ -49,41 +73,40 @@ llm-workers-chat [--verbose] [--debug] <script_file>
 The tool provides terminal chat interface where user can interact with LLM script.
 
 Common flags:
-- `--verbose` flag triggers some debug prints to stderr
-- `--debug` - enables LangChain's debug mode, which prints additional information about script execution
+- `--verbose` - increases verbosity of stderr logging, can be used multiple times (info / debug)
+- `--debug` - increases amount of debug logging to file/stderr, can be used multiple times (debug only main worker / 
+debug whole `llm_workers` package / debug all)
+
 
 # Releases
 
-## Next
-
 - [0.1.0-alpha5](https://github.com/MrBagheera/llm-workers/milestone/1)
 
+## Next
+
+- [0.1.0-rc1](https://github.com/MrBagheera/llm-workers/milestone/3)
+
 ## Version 0.1.0
+
+- basic assistant functionality
+
+## Version 0.1.1
 
 - simplify result referencing in chains - `{last_result}` and `store_as`
 - `prompts` section
 - `for_each` statement
-- `ReadFileTool`: support `first_lines` / `last_lines`
-- `WriteFileTool`: support `append`
-- add `ListFilesTool`
-- add `ShellTool`
-- add `Execute` tool
-- support `ui_hint` tool flag
-- support `confirmation_prompt`/`confirmation_args` tool flags
 - support accessing nested JSON elements in templates
-- review error handling
-- improve documentation - installing, running, developing
 
 ## Further Ideas
 
 - structured output
 - async versions for all built-in tools
-- proper error handling
 - "safe" versions of "unsafe" tools
 - write trail
 - resume trail
 - support acting as MCP server (expose `custom_tools`)
 - support acting as MCP host (use tools from configured MCP servers)
+
 
 # Devlopment
 
