@@ -38,8 +38,8 @@ Provide developers with a simple way to experiment with LLMs and LangChain:
 
 LLM scripts are YAML configuration files that define how to interact with large language models (LLMs) and what
 tools LLMs can use. You should treat them like a normal scripts. In particular - DO NOT run LLM scripts from
-unknown / untrusted. They can easily download and run malicious code on your machine, or submit your secrets to some
-web site.
+unknown / untrusted sources. Scripts can easily download and run malicious code on your machine, or submit your secrets
+to some web site.
 
 See [LLM Scipt.md](LLM%20Scipt.md) file for reference.
 

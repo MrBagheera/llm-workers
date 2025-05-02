@@ -1,7 +1,7 @@
 LLM scripts are YAML configuration files that define how to interact with large language models (LLMs) and what 
 tools LLMs can use. You should treat them like a normal scripts. In particular - DO NOT run LLM scripts from
-unknown / untrusted. They can easily download and run malicious code on your machine, or submit your secrets to some 
-web site. 
+unknown / untrusted sources. Scripts can easily download and run malicious code on your machine, or submit your secrets 
+to some web site. 
 
 For real examples, see [coding-assistant.yaml](src/llm_workers/coding-assistant.yaml)
 and files in [`examples`](examples/) directory.
