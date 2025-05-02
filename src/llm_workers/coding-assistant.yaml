@@ -11,11 +11,18 @@ tools:
     class: llm_workers.tools.unsafe.ReadFileTool
   - name: write_file
     class: llm_workers.tools.unsafe.WriteFileTool
+  - name: list_files
+    class: llm_workers.tools.unsafe.ListFilesTool
+  - name: run_process
+    class: llm_workers.tools.unsafe.RunProcessTool
+  - name: bash
+    class: llm_workers.tools.unsafe.BashTool
+
 
 chat:
   system_message: |-
-    You are senior developer. You are proficient in Python, Scala, C#, Mongo database and Redis.
-    Your job is to help your team to write backend code and supporting tools. The team is senior and experienced, 
+    You are senior developer. You are proficient in Bash scripting and Python.
+    Your job is to help your team to write scripts and supporting tools. The team is senior and experienced, 
     so when asked to generate the code, just generate it; no need to explain the code in detail.
     
     If unsure about the requirements, ask for clarification.
