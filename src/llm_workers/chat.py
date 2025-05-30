@@ -12,6 +12,7 @@ from langchain_core.outputs import GenerationChunk, ChatGenerationChunk
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.syntax import Syntax
 
 from llm_workers.api import ConfirmationRequest, CONFIDENTIAL
@@ -66,6 +67,11 @@ class ChatSession:
         return self._chat_context.context.config.chat
 
     def run(self):
+        # Display user banner if configured
+        if self._chat_config.user_banner is not None:
+            self._console.print(Markdown(self._chat_config.user_banner))
+            self._console.print()
+
         if self._chat_config.default_prompt is not None:
             self._pre_input = self._chat_config.default_prompt
 

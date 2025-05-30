@@ -1,0 +1,74 @@
+models:
+  - name: default
+    provider: anthropic
+    model: claude-sonnet-4-20250514
+    model_params:
+      temperature: 0
+      max_tokens: 32768
+  - name: bedrock
+    provider: bedrock_converse
+    model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
+    rate_limiter: # My AWS account has limit of only 4 requests per minute!!!
+      requests_per_second: 0.06666666666666667
+      max_bucket_size: 4
+    model_params:
+      temperature: 0
+      max_tokens: 32768
+
+tools:
+  - name: read_file
+    class: llm_workers.tools.unsafe.ReadFileTool
+  - name: write_file
+    class: llm_workers.tools.unsafe.WriteFileTool
+  - name: list_files
+    class: llm_workers.tools.unsafe.ListFilesTool
+  - name: run_process
+    class: llm_workers.tools.unsafe.RunProcessTool
+  - name: bash
+    class: llm_workers.tools.unsafe.BashTool
+
+
+chat:
+  user_banner: |-
+    # Welcome to Your AI Coding Assistant
+    
+    This is a **generic terminal assistant** powered by AI. It comes with:
+    - Bash scripting and command-line automation
+    - Python programming and data analysis
+    - File operations and process execution
+    - Real-time code generation and debugging
+    
+    ## 💡 Ideas to Get You Started
+    
+    **1. System Administration Made Easy**
+    - "Help me write a script to backup my project files to a timestamped folder"
+    - "Create a monitoring script that checks if my web server is running"
+    - "Generate a cleanup script to remove old log files older than 30 days"
+    
+    **2. Data Analysis & File Processing** 
+    - "Parse this CSV file and show me the top 10 entries by sales"
+    - "Convert all my PNG images to JPEG with 80% quality"
+    - "Find duplicate files in my Downloads folder and show me the results"
+    
+    **3. Development Workflow Automation**
+    - "Create a git hook script that runs tests before each commit"
+    - "Generate a project setup script that installs dependencies and creates folders"
+    - "Write a deployment script that builds and uploads my app"
+    
+    **4. Quick Programming Solutions**
+    - "Help me write a Python script to rename files based on their creation date"
+    - "Create a tool that extracts all URLs from a text file"
+    - "Generate a password generator with custom rules"
+    
+    **5. Learning & Exploration**
+    - "Show me how to use curl to test my API endpoints"
+    - "Explain what this bash command does: `find . -name '*.log' -mtime +7 -delete`"
+    - "Help me understand how to use grep with regular expressions"
+    
+    Just describe what you want to accomplish in plain English!
+  system_message: |-
+    You are senior developer. You are proficient in Bash scripting and Python.
+    Your job is to help your team to write scripts and supporting tools. The team is senior and experienced, 
+    so when asked to generate the code, just generate it; no need to explain the code in detail.
+    
+    If unsure about the requirements, ask for clarification.

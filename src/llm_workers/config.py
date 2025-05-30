@@ -163,6 +163,7 @@ class BaseLLMConfig(BaseModel):
 
 class ChatConfig(BaseLLMConfig):
     default_prompt: Optional[str] = None
+    user_banner: Optional[str] = None
     show_reasoning: bool = False
     auto_open_changed_files: bool = False
     file_monitor_include: list[str] = ['*']

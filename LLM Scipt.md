@@ -3,7 +3,7 @@ tools LLMs can use. You should treat them like a normal scripts. In particular -
 unknown / untrusted sources. Scripts can easily download and run malicious code on your machine, or submit your secrets 
 to some web site. 
 
-For real examples, see [coding-assistant.yaml](src/llm_workers/coding-assistant.yaml)
+For real examples, see [generic-assistant.yaml](src/llm_workers/generic-assistant.yaml)
 and files in [`examples`](examples/) directory.
 
 
@@ -77,6 +77,8 @@ chat: # For interactive chat mode
   remove_past_reasoning: <boolean> # Optional
   show_reasoning: <boolean> # Optional
   auto_open_changed_files: <boolean> # Optional
+  user_banner: | # Optional, markdown-formatted text displayed at the beginning of chat
+    <banner text>
   system_message: |
     <system prompt>
   default_prompt: | # Optional
@@ -191,6 +193,7 @@ Configuration for interactive chat mode:
 - `model_ref`: References a model defined in the models section, defaults to "default"
 - `system_message`: Instructions for the LLM's behavior
 - `default_prompt`: Initial prompt when starting the chat, defaults to empty string
+- `user_banner`: Optional markdown-formatted text displayed at the beginning of chat session, defaults to not shown
 - `remove_past_reasoning`: Whether to hide past LLM reasoning from subsequent LLM calls, defaults to `false`
 - `show_reasoning`: Whether to display LLM reasoning process to user, defaults to `false`
 - `tool_refs`: Optional list of tool names to make available to the LLM, defaults to all public tools (e.g. not starting with `_`)
@@ -204,6 +207,15 @@ chat:
   remove_past_reasoning: true
   show_reasoning: true
   auto_open_changed_files: true
+  user_banner: |
+    # Game Analytics Assistant
+    
+    Welcome to the mobile game analytics environment! I can help you investigate live game issues by:
+    - Writing Python scripts to fetch and analyze data
+    - Connecting data from various sources
+    - Generating reports in JSON format
+    
+    Type your requests naturally and I'll get to work!
   system_message: |-
     You are AI assistant in a mobile game company.
     Your team is investigating issues in a live game. Your task is to help your team by writing 
