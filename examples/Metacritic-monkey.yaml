@@ -7,6 +7,9 @@ tools:
   - name: _fetch_page_text
     class: llm_workers.tools.fetch.FetchPageTextTool
 
+  - name: _user_input
+    class: llm_workers.tools.misc.UserInputTool
+
   - name: _search_movie_on_metacritic_stub
     description: >
       (debug) Searches for the Metacritic score for a given movie title. Returns text from Metacritic web site,
@@ -565,7 +568,9 @@ tools:
                 2021
                 67
       default:
-        result: "N/A"
+        - call: _user_input
+          params:
+            prompt: "Movie '{movie_title}' not found in stub data. Please provide mock Metacritic search results (movie titles, years, and scores):"
 
   - name: _LLM
     factory: llm_workers.tools.llm_tool.build_llm_tool

@@ -35,6 +35,8 @@ Table of Contents
       * [bash](#bash)
       * [list_files](#list_files)
       * [run_process](#run_process)
+    * [Miscellaneous Tools](#miscellaneous-tools)
+      * [user_input](#user_input)
 * [Defining Custom Tools](#defining-custom-tools)
   * [Composing Statements](#composing-statements)
   * [Template Variables](#template-variables)
@@ -578,6 +580,57 @@ Runs a system process and returns its output.
 - Executes the command with provided arguments
 - Returns stdout output
 - Requires user confirmation by default
+
+
+### Miscellaneous Tools
+
+#### `user_input`
+
+```yaml
+- name: user_input
+  class: llm_workers.tools.misc.UserInputTool
+```
+
+Prompts the user for input and returns their response.
+
+**Parameters:**
+- `prompt`: Text prompt to display to the user before requesting input
+
+**Behavior:**
+- Displays the prompt to the user
+- Shows instruction about using empty line as end-of-input
+- Reads lines from stdin until an empty line is encountered
+- Returns all input as a single string with newlines preserved between lines
+- Does not require user confirmation
+- Handles EOF gracefully by returning collected input so far
+
+**Primary Use Case:**
+This tool is primarily intended for **prototyping new tools and prompt combinations**. It's designed to be used inside custom tools that mimic the intended tool's parameter schema and description. During development, you can create stub tools with `match` statements that return results for the most common input parameter combinations, while using `user_input` in the `default` block to handle unexpected inputs during testing.
+
+**Example Usage for Prototyping:**
+```yaml
+- name: search_api_stub
+  description: "Searches external API for data"
+  input:
+    - name: query
+      description: "Search query"
+      type: str
+  body:
+    - match: "{query}"
+      matchers:
+        - case: "common query 1"
+          then:
+            result: "predefined result 1"
+        - case: "common query 2"
+          then:
+            result: "predefined result 2"
+      default:
+        - call: user_input
+          params:
+            prompt: "API returned: {query}. Please provide mock response:"
+```
+
+This approach allows you to quickly prototype and test tool interactions before implementing the actual tool logic.
 
 
 # Defining Custom Tools
