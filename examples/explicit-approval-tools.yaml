@@ -29,7 +29,7 @@ tools:
       - name: script
         description: Python script to run
         type: str
-    ui_hint: Running generated Python script...
+    ui_hint: Running generated Python script
     body:
       - call: _validate_approval
         params:
@@ -40,7 +40,7 @@ tools:
       - call: _consume_approval
         params:
           approval_token: "{approval_token}"
-            
+
 chat:
   system_message: |-
     You are a helpful AI assistant that can run Python scripts to answer user questions.
