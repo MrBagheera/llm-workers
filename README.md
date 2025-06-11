@@ -41,7 +41,7 @@ tools LLMs can use. You should treat them like a normal scripts. In particular -
 unknown / untrusted sources. Scripts can easily download and run malicious code on your machine, or submit your secrets
 to some web site.
 
-See [LLM Scipt.md](LLM%20Scipt.md) file for reference.
+See [LLM Script.md](LLM%20Script.md) file for reference.
 
 
 # Running 
@@ -82,10 +82,12 @@ debug whole `llm_workers` package / debug all)
 
 - [0.1.0-alpha5](https://github.com/MrBagheera/llm-workers/milestone/1)
 - [0.1.0-rc1](https://github.com/MrBagheera/llm-workers/milestone/3)
+- [0.1.0-rc2](https://github.com/MrBagheera/llm-workers/milestone/4)
+- [0.1.0-rc3](https://github.com/MrBagheera/llm-workers/milestone/5)
 
 ## Next
 
-- [0.1.0-rc2](https://github.com/MrBagheera/llm-workers/milestone/4)
+- [0.1.0-rc4](https://github.com/MrBagheera/llm-workers/milestone/6)
 
 ## Version 0.1.0
 
