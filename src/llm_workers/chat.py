@@ -61,6 +61,7 @@ class ChatSession:
         self._streamed_message_id = None
         self._streamed_reasoning_index: Optional[int] = None
         self._has_unfinished_output = False
+        self._running_tools_depths = {}
 
     @property
     def _chat_config(self):
@@ -261,14 +262,23 @@ class ChatSession:
                 i = i + 1
         return reasoning
 
-    def process_tool_start(self, name: str, inputs: dict[str, Any]):
+    def process_tool_start(self, name: str, inputs: dict[str, Any], run_id: UUID, parent_run_id: Optional[UUID]):
         if self._has_unfinished_output or self._streamed_reasoning_index is not None:
             print()
             self._has_unfinished_output = False
             self._streamed_reasoning_index = None
         message = self._chat_context.context.get_start_tool_message(name, inputs)
-        if message is not None:
-            self._console.print(f"{message}...", style="bold white")
+        if message is None:
+            return
+        if parent_run_id is not None and parent_run_id in self._running_tools_depths:
+            # increase depth of running tool
+            depth = self._running_tools_depths[parent_run_id] + 1
+            ident = "  " * depth
+            self._running_tools_depths[run_id] = depth
+            self._console.print(f"{ident}└ {message}...", style="bold white")
+        else:
+            self._running_tools_depths[run_id] = 0
+            self._console.print(f"⏺ {message}...", style="bold white")
 
     def process_confirmation_request(self, request: ConfirmationRequest):
         self._console.print("\n\n")
@@ -337,7 +347,7 @@ class ChatSessionCallbackDelegate(BaseCallbackHandler):
                       parent_run_id: Optional[UUID] = None, tags: Optional[list[str]] = None,
                       metadata: Optional[dict[str, Any]] = None, inputs: Optional[dict[str, Any]] = None,
                       **kwargs: Any) -> Any:
-        self._chat_session.process_tool_start(serialized.get("name", "<tool>"), inputs)
+        self._chat_session.process_tool_start(serialized.get("name", "<tool>"), inputs, run_id, parent_run_id)
 
     def on_custom_event(self, name: str, data: Any, *, run_id: UUID, tags: Optional[list[str]] = None,
                         metadata: Optional[dict[str, Any]] = None, **kwargs: Any) -> Any:

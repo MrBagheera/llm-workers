@@ -28,13 +28,12 @@ def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> Base
         Args:
             prompt: text prompt
         """
-        # pass empty callbacks to prevent LLM token streaming
-        result = agent.invoke(input=[HumanMessage(prompt)], config={'callbacks': []})
+        result = agent.invoke(input=[HumanMessage(prompt)])
         return extract_result(result)
 
     async def async_tool_logic(prompt: str) -> str:
         # pass empty callbacks to prevent LLM token streaming
-        result = await agent.ainvoke(input=[HumanMessage(prompt)], config={'callbacks': []})
+        result = await agent.ainvoke(input=[HumanMessage(prompt)])
         return extract_result(result)
 
     return StructuredTool.from_function(

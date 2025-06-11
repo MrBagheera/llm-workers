@@ -16,9 +16,11 @@ tools:
 
   - name: _validate_approval
     class: llm_workers.tools.misc.ValidateApprovalTool
+    ui_hint: Validating approval token  # print it just for fun
 
   - name: _consume_approval
     class: llm_workers.tools.misc.ConsumeApprovalTool
+    ui_hint: Consuming approval token  # print it just for fun
 
   - name: run_python_script
     description: Consume approval_token and run given Python script
@@ -29,7 +31,8 @@ tools:
       - name: script
         description: Python script to run
         type: str
-    ui_hint: Running generated Python script
+#    ui_hint: '' # do not print
+    ui_hint: Running generated Python script  # print it just for fun
     body:
       - call: _validate_approval
         params:
