@@ -37,6 +37,9 @@ Table of Contents
       * [run_process](#run_process)
     * [Miscellaneous Tools](#miscellaneous-tools)
       * [user_input](#user_input)
+      * [request_approval](#request_approval)
+      * [validate_approval](#validate_approval)
+      * [consume_approval](#consume_approval)
 * [Defining Custom Tools](#defining-custom-tools)
   * [Composing Statements](#composing-statements)
   * [Template Variables](#template-variables)
@@ -631,6 +634,117 @@ This tool is primarily intended for **prototyping new tools and prompt combinati
 ```
 
 This approach allows you to quickly prototype and test tool interactions before implementing the actual tool logic.
+
+
+The approval tools provide a way to require explicit user confirmation for potentially dangerous operations through a token-based system:
+
+#### `request_approval`
+
+```yaml
+- name: request_approval
+  class: llm_workers.tools.misc.RequestApprovalTool
+```
+
+Shows a prompt to the user for approval and returns an approval token that can be used to authorize subsequent operations.
+
+**Parameters:**
+- `prompt`: Text prompt to show to user for approval
+
+**Returns:**
+- JSON string containing `{"approval_token": "<token>"}` where token is a SHA256 hash
+
+**Behavior:**
+- Always requires user confirmation before proceeding
+- Generates a unique token based on prompt and timestamp
+- Stores token in module-local memory for validation
+- Returns empty `ui_hint` by default
+
+#### `validate_approval`
+
+```yaml
+- name: validate_approval
+  class: llm_workers.tools.misc.ValidateApprovalTool
+```
+
+Validates that an approval token exists and has not been consumed.
+
+**Parameters:**
+- `approval_token`: The approval token to validate
+
+**Returns:**
+- Success message if token is valid
+- Throws `ToolException` if token is invalid or already consumed
+
+**Behavior:**
+- Does not require user confirmation
+- Returns empty `ui_hint` by default
+
+#### `consume_approval`
+
+```yaml
+- name: consume_approval
+  class: llm_workers.tools.misc.ConsumeApprovalTool
+```
+
+Validates and marks an approval token as consumed, making it unusable for future operations.
+
+**Parameters:**
+- `approval_token`: The approval token to consume
+
+**Returns:**
+- Success message if token was valid and consumed
+- Throws `ToolException` if token is invalid or already consumed
+
+**Behavior:**
+- Does not require user confirmation
+- Returns empty `ui_hint` by default
+- Token becomes permanently unusable after consumption
+
+**Example Usage:**
+
+The approval tools are designed to work together in custom tool workflows to force LLM confirmation for dangerous operations:
+
+```yaml
+tools:
+  - name: _run_python_script_no_confirmation
+    class: llm_workers.tools.unsafe.RunPythonScriptTool
+    require_confirmation: false
+
+  - name: show_plan_to_user
+    class: llm_workers.tools.misc.RequestApprovalTool
+    description: |-
+      Show plan to user and asks for explicit confirmation; upon confirmation return `approval_token` to be used in
+      the following call to `run_script`.
+
+  - name: _validate_approval
+    class: llm_workers.tools.misc.ValidateApprovalTool
+
+  - name: _consume_approval
+    class: llm_workers.tools.misc.ConsumeApprovalTool
+
+  - name: run_python_script
+    description: Consume approval_token and run given Python script
+    params:
+      - name: approval_token
+        description: `approval_token` from `show_plan_to_user` tool; upon successful tool completion is consumed and cannot be re-used
+        type: str
+      - name: script
+        description: Python script to run
+        type: str
+    ui_hint: Running generated Python script...
+    body:
+      - call: _validate_approval
+        params:
+          approval_token: {approval_token}
+      - call: _run_python_script_no_confirmation
+        params:
+          script: {script}
+      - call: _consume_approval
+        params:
+          approval_token: {approval_token}
+```
+
+This pattern allows LLMs to request approval for potentially dangerous operations, ensuring users explicitly consent before execution while preventing token reuse.
 
 
 # Defining Custom Tools

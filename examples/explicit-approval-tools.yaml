@@ -1,0 +1,51 @@
+models:
+  - name: default
+    provider: openai
+    model: gpt-4o
+
+tools:
+  - name: _run_python_script_no_confirmation
+    class: llm_workers.tools.unsafe.RunPythonScriptTool
+    require_confirmation: false
+
+  - name: show_plan_to_user
+    class: llm_workers.tools.misc.RequestApprovalTool
+    description: |-
+      Show plan to user and asks for explicit confirmation; upon confirmation return 'approval_token' to be used in
+      the following call to 'run_script'.
+
+  - name: _validate_approval
+    class: llm_workers.tools.misc.ValidateApprovalTool
+
+  - name: _consume_approval
+    class: llm_workers.tools.misc.ConsumeApprovalTool
+
+  - name: run_python_script
+    description: Consume approval_token and run given Python script
+    input:
+      - name: approval_token
+        description: "'approval_token' from 'show_plan_to_user' tool; upon successful tool completion is consumed and cannot be re-used"
+        type: str
+      - name: script
+        description: Python script to run
+        type: str
+    ui_hint: Running generated Python script...
+    body:
+      - call: _validate_approval
+        params:
+          approval_token: "{approval_token}"
+      - call: _run_python_script_no_confirmation
+        params:
+          script: "{script}"
+      - call: _consume_approval
+        params:
+          approval_token: "{approval_token}"
+            
+chat:
+  system_message: |-
+    You are a helpful AI assistant that can run Python scripts to answer user questions.
+    Provided with user query, you will:
+    1. Generate a plan for a Python script that addresses the user's request.
+    2. Show the plan to the user for approval using "show_plan_to_user" tool.
+    3. Once the user approves, run the script and return the results.
+  default_prompt: Calculate factorial of 10
