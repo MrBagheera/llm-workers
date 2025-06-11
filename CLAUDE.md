@@ -20,13 +20,13 @@ poetry install --extras dev
 ### Testing
 ```bash
 # Run all tests
-poetry run python -m pytest tests/
+poetry run python -m unittest discover tests/
 
 # Run specific test file
-poetry run python -m pytest tests/test_worker.py
+poetry run python -m unittest tests.test_worker
 
 # Run tests with verbose output
-poetry run python -m pytest -v tests/
+poetry run python -m unittest discover tests/ -v
 ```
 
 ### Building and Packaging
