@@ -84,10 +84,11 @@ debug whole `llm_workers` package / debug all)
 - [0.1.0-rc1](https://github.com/MrBagheera/llm-workers/milestone/3)
 - [0.1.0-rc2](https://github.com/MrBagheera/llm-workers/milestone/4)
 - [0.1.0-rc3](https://github.com/MrBagheera/llm-workers/milestone/5)
+- [0.1.0-rc4](https://github.com/MrBagheera/llm-workers/milestone/6)
 
 ## Next
 
-- [0.1.0-rc4](https://github.com/MrBagheera/llm-workers/milestone/6)
+- [0.1.0](https://github.com/MrBagheera/llm-workers/milestone/7)
 
 ## Version 0.1.0
 
