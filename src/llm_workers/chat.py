@@ -18,7 +18,7 @@ from rich.syntax import Syntax
 from llm_workers.api import ConfirmationRequest, CONFIDENTIAL
 from llm_workers.context import StandardContext
 from llm_workers.utils import setup_logging, LazyFormatter, find_and_load_dotenv, FileChangeDetector, \
-    open_file_in_default_app, is_safe_to_open, prepare_cache
+    open_file_in_default_app, is_safe_to_open, prepare_cache, get_key_press
 from llm_workers.worker import Worker
 
 logger = getLogger(__name__)
@@ -278,26 +278,24 @@ class ChatSession:
             if arg.format is not None:
                 self._console.print(Syntax(arg.value, arg.format))
             else:
-                self._console.print(f"{arg.value}:", style="bold white")
+                self._console.print(arg.value, style="bold white")
         else:
             for arg in request.args:
                 self._console.print(f"{arg.name}:")
                 if arg.format is not None:
                     self._console.print(Syntax(arg.value, arg.format))
                 else:
-                    self._console.print(f"{arg.value}:", style="bold white")
-
+                    self._console.print(arg.value, style="bold white")
         while True:
             self._console.print("Do you approve (y/n)?", style="bold green", end="")
-            response = sys.stdin.readline().lower().strip()
+            response = get_key_press()
+            print()
             if response == 'y':
                 request.approved = True
                 return
             elif response == 'n':
                 request.approved = False
                 return
-            else:
-                print()
 
     def _handle_changed_files(self):
         changes = self._chat_context.file_monitor.check_changes()

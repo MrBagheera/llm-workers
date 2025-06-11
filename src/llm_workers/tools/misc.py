@@ -7,8 +7,7 @@ from langchain_core.tools import BaseTool
 from langchain_core.tools.base import ToolException
 from pydantic import BaseModel, Field
 
-from llm_workers.api import ConfirmationRequest, ExtendedBaseTool
-
+from llm_workers.api import ConfirmationRequest, ExtendedBaseTool, ConfirmationRequestParam
 
 # Module-local dictionary to store approval tokens
 _approval_tokens: Dict[str, Dict[str, Any]] = {}
@@ -103,8 +102,8 @@ class RequestApprovalTool(BaseTool, ExtendedBaseTool):
     def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequest:
         prompt = input["prompt"]
         return ConfirmationRequest(
-            action=f'approve following actions:\n{prompt}',
-            params=[]
+            action='approve following actions',
+            params=[ConfirmationRequestParam(name="action", value=prompt, format="markdown")],
         )
 
     def get_ui_hint(self, input: dict[str, Any]) -> str:

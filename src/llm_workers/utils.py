@@ -429,6 +429,29 @@ def open_file_in_default_app(filepath: str) -> bool:
         return False
 
 
+def get_key_press() -> str:
+    """Get a single key press from the user without requiring Enter.
+    
+    Returns:
+        The pressed key as a string
+    """
+    if sys.platform == 'win32':
+        import msvcrt
+        key = msvcrt.getch()
+        return key.decode('utf-8', errors='ignore')
+    else:
+        import tty
+        import termios
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            key = sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        return key
+
+
 def parse_standard_type(s: str):
     if s == "str":
         return str
