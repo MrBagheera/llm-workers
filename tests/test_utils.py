@@ -2,7 +2,7 @@ import unittest
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from llm_workers.utils import format_as_yaml, parse_standard_type
+from llm_workers.utils import format_as_yaml, parse_standard_type, _split_type_parameters
 
 
 class TestFormatMessageAsYaml(unittest.TestCase):
@@ -97,7 +97,14 @@ class TestFormatMessageAsYaml(unittest.TestCase):
 
 
 class TestTypeParsing(unittest.TestCase):
-    def test_parse_type(self):
+    def test_split_type_parameters(self):
+        self.assertEqual(_split_type_parameters("str"), ["str"])
+        self.assertEqual(_split_type_parameters("str, int"), ["str", "int"])
+        self.assertEqual(_split_type_parameters("str, dict[str, int]"), ["str", "dict[str, int]"])
+        self.assertEqual(_split_type_parameters("dict[str, int], list[str]"), ["dict[str, int]", "list[str]"])
+        self.assertEqual(_split_type_parameters("str, dict[str, dict[str, int]]"), ["str", "dict[str, dict[str, int]]"])
+
+    def test_parse_type_basic(self):
         self.assertEqual(parse_standard_type("str"), str)
         self.assertEqual(parse_standard_type("int"), int)
         self.assertEqual(parse_standard_type("float"), float)
@@ -105,15 +112,34 @@ class TestTypeParsing(unittest.TestCase):
         self.assertEqual(parse_standard_type("dict"), dict)
         self.assertEqual(parse_standard_type("list"), list)
 
-        # Test literal type
+    def test_parse_type_literal(self):
         from typing import Literal
         literal_type = parse_standard_type("literal:red|green|blue")
         self.assertEqual(literal_type.__origin__, Literal)
         self.assertEqual(literal_type.__args__, ('red', 'green', 'blue'))
 
-        # Test error case
+    def test_parse_type_parametrized_list(self):
+        from typing import List, Dict
+        self.assertEqual(parse_standard_type("list[str]"), List[str])
+        self.assertEqual(parse_standard_type("list[int]"), List[int])
+        self.assertEqual(parse_standard_type("list[dict[str, int]]"), List[Dict[str, int]])
+
+    def test_parse_type_parametrized_dict(self):
+        from typing import List, Dict
+        self.assertEqual(parse_standard_type("dict[str, int]"), Dict[str, int])
+        self.assertEqual(parse_standard_type("dict[str, str]"), Dict[str, str])
+        self.assertEqual(parse_standard_type("dict[str, list[int]]"), Dict[str, List[int]])
+        self.assertEqual(parse_standard_type("dict[str, dict[str, int]]"), Dict[str, Dict[str, int]])
+
+    def test_parse_type_errors(self):
         with self.assertRaises(ValueError):
             parse_standard_type("unknown_type")
+        
+        with self.assertRaises(ValueError):
+            parse_standard_type("dict[str]")  # Missing second parameter
+        
+        with self.assertRaises(ValueError):
+            parse_standard_type("dict[str, int, float]")  # Too many parameters
 
 if __name__ == "__main__":
     unittest.main()

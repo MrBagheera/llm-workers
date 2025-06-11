@@ -282,10 +282,11 @@ def create_dynamic_schema(name: str, params: list[CustomToolParamsDefinition]) -
     fields = {}
     for param in params:
         field_type = parse_standard_type(param.type)
+        coerce_num = True if param.type == 'str' else None
         if param.default is not None:
-            fields[param.name] = (field_type, Field(description=param.description, default=param.default, coerce_numbers_to_str=True))
+            fields[param.name] = (field_type, Field(description=param.description, default=param.default, coerce_numbers_to_str=coerce_num))
         else:
-            fields[param.name] = (field_type, Field(description=param.description, coerce_numbers_to_str=True))
+            fields[param.name] = (field_type, Field(description=param.description, coerce_numbers_to_str=coerce_num))
     return create_model(model_name, **fields)
 
 

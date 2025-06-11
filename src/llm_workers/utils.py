@@ -452,6 +452,32 @@ def get_key_press() -> str:
         return key
 
 
+def _split_type_parameters(s: str) -> list[str]:
+    """Split type parameters by comma, respecting nested brackets.
+    
+    Example: "str, dict[str, int]" -> ["str", "dict[str, int]"]
+    """
+    parts = []
+    current_part = ""
+    bracket_depth = 0
+    
+    for char in s:
+        if char == '[':
+            bracket_depth += 1
+        elif char == ']':
+            bracket_depth -= 1
+        elif char == ',' and bracket_depth == 0:
+            parts.append(current_part.strip())
+            current_part = ""
+            continue
+        
+        current_part += char
+    
+    if current_part.strip():
+        parts.append(current_part.strip())
+    
+    return parts
+
 def parse_standard_type(s: str):
     if s == "str":
         return str
@@ -471,5 +497,22 @@ def parse_standard_type(s: str):
         from typing import Literal
         # Create a Literal type with the extracted values
         return Literal[tuple(literal_values)]
+    elif s.startswith("list[") and s.endswith("]"):
+        # Handle parametrized lists like "list[str]", "list[int]"
+        inner_type_str = s[5:-1]  # Remove "list[" and "]"
+        inner_type = parse_standard_type(inner_type_str)
+        from typing import List
+        return List[inner_type]
+    elif s.startswith("dict[") and s.endswith("]"):
+        # Handle parametrized dicts like "dict[str, int]", "dict[str, dict[str, int]]"
+        inner_types_str = s[5:-1]  # Remove "dict[" and "]"
+        type_parts = _split_type_parameters(inner_types_str)
+        if len(type_parts) == 2:
+            key_type = parse_standard_type(type_parts[0])
+            value_type = parse_standard_type(type_parts[1])
+            from typing import Dict
+            return Dict[key_type, value_type]
+        else:
+            raise ValueError(f"Dict type must have exactly 2 parameters: {s}")
     else:
         raise ValueError(f"Unknown type: {s}")
