@@ -96,6 +96,7 @@ class ChatSession:
                 self._streamed_reasoning_index = None
                 self._has_unfinished_output = False
                 self._streamed_message_id = None
+                self._running_tools_depths.clear()
                 self._chat_context.file_monitor.check_changes() # reset
                 logger.debug("Running new prompt for #%s:\n%r", self._iteration, LazyFormatter(message))
                 try:
@@ -268,15 +269,16 @@ class ChatSession:
             self._has_unfinished_output = False
             self._streamed_reasoning_index = None
         message = self._chat_context.context.get_start_tool_message(name, inputs)
-        if message is None:
-            return
         if parent_run_id is not None and parent_run_id in self._running_tools_depths:
             # increase depth of running tool
-            depth = self._running_tools_depths[parent_run_id] + 1
-            ident = "  " * depth
+            depth = self._running_tools_depths[parent_run_id] + (1 if message is not None else 0)
             self._running_tools_depths[run_id] = depth
-            self._console.print(f"{ident}└ {message}...", style="bold white")
+            if message is not None:
+                ident = "  " * depth
+                self._console.print(f"{ident}└ {message}...", style="bold white")
         else:
+            if message is None:
+                return  # do not store depth to avoid showing nesting for sub-tools
             self._running_tools_depths[run_id] = 0
             self._console.print(f"⏺ {message}...", style="bold white")
 
