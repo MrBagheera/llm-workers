@@ -636,9 +636,10 @@ This tool is primarily intended for **prototyping new tools and prompt combinati
 This approach allows you to quickly prototype and test tool interactions before implementing the actual tool logic.
 
 
-The approval tools provide a way to require explicit user confirmation for potentially dangerous operations through a token-based system:
 
 #### `request_approval`
+
+The approval tools provide a way to require explicit user confirmation for potentially dangerous operations through a token-based system:
 
 ```yaml
 - name: request_approval
@@ -656,8 +657,8 @@ Shows a prompt to the user for approval and returns an approval token that can b
 **Behavior:**
 - Always requires user confirmation before proceeding
 - Generates a unique token based on prompt and timestamp
-- Stores token in module-local memory for validation
-- Returns empty `ui_hint` by default
+- Stores token (and original prompt) in module-local memory for validation
+- Not shown in UI by default
 
 #### `validate_approval`
 
@@ -672,12 +673,12 @@ Validates that an approval token exists and has not been consumed.
 - `approval_token`: The approval token to validate
 
 **Returns:**
-- Success message if token is valid
+- Return prompt originally passed to `request_approval` tool
 - Throws `ToolException` if token is invalid or already consumed
 
 **Behavior:**
 - Does not require user confirmation
-- Returns empty `ui_hint` by default
+- Not shown in UI by default
 
 #### `consume_approval`
 
@@ -697,7 +698,7 @@ Validates and marks an approval token as consumed, making it unusable for future
 
 **Behavior:**
 - Does not require user confirmation
-- Returns empty `ui_hint` by default
+- Not shown in UI by default
 - Token becomes permanently unusable after consumption
 
 **Example Usage:**

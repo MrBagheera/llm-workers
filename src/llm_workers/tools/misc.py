@@ -1,6 +1,7 @@
 import hashlib
 import json
 import time
+from random import random
 from typing import Type, Any, Dict
 
 from langchain_core.tools import BaseTool
@@ -8,45 +9,34 @@ from langchain_core.tools.base import ToolException
 from pydantic import BaseModel, Field
 
 from llm_workers.api import ConfirmationRequest, ExtendedBaseTool, ConfirmationRequestParam
+from llm_workers.config import Json
 
 # Module-local dictionary to store approval tokens
-_approval_tokens: Dict[str, Dict[str, Any]] = {}
+_approval_tokens: Dict[str, Dict[str, Json]] = {}
 
 
-def _generate_approval_token(prompt: str) -> str:
-    """Generate a unique approval token based on prompt and timestamp."""
-    timestamp = str(time.time())
-    content = f"{prompt}:{timestamp}"
-    return hashlib.sha256(content.encode()).hexdigest()
-
-
-def _store_approval_token(token: str) -> None:
+def _store_approval_token(token: str, data: Json) -> None:
     """Store approval token in module-local dictionary."""
     _approval_tokens[token] = {
         "token": token,
         "created_at": time.time(),
-        "used": False
+        "data": data
     }
 
 
-def _validate_approval_token(token: str) -> bool:
+def _validate_approval_token(token: str) -> Json:
     """Validate that approval token exists and is not consumed."""
     token_data = _approval_tokens.get(token)
     if token_data is None:
-        return False
-    return token_data.get("used", True) is False
+        raise ToolException(f"Invalid or already consumed approval token: {token}")
+    return token_data["data"]
 
 
 def _consume_approval_token(token: str) -> bool:
     """Mark approval token as consumed. Returns True if token was valid and consumed."""
-    token_data = _approval_tokens.get(token)
-    if token_data is None:
+    if token not in _approval_tokens:
         return False
-    
-    if token_data.get("used", True) is True:
-        return False
-    
-    token_data["used"] = True
+    _approval_tokens.pop(token)
     return True
 
 
@@ -110,12 +100,13 @@ class RequestApprovalTool(BaseTool, ExtendedBaseTool):
         return ""
 
     def _run(self, prompt: str) -> str:
-        try:
-            token = _generate_approval_token(prompt)
-            _store_approval_token(token)
-            return json.dumps({"approval_token": token})
-        except Exception as e:
-            raise ToolException(f"Error generating approval token: {e}")
+        return self._genrate_and_store_approval_token(prompt)
+
+    def _genrate_and_store_approval_token(self, data: Json) -> str:
+        rnd: float = random()
+        token = hashlib.sha256(str(rnd).encode()).hexdigest()
+        _store_approval_token(token, data)
+        return json.dumps({"approval_token": token})
 
 
 class ValidateApprovalToolSchema(BaseModel):
@@ -133,13 +124,8 @@ class ValidateApprovalTool(BaseTool, ExtendedBaseTool):
         return ""
 
     def _run(self, approval_token: str) -> str:
-        try:
-            is_valid = _validate_approval_token(approval_token)
-            if not is_valid:
-                raise ToolException(f"Invalid or already consumed approval token: {approval_token}")
-            return "Approval token is valid"
-        except Exception as e:
-            raise ToolException(f"Error validating approval token: {e}")
+        data = _validate_approval_token(approval_token)
+        return data if isinstance(data, str) else json.dumps(data)
 
 
 class ConsumeApprovalToolSchema(BaseModel):
@@ -157,10 +143,7 @@ class ConsumeApprovalTool(BaseTool, ExtendedBaseTool):
         return ""
 
     def _run(self, approval_token: str) -> str:
-        try:
-            was_consumed = _consume_approval_token(approval_token)
-            if not was_consumed:
-                raise ToolException(f"Invalid or already consumed approval token: {approval_token}")
-            return "Approval token consumed successfully"
-        except Exception as e:
-            raise ToolException(f"Error consuming approval token: {e}")
+        was_consumed = _consume_approval_token(approval_token)
+        if not was_consumed:
+            raise ToolException(f"Invalid or already consumed approval token: {approval_token}")
+        return "Approval token consumed"

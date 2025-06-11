@@ -31,16 +31,16 @@ class TestApprovalTools(unittest.TestCase):
         self.assertIn("approval_token", token_data)
         self.assertEqual(len(_approval_tokens), 1)
         self.assertIn(token, _approval_tokens)
-        self.assertFalse(_approval_tokens[token]["used"])
+        self.assertEqual("Test approval request", _approval_tokens[token]["data"])
         
         # Test 2: Validate the token
         result = validate_tool._run(token)
-        self.assertEqual(result, "Approval token is valid")
+        self.assertEqual("Test approval request", result)
         
         # Test 3: Consume the token
         result = consume_tool._run(token)
-        self.assertEqual(result, "Approval token consumed successfully")
-        self.assertTrue(_approval_tokens[token]["used"])
+        self.assertEqual("Approval token consumed", result)
+        self.assertNotIn(token, _approval_tokens)
         
         # Test 4: Try to validate consumed token (should fail)
         with self.assertRaises(Exception) as context:
