@@ -1,10 +1,10 @@
-import json
 import logging
 import os
 import subprocess
+import sys
 import time
 from datetime import datetime
-from typing import Type, Any, Dict, Union, Optional
+from typing import Type, Any, Dict
 
 from langchain_core.tools import BaseTool
 from langchain_core.tools.base import ToolException
@@ -134,7 +134,7 @@ class RunPythonScriptTool(BaseTool, ExtendedBaseTool):
         with open(file_path, 'w') as file:
             file.write(script)
         try:
-            cmd = ["python3", file_path]
+            cmd = [sys.executable, file_path]
             cmd_str = LazyFormatter(cmd, custom_formatter = lambda x: " ".join(x))
             logger.debug("Running %s", cmd_str)
             process = subprocess.Popen(
