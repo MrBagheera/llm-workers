@@ -267,7 +267,8 @@ class ChatSession:
             self._has_unfinished_output = False
             self._streamed_reasoning_index = None
         message = self._chat_context.context.get_start_tool_message(name, inputs)
-        self._console.print(f"{message}...", style="bold white")
+        if message is not None:
+            self._console.print(f"{message}...", style="bold white")
 
     def process_confirmation_request(self, request: ConfirmationRequest):
         self._console.print("\n\n")

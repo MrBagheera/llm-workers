@@ -158,16 +158,24 @@ class StandardContext(WorkersContext):
             return self._models[llm_name]
         raise WorkerException(f"LLM {llm_name} not found")
 
-    def get_start_tool_message(self, tool_name: str, inputs: dict[str, any]) -> str:
+    def get_start_tool_message(self, tool_name: str, inputs: dict[str, any]) -> str | None:
         try:
             # check if ui_hint is defined in tool definition
             tool_def = self.get_tool_definition(tool_name)
             if tool_def.ui_hint_template is not None:
-                return tool_def.ui_hint_template.format(**inputs)
+                hint = tool_def.ui_hint_template.format(**inputs)
+                if hint.strip():  # only return if hint is not empty
+                    return hint
+                else:
+                    return None  # empty hint means no message should be shown
             # fallback to ExtendedBaseTool
             tool = self._tools[tool_name]
             if isinstance(tool, ExtendedBaseTool):
-                return tool.get_ui_hint(inputs)
+                hint = tool.get_ui_hint(inputs)
+                if hint.strip():  # only return if hint is not empty
+                    return hint
+                else:
+                    return None  # empty hint means no message should be shown
         except Exception as e:
             logger.warning(f"Unexpected exception formating start message for tool {tool_name}: {e}", exc_info=True)
         # default
