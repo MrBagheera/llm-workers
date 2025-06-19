@@ -1,6 +1,6 @@
 from typing import Dict, Any, List
 
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_core.tools import BaseTool, StructuredTool
 
 from llm_workers.api import WorkersContext
@@ -21,19 +21,28 @@ def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> Base
             # return only AI message(s)
             return "\n".join([message.text() for message in result if isinstance(message, AIMessage)])
 
-    def tool_logic(prompt: str) -> str:
+    def tool_logic(prompt: str, system_message: str = None) -> str:
         """
         Calls LLM with given prompt, returns LLM output.
 
         Args:
             prompt: text prompt
+            system_message: optional system message to prepend to the conversation
         """
-        result = agent.invoke(input=[HumanMessage(prompt)])
+        messages = []
+        if system_message:
+            messages.append(SystemMessage(system_message))
+        messages.append(HumanMessage(prompt))
+        result = agent.invoke(input=messages)
         return extract_result(result)
 
-    async def async_tool_logic(prompt: str) -> str:
+    async def async_tool_logic(prompt: str, system_message: str = None) -> str:
         # pass empty callbacks to prevent LLM token streaming
-        result = await agent.ainvoke(input=[HumanMessage(prompt)])
+        messages = []
+        if system_message:
+            messages.append(SystemMessage(system_message))
+        messages.append(HumanMessage(prompt))
+        result = await agent.ainvoke(input=messages)
         return extract_result(result)
 
     return StructuredTool.from_function(

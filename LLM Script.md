@@ -480,6 +480,7 @@ This factory method creates a `StructuredTool` that passes a prompt to an LLM an
 
 **Parameters**:
 - `prompt`: Text prompt to send to the LLM
+- `system_message`: (Optional) System message to prepend to the conversation at runtime
 
 **Returns**:
 - Text response from the LLM
@@ -497,6 +498,16 @@ This factory method creates a `StructuredTool` that passes a prompt to an LLM an
     prompt: |
       Summarize the following text in three bullet points:
       {text_to_summarize}
+```
+
+**Example with System Message**:
+```yaml
+- call: llm
+  params:
+    system_message: |-
+      You are a schema expert. Always respond with "SCHEMA_EXPERT:" prefix followed by your answer.
+    prompt: |
+      What is a database schema?
 ```
 
 The tool can be used to create custom LLM-powered tools within your workflows, enabling tasks like summarization,
