@@ -54,7 +54,7 @@ class TestFormatMessageAsYaml(unittest.TestCase):
         # With trimming
         trimmed = format_as_yaml(message, trim=True)
         self.assertIn("First line", trimmed)
-        self.assertIn("Second line", trimmed)
+        self.assertNotIn("Second line", trimmed)
         self.assertNotIn("Fourth line", trimmed)
 
     def test_nested_content_structure(self):
