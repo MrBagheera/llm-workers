@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class TemplateHelper:
     """Helper tool to find templates in nested JSON structure and replace them during tool invocations."""
 
-    direct_replacement_regexp: re.Pattern[str] = re.compile(r"\{([^{}]+)}")
+    direct_replacement_regexp: re.Pattern[str] = re.compile(r"\{([^{}\[\]]+)}")
 
     def __init__(self, replacement_map: dict[str, Any], target_params: dict[str, Json]):
         self._replacements = replacement_map
@@ -71,16 +71,22 @@ class TemplateHelper:
             if isinstance(value, str):
                 match = re.fullmatch(cls.direct_replacement_regexp, value)
                 if match:
+                    # this is simple replacement, like "{param1}" (no support for nested references)
                     reference = match.group(1)
                     if reference not in valid_template_vars:
                         raise ValueError(f"Unknown reference {{{reference}}} for key {prefix}{key}, available params: {valid_template_vars}")
                     replacements[key] = reference
                 else:
+                    # complex replacements are done via PromptTemplate using f-strings,
+                    # which should cover nested references like "param['key']" or "param[0]" too
+                    # downside - only strings are supported, so we cannot use this for numbers or booleans
                     prompt = PromptTemplate.from_template(value, template_format = "f-string")
                     if len(prompt.input_variables) > 0:
                         # validate all prompt inputs are in our params
                         for reference in prompt.input_variables:
-                            if reference not in valid_template_vars:
+                            # For nested references like "param.key" or "param[0]", check only the root parameter name
+                            root_param = reference.split('[')[0]
+                            if root_param not in valid_template_vars:
                                 raise ValueError(f"Unknown reference {{{reference}}} for key {prefix}{key}, available params: {valid_template_vars}")
                         replacements[key] = prompt
             elif isinstance(value, dict) or isinstance(value, list):

@@ -75,6 +75,31 @@ class TestTemplateHelper(unittest.TestCase):
             helper.render({"param1": "Meaning of life"})
         self.assertEqual(str(ex.exception), "Missing reference {param2} for key key2.k2")
 
+    def test_nested_element_references(self):
+        helper = TemplateHelper.from_param_definitions(
+            params = [
+                CustomToolParamsDefinition(name = "param_dict", description = "A dictionary parameter", type = "object"),
+                CustomToolParamsDefinition(name = "param_list", description = "A list parameter", type = "array"),
+            ],
+            target_params = {
+                "dict_access": "{param_dict[key1]}",
+                "list_access": "{param_list[0]}",
+                "nested_access": "Combined: {param_dict[nested][value]} and {param_list[1]}"
+            },
+        )
+        result = helper.render({
+            "param_dict": {
+                "key1": "hello",
+                "nested": {"value": "world"}
+            },
+            "param_list": ["first", "second", "third"]
+        })
+        self.assertDictEqual(result, {
+            "dict_access": "hello",
+            "list_access": "first",
+            "nested_access": "Combined: world and second"
+        })
+
 
 @tool
 def test_tool_logic(param1: int, param2: int) -> int:
