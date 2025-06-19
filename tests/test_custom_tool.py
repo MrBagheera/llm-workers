@@ -2,9 +2,9 @@ import unittest
 
 from langchain_core.tools import tool
 
-from llm_workers.tools.custom_tool import TemplateHelper, create_statement_from_model
+from llm_workers.tools.custom_tool import TemplateHelper, create_statement_from_model, build_custom_tool
 from llm_workers.config import CustomToolParamsDefinition, CallDefinition, ResultDefinition, \
-    MatchDefinition, MatchClauseDefinition
+    MatchDefinition, MatchClauseDefinition, ToolDefinition, WorkersConfig
 
 
 class TestTemplateHelper(unittest.TestCase):
@@ -100,6 +100,27 @@ class TestTemplateHelper(unittest.TestCase):
             "nested_access": "Combined: world and second"
         })
 
+    def test_shared_content_references(self):
+        helper = TemplateHelper.from_valid_template_vars(
+            valid_template_vars = ["param1", "shared"],
+            target_params = {
+                "shared_access": "{shared[prompts][test]}",
+                "mixed_access": "Query {param1} returned {shared[prompts][test]}"
+            }
+        )
+        result = helper.render({
+            "param1": "search_term",
+            "shared": {
+                "prompts": {
+                    "test": "Yada-yada-yada"
+                }
+            }
+        })
+        self.assertDictEqual(result, {
+            "shared_access": "Yada-yada-yada",
+            "mixed_access": "Query search_term returned Yada-yada-yada"
+        })
+
 
 @tool
 def test_tool_logic(param1: int, param2: int) -> int:
@@ -109,13 +130,29 @@ def test_tool_logic(param1: int, param2: int) -> int:
 def no_tool_lookup(tool_ref, config):
     raise ValueError(f"Unexpected tool lookup: {tool_ref}")
 
+class MockContextNoTools:
+    def __init__(self):
+        pass
+    
+    def get_tool(self, tool_name: str):
+        raise ValueError(f"Unexpected tool lookup: {tool_name}")
+
+class MockContextWithTestTool:
+    def __init__(self):
+        pass
+    
+    def get_tool(self, tool_name: str):
+        if tool_name == "some_function":
+            return test_tool_logic
+        raise ValueError(f"Unexpected tool lookup: {tool_name}")
+
 class TestStatements(unittest.TestCase):
 
     def test_return_string(self):
         statement = create_statement_from_model(
             valid_template_vars = ["param1"],
             model = ResultDefinition(result="{param1} is 42"),
-            tool_factory=no_tool_lookup
+            context=MockContextNoTools()
         )
         self.assertEqual("Meaning of life is 42", statement.invoke({"param1": "Meaning of life"}))
 
@@ -123,7 +160,7 @@ class TestStatements(unittest.TestCase):
         statement = create_statement_from_model(
             valid_template_vars = ["param1"],
             model = ResultDefinition(result={"inner": "{param1} is 42"}),
-            tool_factory=no_tool_lookup
+            context=MockContextNoTools()
         )
         self.assertEqual({"inner": "Meaning of life is 42"}, statement.invoke({"param1": "Meaning of life"}))
 
@@ -131,7 +168,7 @@ class TestStatements(unittest.TestCase):
         statement = create_statement_from_model(
             valid_template_vars = ["param1"],
             model = CallDefinition(call = "some_function", params = {"param1": "{param1}", "param2": 29}),
-            tool_factory= lambda tool_ref, config: test_tool_logic
+            context=MockContextWithTestTool()
         )
         assert 42 == statement.invoke({"param1": 13})
 
@@ -144,7 +181,7 @@ class TestStatements(unittest.TestCase):
                 CallDefinition(call = "some_function", params = {"param1": "{output0}", "param2": "{output1}"}),
                 ResultDefinition(result = "{param1} is {output2}")
             ],
-            tool_factory= lambda tool_ref, config: test_tool_logic
+            context=MockContextWithTestTool()
         )
         assert "Meaning of live is 42" == statement.invoke({"param1": "Meaning of live"})
 
@@ -170,7 +207,7 @@ class TestStatements(unittest.TestCase):
                 ],
                 default = ResultDefinition(result = -1)
             ),
-            tool_factory= no_tool_lookup
+            context=MockContextNoTools()
         )
         self.assertEqual(42, statement.invoke({"param1": "Meaning of life"}))
         self.assertEqual("number", statement.invoke({"param1": "100"}))
@@ -178,3 +215,44 @@ class TestStatements(unittest.TestCase):
         self.assertEqual(-1, statement.invoke({"param1": "Meaning of live is 42"}))
         self.assertEqual(-1, statement.invoke({"param1": ""}))
         self.assertEqual(-1, statement.invoke({"param1": {}}))
+
+
+# Mock context for testing
+class MockContext:
+    def __init__(self, config):
+        self.config = config
+
+    def get_tool(self, tool_name: str):
+        raise ValueError(f"Tool {tool_name} not found")
+
+
+class TestSharedContentIntegration(unittest.TestCase):
+    def test_custom_tool_with_shared_content(self):
+        # Create a config with shared data
+        config = WorkersConfig(
+            shared={
+                "prompts": {
+                    "test": "Yada-yada-yada"
+                }
+            }
+        )
+        
+        # Create mock context
+        context = MockContext(config)
+        
+        # Define a custom tool that uses shared content
+        tool_definition = ToolDefinition(
+            name="demo_shared_access",
+            description="Demo tool using shared content",
+            input=[
+                CustomToolParamsDefinition(name="query", description="Search query", type="str")
+            ],
+            body=ResultDefinition(result="Query {query} returned {shared[prompts][test]}")
+        )
+        
+        # Build the custom tool
+        tool = build_custom_tool(tool_definition, context)
+        
+        # Test the tool
+        result = tool.invoke({"query": "test_search"})
+        self.assertEqual(result, "Query test_search returned Yada-yada-yada")

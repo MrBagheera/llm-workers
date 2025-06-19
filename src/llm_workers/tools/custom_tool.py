@@ -297,17 +297,21 @@ def create_dynamic_schema(name: str, params: list[CustomToolParamsDefinition]) -
 
 
 def build_custom_tool(definition: ToolDefinition, context: WorkersContext) -> StructuredTool:
-    valid_template_vars = [param.name for param in definition.input]
+    valid_template_vars = [param.name for param in definition.input] + ["shared"]
     args_schema = create_dynamic_schema(definition.name, definition.input)
     body = create_statement_from_model(valid_template_vars, definition.body, context)
 
     def tool_logic(**input) -> Json:
         validated_input = args_schema(**input)
-        return body.invoke(validated_input.model_dump(), **input)
+        # Add shared data to the input parameters for template rendering
+        tool_input = {**validated_input.model_dump(), "shared": context.config.shared}
+        return body.invoke(tool_input, **input)
 
     async def async_tool_logic(**input) -> Json:
         validated_input = args_schema(**input)
-        return await body.ainvoke(validated_input.model_dump(), **input)
+        # Add shared data to the input parameters for template rendering
+        tool_input = {**validated_input.model_dump(), "shared": context.config.shared}
+        return await body.ainvoke(tool_input, **input)
 
     return StructuredTool.from_function(
         func = tool_logic,

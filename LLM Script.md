@@ -13,6 +13,7 @@ Table of Contents
 * [Basic Structure](#basic-structure)
   * [Models Section](#models-section)
   * [Tools Section](#tools-section)
+  * [Shared Section](#shared-section)
   * [Common Tool Parameters](#common-tool-parameters)
   * [Chat Section](#chat-section)
   * [CLI Section](#cli-section)
@@ -76,6 +77,10 @@ tools:
     ui_hint: <template_string> # Optional
     body: # Required for custom tools
       <statement(s)> # List of statements for more complex flows
+
+shared: # Optional shared configuration accessible to all tools
+  <key>: <value>
+  # Can contain any JSON-serializable data
 
 chat: # For interactive chat mode
   model_ref: <model_name> # Optional, references model by name. If not defined, uses model named "default".
@@ -170,6 +175,39 @@ tools:
             Possible matches:
             {output0}
 ```
+
+## Shared Section
+
+The `shared` section provides a way to define reusable configuration data that can be accessed by all custom tools in the script. This is useful for avoiding duplication of common values like API endpoints, prompts, or configuration settings.
+
+**Key Features:**
+- Must be a dictionary (key-value pairs)
+- Can contain any JSON-serializable data (strings, numbers, booleans, lists, nested objects)
+- Accessible in custom tools via the `{shared[key]}` template syntax
+- Supports nested access using bracket notation
+
+**Example:**
+```yaml
+shared:
+  prompts:
+    test: Yada-yada-yada
+
+tools:
+  - name: demo_shared_access
+    input:
+      - name: query
+        description: "Search query"
+        type: str
+    body:
+      result: "Query {query} returned {shared[prompts][test]}"
+```
+
+**Usage Notes:**
+- The `shared` section is optional and defaults to an empty dictionary
+- All tools automatically have access to shared data through the `shared` template variable
+- Use bracket notation for accessing nested values: `{shared[category][subcategory]}`
+- Shared data is read-only during tool execution
+- Changes to the shared section require reloading the script configuration
 
 ## Common Tool Parameters
 - `name`: Unique identifier for the tool. This name is used to reference the tool in other parts of the script.
@@ -863,25 +901,34 @@ Custom tools support template variables in strings:
   - Dictionary keys: `"{param_dict[key_name]}"` - accesses dictionary values by key
   - List indices: `"{param_list[0]}"` - accesses list elements by index  
   - Nested structures: `"{param_dict[nested][value]}"` - supports multiple levels of nesting
+- Shared data access: `"{shared[key]}"` - accesses values from the shared configuration section
 - Tool input parameters: `"{<parm_name>}"`
 - (inside the list of statements) Previous statement results: `"{outputN}"` where N is the 0-based index of a previous statement
 - (inside `match` statement) Regex capture groups: `"{matchN}"` when using regex patterns in match statements
 
 **Note:** Nested element access uses bracket notation (`[key]`) for both dictionary keys and list indices. This syntax works with complex templates but requires the entire template to be processed as a string (the nested values cannot preserve their original types).
 
-**Example with nested element access:**
+**Example with nested element and shared access:**
 ```yaml
-- name: process_user_data  
-  description: "Processes user data with nested access"
-  input:
-    - name: user_profile
-      description: "User profile object"
-      type: object
-    - name: settings
-      description: "User settings array"  
-      type: array
-  body:
-    - result: "User {user_profile[name]} has email {user_profile[contact][email]} and first setting is {settings[0]}"
+shared:
+  app:
+    name: "MyApp"
+    version: "1.0"
+  templates:
+    user_format: "Welcome to {shared[app][name]}!"
+
+tools:
+  - name: process_user_data  
+    description: "Processes user data with nested access"
+    input:
+      - name: user_profile
+        description: "User profile object"
+        type: object
+      - name: settings
+        description: "User settings array"  
+        type: array
+    body:
+      - result: "User {user_profile[name]} has email {user_profile[contact][email]} and first setting is {settings[0]}. {shared[templates][user_format]}"
 ```
 
 This would process input like:
@@ -895,5 +942,5 @@ This would process input like:
 }
 ```
 
-And return: `"User John has email john@example.com and first setting is dark_mode"`
+And return: `"User John has email john@example.com and first setting is dark_mode. Welcome to MyApp!"`
 

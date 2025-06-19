@@ -173,6 +173,7 @@ class ChatConfig(BaseLLMConfig):
 class WorkersConfig(BaseModel):
     models: list[StandardModelConfig | ImportModelConfig] = ()
     tools: list[ToolDefinition] = ()
+    shared: dict[str, Json] = {}
     chat: Optional[ChatConfig] = None
     cli: Optional[BodyDefinition] = None
 
