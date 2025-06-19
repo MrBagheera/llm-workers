@@ -859,7 +859,41 @@ Custom tools support template variables in strings:
 
 - Direct references: `"{param_name}"` - preserves referenced parameter type
 - Complex templates: `"The value is {param_name} and {other_param}"`
+- Nested element access: 
+  - Dictionary keys: `"{param_dict[key_name]}"` - accesses dictionary values by key
+  - List indices: `"{param_list[0]}"` - accesses list elements by index  
+  - Nested structures: `"{param_dict[nested][value]}"` - supports multiple levels of nesting
 - Tool input parameters: `"{<parm_name>}"`
 - (inside the list of statements) Previous statement results: `"{outputN}"` where N is the 0-based index of a previous statement
 - (inside `match` statement) Regex capture groups: `"{matchN}"` when using regex patterns in match statements
+
+**Note:** Nested element access uses bracket notation (`[key]`) for both dictionary keys and list indices. This syntax works with complex templates but requires the entire template to be processed as a string (the nested values cannot preserve their original types).
+
+**Example with nested element access:**
+```yaml
+- name: process_user_data  
+  description: "Processes user data with nested access"
+  input:
+    - name: user_profile
+      description: "User profile object"
+      type: object
+    - name: settings
+      description: "User settings array"  
+      type: array
+  body:
+    - result: "User {user_profile[name]} has email {user_profile[contact][email]} and first setting is {settings[0]}"
+```
+
+This would process input like:
+```json
+{
+  "user_profile": {
+    "name": "John",
+    "contact": {"email": "john@example.com"}
+  },
+  "settings": ["dark_mode", "notifications"]
+}
+```
+
+And return: `"User John has email john@example.com and first setting is dark_mode"`
 
