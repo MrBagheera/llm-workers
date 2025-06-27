@@ -241,7 +241,10 @@ class ChatSession:
         confidential = getattr(message, CONFIDENTIAL, False)
         if confidential:
             self._console.print("[Message below is confidential, not shown to AI Assistant]", style="bold red")
-        self._console.print(message.text())
+        if self._chat_config.markdown_output:
+            self._console.print(Markdown(message.text()))
+        else:
+            self._console.print(message.text())
         if confidential:
             self._console.print("[Message above is confidential, not shown to AI Assistant]", style="bold red")
 

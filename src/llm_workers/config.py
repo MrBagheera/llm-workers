@@ -168,6 +168,7 @@ class ChatConfig(BaseLLMConfig):
     auto_open_changed_files: bool = False
     file_monitor_include: list[str] = ['*']
     file_monitor_exclude: list[str] = ['.*', '*.log']
+    markdown_output: bool = False
 
 
 class WorkersConfig(BaseModel):

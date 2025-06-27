@@ -243,6 +243,7 @@ Configuration for interactive chat mode:
 - `auto_open_changed_files`: Whether to automatically open files modified during LLM call, defaults to `false`
 - `file_monitor_include`: List of glob patterns for files to monitor for changes, defaults to ['*']
 - `file_monitor_exclude`: List of glob patterns for files to exclude from monitoring, defaults to ['.*', '*.log']
+- `markdown_output`: Whether to render AI messages as markdown in the chat interface, defaults to `false`
 
 ```yaml
 chat:
