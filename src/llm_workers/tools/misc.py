@@ -14,8 +14,7 @@ from llm_workers.config import Json
 # Module-local dictionary to store approval tokens
 _approval_tokens: Dict[str, Dict[str, Json]] = {}
 
-
-def _store_approval_token(token: str, data: Json) -> None:
+def store_approval_token(token: str, data: Json) -> None:
     """Store approval token in module-local dictionary."""
     _approval_tokens[token] = {
         "token": token,
@@ -23,17 +22,22 @@ def _store_approval_token(token: str, data: Json) -> None:
         "data": data
     }
 
+def generate_and_store_approval_token(data: Json) -> str:
+    """Generate a new random approval token, store it with the data, and return the token."""
+    rnd: float = random()
+    token = hashlib.sha256(str(rnd).encode()).hexdigest()
+    store_approval_token(token, data)
+    return json.dumps({"approval_token": token})
 
-def _validate_approval_token(token: str) -> Json:
-    """Validate that approval token exists and is not consumed."""
+def validate_approval_token(token: str) -> Json:
+    """Validate that approval token exists."""
     token_data = _approval_tokens.get(token)
     if token_data is None:
         raise ToolException(f"Invalid or already consumed approval token: {token}")
     return token_data["data"]
 
-
-def _consume_approval_token(token: str) -> bool:
-    """Mark approval token as consumed. Returns True if token was valid and consumed."""
+def consume_approval_token(token: str) -> bool:
+    """Consume approval token. Returns True if token was valid and consumed."""
     if token not in _approval_tokens:
         return False
     _approval_tokens.pop(token)
@@ -100,13 +104,7 @@ class RequestApprovalTool(BaseTool, ExtendedBaseTool):
         return ""
 
     def _run(self, prompt: str) -> str:
-        return self._genrate_and_store_approval_token(prompt)
-
-    def _genrate_and_store_approval_token(self, data: Json) -> str:
-        rnd: float = random()
-        token = hashlib.sha256(str(rnd).encode()).hexdigest()
-        _store_approval_token(token, data)
-        return json.dumps({"approval_token": token})
+        return generate_and_store_approval_token(prompt)
 
 
 class ValidateApprovalToolSchema(BaseModel):
@@ -124,7 +122,7 @@ class ValidateApprovalTool(BaseTool, ExtendedBaseTool):
         return ""
 
     def _run(self, approval_token: str) -> str:
-        data = _validate_approval_token(approval_token)
+        data = validate_approval_token(approval_token)
         return data if isinstance(data, str) else json.dumps(data)
 
 
@@ -143,7 +141,7 @@ class ConsumeApprovalTool(BaseTool, ExtendedBaseTool):
         return ""
 
     def _run(self, approval_token: str) -> str:
-        was_consumed = _consume_approval_token(approval_token)
+        was_consumed = consume_approval_token(approval_token)
         if not was_consumed:
             raise ToolException(f"Invalid or already consumed approval token: {approval_token}")
         return "Approval token consumed"
