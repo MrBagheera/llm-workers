@@ -475,6 +475,12 @@ Creates a tool that allows calling an LLM with a prompt and returning its respon
 - `system_message`: (Optional) System message to use for this specific LLM tool
 - `tool_refs`: (Optional) List of tool names to make available for this specific LLM tool, default to all public tools (e.g. not starting with `_`)
 - `remove_past_reasoning`: (Optional) Whether to hide past LLM reasoning, defaults to false
+- `extract_json`: (Optional) Filters result to include only JSON blocks, defaults to "false".
+Useful for models without Structured Output, like Claude. Fallbacks to entire message if no "```json" blocks are found. Possible values:
+  - "first" - returns only the first JSON block found in the response
+  - "last" - returns only the last JSON block found in the response
+  - "all" - returns all JSON blocks found in the response as list
+  - "false" - returns the full response without filtering
 
 **Function**:
 This factory method creates a `StructuredTool` that passes a prompt to an LLM and returns the model's response.
@@ -510,6 +516,22 @@ This factory method creates a `StructuredTool` that passes a prompt to an LLM an
     prompt: |
       What is a database schema?
 ```
+
+**Example with JSON only**:
+```yaml
+- call: llm
+  json_only: true
+  params:
+    prompt: |
+      Summarize the following text in three bullet points:
+      {text_to_summarize}
+
+      Return the result as a JSON array with object with following keys:
+        - `bullet`: string - The bullet point text
+        - `importance`: int - Importance of the bullet point (1-5)
+        - `references: string[] - List of references relevant to the bullet point
+```
+
 
 The tool can be used to create custom LLM-powered tools within your workflows, enabling tasks like summarization,
 analysis, formatting, or generating structured content based on input data.

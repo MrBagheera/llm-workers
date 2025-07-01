@@ -161,6 +161,10 @@ class BaseLLMConfig(BaseModel):
                                         # If it proves to bring no benefits, remove it
 
 
+class ToolLLMConfig(BaseLLMConfig):
+    extract_json: Optional[Union[bool, str]] = None
+
+
 class ChatConfig(BaseLLMConfig):
     default_prompt: Optional[str] = None
     user_banner: Optional[str] = None
