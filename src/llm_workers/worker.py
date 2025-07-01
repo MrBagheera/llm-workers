@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Optional, Any, List, Iterator
 
@@ -162,8 +163,16 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
         tool_results = []
         direct_results = []
         for tool_call in tool_calls:
-            tool: BaseTool = self._tools[tool_call['name']]
-            tool_definition: ToolDefinition = self._tool_definitions[tool_call['name']]
+            tool_name = tool_call['name']
+            if tool_name not in self._tools:
+                logger.warning("Failed to call tool %s: no such tool", tool.name, exc_info=True)
+                content = f"Tool Error: no such tool %s" % tool_name
+                response = ToolMessage(content = content, tool_call_id = tool_call['id'], name = tool.name)
+                self._log_llm_message(response, "tool call message")
+                tool_results.append(response)
+                continue
+            tool: BaseTool = self._tools[tool_name]
+            tool_definition: ToolDefinition = self._tool_definitions[tool_name]
             args: dict[str, Any] = tool_call['args']
             logger.info("Calling tool %s with args:\n%r", tool.name, LazyFormatter(args))
             try:
@@ -171,19 +180,20 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
             except ToolException as e:
                 logger.warning("Failed to call tool %s", tool.name, exc_info=True)
                 tool_output = f"Tool Error: {e}"
+            content = tool_output if isinstance(tool_output, str) else json.dumps(tool_output)
             if tool.return_direct:
                 tool_results.append(ToolMessage(
                     content = "Tool call result shown directly to user, no need for further actions",
                     tool_call_id = tool_call['id'],
                     name = tool.name
                 ))
-                response = AIMessage(content = tool_output.strip())
+                response = AIMessage(content = content.strip())
                 if self._is_confidential(tool, tool_definition):
                     response = response.model_copy(update={CONFIDENTIAL: True}, deep=False)
                 self._log_llm_message(response, "direct tool message")
                 direct_results.append(response)
             else:
-                response = ToolMessage(content = tool_output, tool_call_id = tool_call['id'], name = tool.name)
+                response = ToolMessage(content = content, tool_call_id = tool_call['id'], name = tool.name)
                 self._log_llm_message(response, "tool call message")
                 tool_results.append(response)
         return tool_results, direct_results
@@ -198,8 +208,11 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
 
     def _check_if_user_cancels_execution(self, callback_manager: CallbackManager, tool_calls: list[ToolCall]) -> bool:
         for tool_call in tool_calls:
-            tool: BaseTool = self._tools[tool_call['name']]
-            tool_definition: ToolDefinition = self._tool_definitions[tool_call['name']]
+            tool_name = tool_call['name']
+            if tool_name not in self._tools:
+                continue
+            tool: BaseTool = self._tools[tool_name]
+            tool_definition: ToolDefinition = self._tool_definitions[tool_name]
             args: dict[str, Any] = tool_call['args']
 
             if tool_definition.require_confirmation is not None:
