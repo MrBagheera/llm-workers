@@ -97,7 +97,8 @@ class StandardContext(WorkersContext):
         tool = getattr(module, segments[-1])
         if not inspect.isclass(tool):
             raise ValueError(f"Not a class: {tool_def.clazz}")
-        tool = tool() # use default constructor
+        tool_config = {'name': tool_def.name, **tool_def.tool_config}
+        tool = tool(**tool_config)
         if not isinstance(tool, BaseTool):
             raise ValueError(f"Not a BaseTool: {type(tool)}")
         # overrides
@@ -113,7 +114,7 @@ class StandardContext(WorkersContext):
         if not callable(factory):
             raise ValueError(f"Not a callable: {tool_def.factory}")
         if len(factory.__annotations__) >= 2 and 'context' in factory.__annotations__ and 'tool_config' in factory.__annotations__:
-            tool_config = tool_def.tool_config if tool_def.tool_config is not None else {}
+            tool_config = {'name': tool_def.name, **tool_def.tool_config}
             tool = factory(context = self, tool_config = tool_config)
         else:
             raise ValueError("Invalid tool factory signature, must be `def factory(context: WorkersContext, tool_config: dict[str, any]) -> BaseTool`")

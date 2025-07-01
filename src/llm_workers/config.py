@@ -3,13 +3,13 @@ from abc import ABC
 from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict
 
 import yaml
+from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel, model_validator, Field, PrivateAttr
 from pydantic import ValidationError, WrapValidator
 from pydantic_core import PydanticCustomError
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler, ValidationInfo
 from typing_extensions import Self
 
-from langchain_core.prompts import PromptTemplate
 
 def json_custom_error_validator(
         value: Any,
@@ -99,11 +99,10 @@ class CustomToolParamsDefinition(BaseModel):
     default: Optional[Json] = None
 
 
-def _ensure_only_one_of(values: dict[str, any], keys: set[str], context: str):
+def _ensure_only_one_of(values: dict[str, Any], keys: set[str], context: str):
     """Ensure that only one of the specified parameters is present in the values."""
     if sum(1 for key in keys if key in values) > 1:
         raise ValueError(f"Only one of {keys} should be specified in {context}.")
-
 
 def _ensure_set(model: Any, keys: list[str], context: str):
     """Ensure that the specified parameters are set in the model."""
@@ -121,7 +120,7 @@ class ToolDefinition(BaseModel):
     name: str
     description: Optional[str] = None
     input: Optional[List[CustomToolParamsDefinition]] = None # only for custom tools
-    tool_config: Optional[dict[str, Json]] = None # only for imported tools
+    tool_config: Dict[str, Json] = {} # only for imported tools
     return_direct: Optional[bool] = None
     confidential: Optional[bool] = None
     require_confirmation: Optional[bool] = None
@@ -178,7 +177,7 @@ class ChatConfig(BaseLLMConfig):
 class WorkersConfig(BaseModel):
     models: list[StandardModelConfig | ImportModelConfig] = ()
     tools: list[ToolDefinition] = ()
-    shared: dict[str, Json] = {}
+    shared: Dict[str, Json] = {}
     chat: Optional[ChatConfig] = None
     cli: Optional[BodyDefinition] = None
 
