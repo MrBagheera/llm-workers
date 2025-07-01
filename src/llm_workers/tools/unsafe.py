@@ -115,6 +115,7 @@ class RunPythonScriptTool(BaseTool, ExtendedBaseTool):
     name: str = "run_python_script"
     description: str = "Run a Python script and return its output."
     args_schema: Type[RunPythonScriptToolSchema] = RunPythonScriptToolSchema
+    delete_after_run: bool = True  # Whether to delete the script file after running
     require_confirmation: bool = True
 
     def needs_confirmation(self, input: dict[str, Any]) -> bool:
@@ -130,7 +131,7 @@ class RunPythonScriptTool(BaseTool, ExtendedBaseTool):
         return "Running Python script"
 
     def _run(self, script: str) -> str:
-        file_path = f"script_{time.strftime('%Y%m%d_%H%M%S')}.py"
+        file_path = f".cache/script_{time.strftime('%Y%m%d_%H%M%S')}.py"
         with open(file_path, 'w') as file:
             file.write(script)
         try:
@@ -154,7 +155,7 @@ class RunPythonScriptTool(BaseTool, ExtendedBaseTool):
         except Exception as e:
             raise ToolException(f"Error running Python script: {e}", e)
         finally:
-            if file_path:
+            if file_path and self.delete_after_run:
                 try:
                     os.remove(file_path)
                 except Exception as e:

@@ -582,12 +582,17 @@ Runs a Python script and returns its output.
 **Parameters:**
 - `script`: Python script to run. Must be valid Python code
 
+**Configuration Options:**
+- `delete_after_run`: (Optional) Whether to delete the script file after running (default: true)
+- `require_confirmation`: (Optional) Whether to require user confirmation before execution (default: true)
+
 **Behavior:**
-- Creates a temporary file with the script
-- Executes it using python3
+- Creates a temporary script file in `.cache/` directory with timestamp
+- Executes it using the current Python interpreter (`sys.executable`)
 - Returns stdout output
-- Deletes the script file after execution
+- Deletes the script file after execution (if `delete_after_run` is true)
 - Requires user confirmation by default
+- Raises `ToolException` if script returns non-zero exit code or encounters errors
 
 #### `show_file`
 
