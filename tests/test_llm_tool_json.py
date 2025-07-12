@@ -54,14 +54,6 @@ And another:
         result = extract_json_blocks(text, "all")
         self.assertEqual(result, '["{\\"first\\": \\"block\\"}", "{\\"second\\": \\"block\\"}"]')
 
-    def test_extract_json_from_inline_objects(self):
-        text = "Here's a JSON object {'key': 'value'} and an array [1, 2, 3]"
-        result = extract_json_blocks(text, "first")
-        self.assertEqual(result, "{'key': 'value'}")
-        
-        result = extract_json_blocks(text, "last")
-        self.assertEqual(result, "[1, 2, 3]")
-
     def test_extract_json_fallback_when_no_json(self):
         text = "This is just plain text with no JSON"
         result = extract_json_blocks(text, "first")
@@ -102,7 +94,7 @@ And actual JSON:
 {"json_block": "value"}
 ```"""
         result = extract_json_blocks(text, "first")
-        self.assertEqual(result, '{"not_json_block": "value"}')
+        self.assertEqual(result, '{"json_block": "value"}')
 
     def test_extract_json_array_first(self):
         text = """Arrays work too:

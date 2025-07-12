@@ -140,7 +140,9 @@ class CallStatement(Runnable[Dict[str, Json], Json]):
         target_params = self._template_helper.render(input)
         logger.debug("Calling tool %s with args:\n%r", self._tool.name, LazyFormatter(target_params))
         try:
-            return self._tool.invoke(input = target_params, config = config, **kwargs)
+            result = self._tool.invoke(input=target_params, config=config, **kwargs)
+            logger.debug("Calling tool %s resulted:\n%r", self._tool.name, LazyFormatter(result, trim=False))
+            return result
         except BaseException as e:
             raise self._convert_error(e)
 
