@@ -11,9 +11,9 @@ models:
 
 tools:
   - name: read_file
-    class: llm_workers.tools.unsafe.ReadFileTool
+    import_from: llm_workers.tools.unsafe.ReadFileTool
   - name: llm
-    factory: llm_workers.tools.llm_tool.build_llm_tool
+    import_from: llm_workers.tools.llm_tool.build_llm_tool
 
 cli:
   - call: read_file

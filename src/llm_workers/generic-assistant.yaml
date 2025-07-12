@@ -15,15 +15,15 @@ models:
 
 tools:
   - name: read_file
-    class: llm_workers.tools.unsafe.ReadFileTool
+    import_from: llm_workers.tools.unsafe.ReadFileTool
   - name: write_file
-    class: llm_workers.tools.unsafe.WriteFileTool
+    import_from: llm_workers.tools.unsafe.WriteFileTool
   - name: list_files
-    class: llm_workers.tools.unsafe.ListFilesTool
+    import_from: llm_workers.tools.unsafe.ListFilesTool
   - name: run_process
-    class: llm_workers.tools.unsafe.RunProcessTool
+    import_from: llm_workers.tools.unsafe.RunProcessTool
   - name: bash
-    class: llm_workers.tools.unsafe.BashTool
+    import_from: llm_workers.tools.unsafe.BashTool
 
 
 chat:

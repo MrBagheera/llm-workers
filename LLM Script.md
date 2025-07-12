@@ -64,9 +64,10 @@ models:
 
 tools:
   - name: <tool_name>
-    class: <tool_class> # Required for importing tools. Use class OR factory
-    factory: <tool_factory> # Required for importing tools. Use class OR factory
+    import_from: <import_path> # Required for importing tools
     description: <description> # Optional
+    config: # Optional, tool-specific configuration
+      <key>: <value>
     input: # Required for custom tools
       - name: <param_name>
         description: <description>
@@ -75,7 +76,7 @@ tools:
     confidential: <boolean> # Optional
     return_direct: <boolean> # Optional
     ui_hint: <template_string> # Optional
-    body: # Required for custom tools
+    body: # Required for custom tools (also can be specified in config section)
       <statement(s)> # List of statements for more complex flows
 
 shared: # Optional shared configuration accessible to all tools
@@ -177,10 +178,10 @@ Example:
 ```yaml
 tools:
   - name: _fetch_page_text
-    class: llm_workers.tools.fetch.FetchPageTextTool
+    import_from: llm_workers.tools.fetch.FetchPageTextTool
 
   - name: _LLM
-    factory: llm_workers.tools.llm_tool.build_llm_tool
+    import_from: llm_workers.tools.llm_tool.build_llm_tool
 
   - name: metacritic_monkey
     description: >
@@ -389,34 +390,44 @@ cli:
 
 # Using Python tools
 
-## Importing
+## Importing Tools
 
-### From Classes
+To import tools from Python modules, use the `import_from` parameter with a fully-qualified Python path.
 
-To import tools from Python class, use the `class` parameter. The class must be a fully-qualified Python class name.
-Tool class must extend `langchain_core.tools.base.BaseTool` class.
+The imported symbol can be:
+- A `BaseTool` instance (used directly)
+- A class extending `langchain_core.tools.base.BaseTool` (instantiated with config parameters)
+- A factory function/method returning a `BaseTool` instance
 
-Example:
+Factory functions must conform to this signature:
+```python
+def build_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> BaseTool:
+```
+
+### Examples:
+
+**Importing a tool class:**
 ```yaml
 tools:
   - name: read_file
-    class: llm_workers.tools.unsafe.ReadFileTool
+    import_from: llm_workers.tools.unsafe.ReadFileTool
 ```
 
-### From Factory Methods
-
-To import tools from factory methods, use the `factory` parameter. The factory method must be a fully-qualified Python method name.
-The factory method must conform to following syntax:
-```python
-def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> BaseTool:
-```
-and must return an instance of `langchain_core.tools.base.BaseTool` class.
-
-Example:
+**Importing a factory function:**
 ```yaml
 tools:
   - name: _llm
-    factory: llm_workers.tools.llm_tool.build_llm_tool
+    import_from: llm_workers.tools.llm_tool.build_llm_tool
+```
+
+**Importing with configuration:**
+```yaml
+tools:
+  - name: custom_tool
+    import_from: my_module.tools.CustomTool
+    config:
+      api_key: "your-key"
+      timeout: 30
 ```
 
 ## Built-in Tools
@@ -431,7 +442,7 @@ any imported library, or [define your own](https://python.langchain.com/docs/con
 
 ```yaml
 - name: fetch_content
-  class: llm_workers.tools.fetch.FetchContentTool
+  import_from: llm_workers.tools.fetch.FetchContentTool
 ```
 
 Fetches raw content from a given URL and returns it as a string.
@@ -446,7 +457,7 @@ Fetches raw content from a given URL and returns it as a string.
 
 ```yaml
 - name: fetch_page_markdown
-  class: llm_workers.tools.fetch.FetchPageMarkdownTool
+  import_from: llm_workers.tools.fetch.FetchPageMarkdownTool
 ```
 
 Fetches web page or page element and converts it to markdown.
@@ -462,7 +473,7 @@ Fetches web page or page element and converts it to markdown.
 
 ```yaml
 - name: fetch_page_text
-  class: llm_workers.tools.fetch.FetchPageTextTool
+  import_from: llm_workers.tools.fetch.FetchPageTextTool
 ```
 
 Fetches the text from web page or web page element.
@@ -478,7 +489,7 @@ Fetches the text from web page or web page element.
 
 ```yaml
 - name: fetch_page_links
-  class: llm_workers.tools.fetch.FetchPageLinksTool
+  import_from: llm_workers.tools.fetch.FetchPageLinksTool
 ```
 
 Fetches the links from web page or web page element.
@@ -501,7 +512,7 @@ Based on the `llm_tool.py` file, here is documentation for the LLM tool function
 
 ```yaml
 - name: llm
-  factory: llm_workers.tools.llm_tool.build_llm_tool
+  import_from: llm_workers.tools.llm_tool.build_llm_tool
 ```
 
 Creates a tool that allows calling an LLM with a prompt and returning its response.
@@ -583,7 +594,7 @@ These tools provide access to the file system and allow code execution, which ma
 
 ```yaml
 - name: read_file
-  class: llm_workers.tools.unsafe.ReadFileTool
+  import_from: llm_workers.tools.unsafe.ReadFileTool
 ```
 
 Reads a file and returns its content.
@@ -596,7 +607,7 @@ Reads a file and returns its content.
 
 ```yaml
 - name: write_file
-  class: llm_workers.tools.unsafe.WriteFileTool
+  import_from: llm_workers.tools.unsafe.WriteFileTool
 ```
 
 Writes content to a file.
@@ -610,7 +621,7 @@ Writes content to a file.
 
 ```yaml
 - name: run_python_script
-  class: llm_workers.tools.unsafe.RunPythonScriptTool
+  import_from: llm_workers.tools.unsafe.RunPythonScriptTool
 ```
 
 Runs a Python script and returns its output.
@@ -634,7 +645,7 @@ Runs a Python script and returns its output.
 
 ```yaml
 - name: show_file
-  class: llm_workers.tools.unsafe.ShowFileTool
+  import_from: llm_workers.tools.unsafe.ShowFileTool
 ```
 
 Opens a file in the OS default application.
@@ -646,7 +657,7 @@ Opens a file in the OS default application.
 
 ```yaml
 - name: bash
-  class: llm_workers.tools.unsafe.BashTool
+  import_from: llm_workers.tools.unsafe.BashTool
 ```
 
 Executes a bash script and returns its output.
@@ -666,7 +677,7 @@ Executes a bash script and returns its output.
 
 ```yaml
 - name: list_files
-  class: llm_workers.tools.unsafe.ListFilesTool
+  import_from: llm_workers.tools.unsafe.ListFilesTool
 ```
 
 Lists files and directories with optional detailed information.
@@ -682,7 +693,7 @@ Lists files and directories with optional detailed information.
 
 ```yaml
 - name: run_process
-  class: llm_workers.tools.unsafe.RunProcessTool
+  import_from: llm_workers.tools.unsafe.RunProcessTool
 ```
 
 Runs a system process and returns its output.
@@ -704,7 +715,7 @@ Runs a system process and returns its output.
 
 ```yaml
 - name: user_input
-  class: llm_workers.tools.misc.UserInputTool
+  import_from: llm_workers.tools.misc.UserInputTool
 ```
 
 Prompts the user for input and returns their response.
@@ -756,7 +767,7 @@ The approval tools provide a way to require explicit user confirmation for poten
 
 ```yaml
 - name: request_approval
-  class: llm_workers.tools.misc.RequestApprovalTool
+  import_from: llm_workers.tools.misc.RequestApprovalTool
 ```
 
 Shows a prompt to the user for approval and returns an approval token that can be used to authorize subsequent operations.
@@ -777,7 +788,7 @@ Shows a prompt to the user for approval and returns an approval token that can b
 
 ```yaml
 - name: validate_approval
-  class: llm_workers.tools.misc.ValidateApprovalTool
+  import_from: llm_workers.tools.misc.ValidateApprovalTool
 ```
 
 Validates that an approval token exists and has not been consumed.
@@ -797,7 +808,7 @@ Validates that an approval token exists and has not been consumed.
 
 ```yaml
 - name: consume_approval
-  class: llm_workers.tools.misc.ConsumeApprovalTool
+  import_from: llm_workers.tools.misc.ConsumeApprovalTool
 ```
 
 Validates and marks an approval token as consumed, making it unusable for future operations.
@@ -821,24 +832,24 @@ The approval tools are designed to work together in custom tool workflows to for
 ```yaml
 tools:
   - name: _run_python_script_no_confirmation
-    class: llm_workers.tools.unsafe.RunPythonScriptTool
+    import_from: llm_workers.tools.unsafe.RunPythonScriptTool
     require_confirmation: false
 
   - name: show_plan_to_user
-    class: llm_workers.tools.misc.RequestApprovalTool
+    import_from: llm_workers.tools.misc.RequestApprovalTool
     description: |-
       Show plan to user and asks for explicit confirmation; upon confirmation return `approval_token` to be used in
       the following call to `run_script`.
 
   - name: _validate_approval
-    class: llm_workers.tools.misc.ValidateApprovalTool
+    import_from: llm_workers.tools.misc.ValidateApprovalTool
 
   - name: _consume_approval
-    class: llm_workers.tools.misc.ConsumeApprovalTool
+    import_from: llm_workers.tools.misc.ConsumeApprovalTool
 
   - name: run_python_script
     description: Consume approval_token and run given Python script
-    params:
+    input:
       - name: approval_token
         description: `approval_token` from `show_plan_to_user` tool; upon successful tool completion is consumed and cannot be re-used
         type: str
@@ -863,7 +874,7 @@ This pattern allows LLMs to request approval for potentially dangerous operation
 
 # Defining Custom Tools
 
-To define custom tools, use the `body` section of the tool definition:
+To define custom tools, use the `input` and `body` sections of the tool definition:
 
 ```yaml
 tools:
@@ -890,6 +901,8 @@ tools:
         default:
           - result: "Operation failed"
 ```
+Input section defines the parameters that the tool accepts. These parameters can 
+later be referenced in the `body` section using the `{param_name}` syntax.
 
 The `body` section contains one or more statements that can be composed in various ways:
 

@@ -73,10 +73,8 @@ class StandardContext(WorkersContext):
                 raise WorkerException(f"Failed to create tool {tool_def.name}: tool already defined")
             self._tools_definitions[tool_def.name] = tool_def
             try:
-                if tool_def.clazz is not None:
-                    tool = self._create_tool_from_class(tool_def)
-                elif tool_def.factory is not None:
-                    tool = self._create_tool_from_factory(tool_def)
+                if tool_def.import_from is not None:
+                    tool = self._import_tool(tool_def)
                 else:
                     tool = build_custom_tool(tool_def, self)
                 # common post-processing
@@ -91,37 +89,34 @@ class StandardContext(WorkersContext):
             except Exception as e:
                 raise WorkerException(f"Failed to create tool {tool_def.name}: {e}", e)
 
-    # noinspection PyMethodMayBeStatic
-    def _create_tool_from_class(self, tool_def: ToolDefinition) -> BaseTool:
-        segments = tool_def.clazz.split('.')
-        module = importlib.import_module('.'.join(segments[:-1]))
-        tool = getattr(module, segments[-1])
-        if not inspect.isclass(tool):
-            raise ValueError(f"Not a class: {tool_def.clazz}")
-        tool_config = {'name': tool_def.name, **tool_def.tool_config}
-        tool = tool(**tool_config)
-        if not isinstance(tool, BaseTool):
-            raise ValueError(f"Not a BaseTool: {type(tool)}")
-        # overrides
-        tool.name = tool_def.name
+    def _import_tool(self, tool_def: ToolDefinition) -> BaseTool:
+        tool_config = copy(tool_def.config if tool_def.config else tool_def.model_extra)
+        tool_config['name'] = tool_def.name
         if tool_def.description is not None:
-            tool.description = tool_def.description
-        return tool
-
-    def _create_tool_from_factory(self, tool_def: ToolDefinition) -> BaseTool:
-        segments = tool_def.factory.split('.')
-        module = importlib.import_module('.'.join(segments[:-1]))
-        factory = getattr(module, segments[-1])
-        if not callable(factory):
-            raise ValueError(f"Not a callable: {tool_def.factory}")
-        if len(factory.__annotations__) >= 2 and 'context' in factory.__annotations__ and 'tool_config' in factory.__annotations__:
-            tool_config = {'name': tool_def.name, **tool_def.tool_config}
-            tool = factory(context = self, tool_config = tool_config)
+            tool_config['description'] = tool_def.description
+        # split model.import_from into module_name and symbol
+        segments = tool_def.import_from.split('.')
+        module_name = '.'.join(segments[:-1])
+        symbol_name = segments[-1]
+        module = importlib.import_module(module_name)  # Import the module
+        symbol = getattr(module, symbol_name)  # Retrieve the symbol
+        # make the tool
+        if symbol is None:
+            raise ValueError(f"Cannot import tool from {tool_def.import_from}: symbol {symbol_name} not found")
+        elif isinstance(symbol, BaseTool):
+            tool = symbol
+        elif inspect.isclass(symbol):
+            tool = symbol(**tool_config) # use default constructor
+        elif inspect.isfunction(symbol) or inspect.ismethod(symbol):
+            if len(symbol.__annotations__) >= 2 and 'context' in symbol.__annotations__ and 'tool_config' in symbol.__annotations__:
+                tool = symbol(context = self, tool_config = tool_config)
+            else:
+                raise ValueError("Invalid tool factory signature, must be `def factory(context: WorkersContext, tool_config: dict[str, any]) -> BaseTool`")
         else:
-            raise ValueError("Invalid tool factory signature, must be `def factory(context: WorkersContext, tool_config: dict[str, any]) -> BaseTool`")
+            raise ValueError(f"Invalid symbol type {type(symbol)}")
         if not isinstance(tool, BaseTool):
             raise ValueError(f"Not a BaseTool: {type(tool)}")
-        # overrides
+        # overrides for un-cooperating tools
         tool.name = tool_def.name
         if tool_def.description is not None:
             tool.description = tool_def.description

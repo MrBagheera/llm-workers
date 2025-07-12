@@ -119,32 +119,21 @@ def _ensure_not_set(model: Any, keys: list[str], context: str):
     if len(violations) > 0:
         raise ValueError(f"Fields {violations} are not supported in {context}.")
 
+class CustomToolDefinition(BaseModel):
+    input: List[CustomToolParamsDefinition] = []
+    body: BodyDefinition
+
 class ToolDefinition(BaseModel):
+    model_config = ConfigDict(extra="allow")
     name: str
     description: Optional[str] = None
-    input: Optional[List[CustomToolParamsDefinition]] = None # only for custom tools
-    tool_config: Dict[str, Json] = {} # only for imported tools
+    config: Optional[Dict[str, Json]] = None
     return_direct: Optional[bool] = None
     confidential: Optional[bool] = None
     require_confirmation: Optional[bool] = None
     ui_hint: Optional[str] = None
     _ui_hint_template: Optional[PromptTemplate] = PrivateAttr(default=None)  # private field
-    # actual implementation definition (only one of these)
-    clazz: Optional[str] = Field(alias='class', default=None)
-    factory: Optional[str] = None
-    body: Optional[BodyDefinition] = None
-
-    @classmethod
-    @model_validator(mode="wrap")
-    def validate_wrapper(cls, values, handler):
-        _ensure_only_one_of(values, {'clazz', 'factory', 'body'}, 'tool definition')
-        model = handler(values)  # Calls the standard validation process
-        if model.body is not None: # custom tool
-            _ensure_set(model, ['description', 'input'], 'custom tool definition')
-            _ensure_not_set(model, ['tool_config'], 'custom tool definition')
-        else: # imported tool
-            _ensure_not_set(model, ['input'], 'imported tool definition')
-        return model
+    import_from: Optional[str] = None  # for imported tools, the symbol to import from
 
     def __init__(self, **data):
         super().__init__(**data)

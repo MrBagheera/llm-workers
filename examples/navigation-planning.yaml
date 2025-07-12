@@ -10,10 +10,10 @@ models:
 
 tools:
   - name: fetch_page_markdown
-    class: llm_workers.tools.fetch.FetchPageMarkdownTool
+    import_from: llm_workers.tools.fetch.FetchPageMarkdownTool
 
   - name: _llm
-    factory: llm_workers.tools.llm_tool.build_llm_tool
+    import_from: llm_workers.tools.llm_tool.build_llm_tool
 
   - name: generate_navigation_summary
     description: >
