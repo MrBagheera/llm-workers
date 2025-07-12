@@ -41,17 +41,17 @@ class RateLimiterConfig(BaseModel):
     check_every_n_seconds: float = 0.1
     max_bucket_size: float
 
-class ModelConfig(BaseModel, ABC):
+class ModelDefinition(BaseModel, ABC):
     model_config = ConfigDict(extra="allow")
     name: str
     config: Optional[Dict[str, Json]] = None
     rate_limiter: Optional[RateLimiterConfig] = None
 
-class StandardModelConfig(ModelConfig):
+class StandardModelDefinition(ModelDefinition):
     provider: str
     model: str
 
-class ImportModelConfig(ModelConfig):
+class ImportModelDefinition(ModelDefinition):
     import_from: str
 
 
@@ -167,7 +167,7 @@ class ChatConfig(BaseLLMConfig):
 
 
 class WorkersConfig(BaseModel):
-    models: list[StandardModelConfig | ImportModelConfig] = ()
+    models: list[StandardModelDefinition | ImportModelDefinition] = ()
     tools: list[ToolDefinition] = ()
     shared: Dict[str, Json] = {}
     chat: Optional[ChatConfig] = None

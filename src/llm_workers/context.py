@@ -9,7 +9,7 @@ from langchain_core.tools import BaseTool
 from langchain_core.rate_limiters import InMemoryRateLimiter
 
 from llm_workers.api import WorkersContext, WorkerException, ExtendedBaseTool
-from llm_workers.config import WorkersConfig, load_config, StandardModelConfig, ImportModelConfig, ToolDefinition
+from llm_workers.config import WorkersConfig, load_config, StandardModelDefinition, ImportModelDefinition, ToolDefinition
 from llm_workers.tools.custom_tool import build_custom_tool
 
 logger = logging.getLogger(__name__)
@@ -27,27 +27,27 @@ class StandardContext(WorkersContext):
 
     def _register_models(self):
         # register models
-        for model_config in self._config.models:
-            model_params = copy(model_config.config) if model_config.config else model_config.model_extra
-            if model_config.rate_limiter:
+        for model_def in self._config.models:
+            model_params = copy(model_def.config) if model_def.config else model_def.model_extra
+            if model_def.rate_limiter:
                 model_params['rate_limiter'] = InMemoryRateLimiter(
-                    requests_per_second = model_config.rate_limiter.requests_per_second,
-                    check_every_n_seconds = model_config.rate_limiter.check_every_n_seconds,
-                    max_bucket_size = model_config.rate_limiter.max_bucket_size)
+                    requests_per_second = model_def.rate_limiter.requests_per_second,
+                    check_every_n_seconds = model_def.rate_limiter.check_every_n_seconds,
+                    max_bucket_size = model_def.rate_limiter.max_bucket_size)
             model: BaseChatModel
             try:
-                if isinstance(model_config, StandardModelConfig):
-                    model = init_chat_model(model_config.model, model_provider=model_config.provider,
+                if isinstance(model_def, StandardModelDefinition):
+                    model = init_chat_model(model_def.model, model_provider=model_def.provider,
                                             configurable_fields=None, **model_params)
-                elif isinstance(model_config, ImportModelConfig):
+                elif isinstance(model_def, ImportModelDefinition):
                     # split model.import_from into module_name and symbol
-                    segments = model_config.import_from.split('.')
+                    segments = model_def.import_from.split('.')
                     module_name = '.'.join(segments[:-1])
                     symbol_name = segments[-1]
                     module = importlib.import_module(module_name)  # Import the module
                     symbol = getattr(module, symbol_name, None)  # Retrieve the symbol
                     if symbol is None:
-                        raise ValueError(f"Cannot import model from {model_config.import_from}: symbol {symbol_name} not found")
+                        raise ValueError(f"Cannot import model from {model_def.import_from}: symbol {symbol_name} not found")
                     elif isinstance(symbol, BaseChatModel):
                         model = symbol
                     elif inspect.isclass(symbol):
@@ -59,12 +59,12 @@ class StandardContext(WorkersContext):
                     if not isinstance(model, BaseChatModel):
                         raise ValueError(f"Invalid model type {type(model)}")
                 else:
-                    raise ValueError(f"Invalid config type {type(model_config)}")
+                    raise ValueError(f"Invalid config type {type(model_def)}")
             except Exception as e:
-                raise WorkerException(f"Failed to create model {model_config.name}: {e}", e)
+                raise WorkerException(f"Failed to create model {model_def.name}: {e}", e)
 
-            self._models[model_config.name] = model
-            logger.info(f"Registered model {model_config.name}")
+            self._models[model_def.name] = model
+            logger.info(f"Registered model {model_def.name}")
 
     # noinspection DuplicatedCode
     def _register_tools(self):
