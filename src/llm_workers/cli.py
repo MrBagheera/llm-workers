@@ -1,4 +1,5 @@
 import argparse
+import json
 import logging
 import sys
 from typing import Any
@@ -41,12 +42,18 @@ def run_llm_script(script_name: str, parser: argparse.ArgumentParser, args: argp
             for input in sys.stdin:
                 input = input.strip()
                 result = worker.invoke({"input": input})
-                print(result)
+                if isinstance(result, str):
+                    print(result)
+                else:
+                    print(json.dumps(result, indent=2))
         else:
             if args.inputs:
                 for input in args.inputs:
                     result = worker.invoke({"input": input})
-                    print(result)
+                    if isinstance(result, str):
+                        print(result)
+                    else:
+                        print(json.dumps(result, indent=2))
             else:
                 parser.error(f"No inputs provided in {args.script_file}.")
 
