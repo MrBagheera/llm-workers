@@ -1,14 +1,18 @@
-from typing import Dict, Any, List, Union
+import ast
 import json
+import logging
 import re
+from typing import Dict, Any, List, Union
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_core.tools import BaseTool, StructuredTool
 
 from llm_workers.api import WorkersContext
-from llm_workers.config import BaseLLMConfig, ToolLLMConfig
+from llm_workers.config import ToolLLMConfig, Json
+from llm_workers.utils import LazyFormatter
 from llm_workers.worker import Worker
 
+_logger = logging.getLogger(__name__)
 
 def extract_json_blocks(text: str, extract_json: Union[bool, str]) -> str:
     """
@@ -24,14 +28,9 @@ def extract_json_blocks(text: str, extract_json: Union[bool, str]) -> str:
     if extract_json is None or extract_json == "none" or extract_json is False:
         return text
     
-    # Find all JSON blocks (objects and arrays)
-    json_pattern = r'```json\s*\n(.*?)\n```|```\s*\n(\{.*?\}|\[.*?\])\n```|(\{.*?\}|\[.*?\])'
+    # Find all JSON blocks
+    json_pattern = r'(?:^|\n)```json\s*\n(.*?)\n```(?:\n|$)'
     matches = re.findall(json_pattern, text, re.DOTALL)
-    
-    if not matches:
-        # Fallback: try to find JSON-like structures without code blocks
-        json_pattern = r'(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}|\[[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*\])'
-        matches = re.findall(json_pattern, text, re.DOTALL)
     
     if not matches:
         return text  # Fallback to full message if no JSON found
@@ -66,7 +65,7 @@ def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> Base
     config = ToolLLMConfig(**tool_config)
     agent = Worker(config, context)
 
-    def extract_result(result: List[BaseMessage]) -> str:
+    def extract_result(result: List[BaseMessage]) -> Json:
         if len(result) == 0:
             return ""
         if len(result) == 1:
@@ -78,9 +77,20 @@ def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> Base
             text = ""
         
         # Apply JSON filtering if configured
-        return extract_json_blocks(text, config.extract_json)
+        if config.extract_json and config.extract_json != "none" and config.extract_json is not False:
+            _logger.debug("Extracting JSON from LLM output (mode=%s):\n%s", config.extract_json, LazyFormatter(text))
+            json_text = extract_json_blocks(text, config.extract_json)
+            try:
+                # TODO this is a hack, but until we fix templating input JSON will arrive to LLM as single-quoted
+                # so it may also produce single-quoted JSON outputs
+                # return json.loads(json_text)
+                return ast.literal_eval(json_text.replace("true", "True").replace("false", "False"))
+            except (json.JSONDecodeError, ValueError) as e:
+                _logger.warning("Failed to parse JSON from LLM output, returning as plain text:\n%s", json_text, exc_info=e)
+                return json_text
+        return text
 
-    def tool_logic(prompt: str, system_message: str = None) -> str:
+    def tool_logic(prompt: str, system_message: str = None) -> Json:
         """
         Calls LLM with given prompt, returns LLM output.
 
@@ -95,7 +105,7 @@ def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> Base
         result = agent.invoke(input=messages)
         return extract_result(result)
 
-    async def async_tool_logic(prompt: str, system_message: str = None) -> str:
+    async def async_tool_logic(prompt: str, system_message: str = None) -> Json:
         # pass empty callbacks to prevent LLM token streaming
         messages = []
         if system_message:
