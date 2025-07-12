@@ -100,15 +100,33 @@ cli: # For command-line interface
 
 ## Models Section
 
-Defines the LLMs to use:
+Defines the LLMs to use. There are two types of model configurations:
 
+### Standard Model Configuration
 - `name`: Identifier for the model
 - `provider`: Service provider (e.g., `bedrock`, `bedrock_converse`, `openai`)
 - `model`: Model identifier
 - `rate_limiter`: Optional rate limiting configuration
-- `model_params`: Model-specific parameters like temperature and token limits
+- `config`: Optional model-specific parameters (overrides main section parameters if used)
 
-Example:
+### Import Model Configuration
+- `name`: Identifier for the model
+- `import_from`: Fully-qualified Python class/function path for custom model implementation
+- `rate_limiter`: Optional rate limiting configuration
+- `config`: Optional parameters passed to the model constructor/factory (overrides main section parameters if used)
+
+The imported symbol can be:
+- A `BaseChatModel` instance (used directly)
+- A class (instantiated with config parameters)
+- A function/method (called with config parameters to create the model)
+
+### Model Parameters
+
+Any extra parameters not defined above will be passed to the model. If model requires
+specific parameters that conflict with standard parameters, those specific parameters can be defined in the `config` section.
+In this case no parameters from main section will be passed to the model, only those defined in `config`.
+
+### Example Standard Model Configuration:
 ```yaml
 models:
   - name: default
@@ -117,19 +135,37 @@ models:
     rate_limiter:
       requests_per_second: 1.0
       max_bucket_size: 10
-    model_params:
-      temperature: 0.7
-      max_tokens: 1500
+    temperature: 0.7
+    max_tokens: 1500
+
   - name: thinking
     provider: bedrock_converse
     model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
-    model_params:
+    config:
       temperature: 1
       max_tokens: 32768
       additional_model_request_fields:
         thinking:
           type: enabled
           budget_tokens: 16000
+```
+
+### Example Import Model Configuration:
+```yaml
+models:
+  - name: custom_model
+    import_from: my_module.models.CustomChatModel
+    api_key: "your-api-key"
+    base_url: "https://api.example.com"
+      
+  - name: factory_model
+    import_from: my_module.factories.create_model
+    rate_limiter:
+      requests_per_second: 2.0
+      max_bucket_size: 5
+    config:
+      model_type: "advanced"
+      timeout: 30
 ```
 
 ## Tools Section

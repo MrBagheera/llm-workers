@@ -1,6 +1,7 @@
 import importlib
 import inspect
 import logging
+from copy import copy
 
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
@@ -27,7 +28,7 @@ class StandardContext(WorkersContext):
     def _register_models(self):
         # register models
         for model_config in self._config.models:
-            model_params = model_config.model_params or {}
+            model_params = copy(model_config.config) if model_config.config else model_config.model_extra
             if model_config.rate_limiter:
                 model_params['rate_limiter'] = InMemoryRateLimiter(
                     requests_per_second = model_config.rate_limiter.requests_per_second,

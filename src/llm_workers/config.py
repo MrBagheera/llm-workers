@@ -4,7 +4,7 @@ from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict
 
 import yaml
 from langchain_core.prompts import PromptTemplate
-from pydantic import BaseModel, model_validator, Field, PrivateAttr
+from pydantic import BaseModel, model_validator, Field, PrivateAttr, ConfigDict
 from pydantic import ValidationError, WrapValidator
 from pydantic_core import PydanticCustomError
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler, ValidationInfo
@@ -42,8 +42,9 @@ class RateLimiterConfig(BaseModel):
     max_bucket_size: float
 
 class ModelConfig(BaseModel, ABC):
+    model_config = ConfigDict(extra="allow")
     name: str
-    model_params: Json = None
+    config: Json = None
     rate_limiter: Optional[RateLimiterConfig] = None
 
 class StandardModelConfig(ModelConfig):
