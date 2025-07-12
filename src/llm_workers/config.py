@@ -44,7 +44,7 @@ class RateLimiterConfig(BaseModel):
 class ModelConfig(BaseModel, ABC):
     model_config = ConfigDict(extra="allow")
     name: str
-    config: Json = None
+    config: Optional[Dict[str, Json]] = None
     rate_limiter: Optional[RateLimiterConfig] = None
 
 class StandardModelConfig(ModelConfig):
