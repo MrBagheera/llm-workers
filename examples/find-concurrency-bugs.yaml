@@ -2,13 +2,12 @@ models:
   - name: default
     provider: bedrock_converse
     model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
-    model_params:
-      temperature: 1
-      max_tokens: 32768
-      additional_model_request_fields:
-        thinking:
-          type: enabled
-          budget_tokens: 16000
+    temperature: 1
+    max_tokens: 32768
+    additional_model_request_fields:
+      thinking:
+        type: enabled
+        budget_tokens: 16000
 
 tools:
   - name: read_file
