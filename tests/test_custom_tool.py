@@ -256,3 +256,88 @@ class TestSharedContentIntegration(unittest.TestCase):
         # Test the tool
         result = tool.invoke({"query": "test_search"})
         self.assertEqual(result, "Query test_search returned Yada-yada-yada")
+
+
+class TestDynamicKeyResolution(unittest.TestCase):
+    def test_dict_key_resolution(self):
+        """Test resolving dictionary keys with result statement."""
+        statement = create_statement_from_model(
+            valid_template_vars=["param1"],
+            model=ResultDefinition(
+                result={"json_schema": "schema_value", "other": "other_value"},
+                key="json_schema"
+            ),
+            context=MockContextNoTools()
+        )
+        result = statement.invoke({"param1": "test"})
+        self.assertEqual(result, "schema_value")
+
+    def test_dict_key_resolution_with_default(self):
+        """Test resolving dictionary keys with default value."""
+        statement = create_statement_from_model(
+            valid_template_vars=["param1"],
+            model=ResultDefinition(
+                result={"json_schema": "schema_value", "other": "other_value"},
+                key="missing_key",
+                default="default_value"
+            ),
+            context=MockContextNoTools()
+        )
+        result = statement.invoke({"param1": "test"})
+        self.assertEqual(result, "default_value")
+
+    def test_list_key_resolution(self):
+        """Test resolving list indices with result statement."""
+        statement = create_statement_from_model(
+            valid_template_vars=["param1"],
+            model=ResultDefinition(
+                result=["first", "second", "third"],
+                key="1"
+            ),
+            context=MockContextNoTools()
+        )
+        result = statement.invoke({"param1": "test"})
+        self.assertEqual(result, "second")
+
+    def test_list_key_resolution_with_default(self):
+        """Test resolving list indices with default value."""
+        statement = create_statement_from_model(
+            valid_template_vars=["param1"],
+            model=ResultDefinition(
+                result=["first", "second"],
+                key="5",
+                default="default_value"
+            ),
+            context=MockContextNoTools()
+        )
+        result = statement.invoke({"param1": "test"})
+        self.assertEqual(result, "default_value")
+
+    def test_dynamic_key_resolution(self):
+        """Test dynamic key resolution using template variables."""
+        statement = create_statement_from_model(
+            valid_template_vars=["key_name", "data"],
+            model=ResultDefinition(
+                result="{data}",
+                key="{key_name}",
+                default="not_found"
+            ),
+            context=MockContextNoTools()
+        )
+        result = statement.invoke({
+            "key_name": "target_key",
+            "data": {"target_key": "found_value", "other": "other_value"}
+        })
+        self.assertEqual(result, "found_value")
+
+    def test_no_key_resolution(self):
+        """Test that result statement works normally without key parameter."""
+        statement = create_statement_from_model(
+            valid_template_vars=["param1"],
+            model=ResultDefinition(
+                result={"json_schema": "schema_value", "other": "other_value"}
+            ),
+            context=MockContextNoTools()
+        )
+        result = statement.invoke({"param1": "test"})
+        self.assertEqual(result, {"json_schema": "schema_value", "other": "other_value"})

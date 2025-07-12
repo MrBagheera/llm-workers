@@ -884,6 +884,59 @@ Returns a specific value directly.
       value: 42
 ```
 
+### Dynamic Key Resolution
+
+The `result` statement supports optional `key` and `default` parameters for dynamic value extraction from dictionaries and lists. 
+**This feature is primarily intended for cases where the key itself is dynamic** (determined at runtime from template variables).
+For static keys, standard templating with bracket notation (e.g., `"{data[static_key]}"`) works just fine.
+
+```yaml
+- result: "{shared.ask_schema_expert}"
+  key: "{json_schema}"  # Dynamic key from template variable
+  default: ""
+```
+
+**Parameters:**
+- `key`: The key/index to extract from the result. For dictionaries, uses the key as a string. For lists, converts to integer index. **Most useful when the key value comes from template variables.**
+- `default`: Optional fallback value if the key is not found or index is out of bounds.
+
+**Examples:**
+
+Primary use case - dynamic key from template variables:
+```yaml
+- result: "{api_response}"
+  key: "{requested_field}"
+  default: "N/A"
+# Extracts api_response[requested_field] where requested_field is determined at runtime
+```
+
+For comparison, static keys should use standard templating:
+```yaml
+# Preferred for static keys:
+- result: "{api_response[schema]}"
+
+# Unnecessary for static keys:
+- result: "{api_response}"
+  key: "schema"
+```
+
+Additional examples:
+
+Dynamic list index:
+```yaml
+- result: ["first", "second", "third"]
+  key: "{index_param}"  # Dynamic index from parameter
+# Returns element at runtime-determined index
+```
+
+With default value for missing keys:
+```yaml
+- result: "{user_data}"
+  key: "{field_to_extract}"
+  default: "field_not_found"
+# Returns user_data[field_to_extract] or "field_not_found" if key doesn't exist
+```
+
 ## `match` Statement
 
 Conditionally executes different actions based on matching patterns:

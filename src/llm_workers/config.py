@@ -66,6 +66,8 @@ BodyDefinition = TypeAliasType(
 
 class ResultDefinition(BaseModel):
     result: Json
+    key: Optional[Json] = None
+    default: Optional[Json] = None
 
 class CallDefinition(BaseModel):
     call: str

@@ -23,11 +23,11 @@ class TemplateHelper:
 
     direct_replacement_regexp: re.Pattern[str] = re.compile(r"\{([^{}\[\]]+)}")
 
-    def __init__(self, replacement_map: dict[str, Any], target_params: dict[str, Json]):
+    def __init__(self, replacement_map: dict[str, Any], target_params: Dict[str, Json]):
         self._replacements = replacement_map
         self._target_params = target_params
 
-    def _render(self, input_params: dict[str, Json], prefix: str, replacements: dict[Any, Any], target_params: dict[Any, Json] | list[Json]):
+    def _render(self, input_params: Dict[str, Json], prefix: str, replacements: dict[Any, Any], target_params: Dict[Any, Json] | List[Json]):
         for key, value in replacements.items():
             if isinstance(value, PromptTemplate):
                 try:
@@ -42,7 +42,7 @@ class TemplateHelper:
             else:
                 self._render(input_params, prefix = f"{prefix}{key}.", replacements=value, target_params = target_params[key])
 
-    def render(self, input_params: dict[str, Json]) -> dict[str, Json]:
+    def render(self, input_params: Dict[str, Json]) -> Dict[str, Json]:
         """Replaces template placeholders in target parameters with values from input parameters.
 
         Args:
@@ -96,34 +96,67 @@ class TemplateHelper:
         return replacements
 
     @classmethod
-    def from_valid_template_vars(cls, valid_template_vars: list[str], target_params: dict[str, Json]):
+    def from_valid_template_vars(cls, valid_template_vars: list[str], target_params: Dict[str, Json]):
         replacement_map = cls.build_replacement_map(valid_template_vars, "", cls.iter_items(target_params))
         return TemplateHelper(replacement_map, target_params)
 
     @classmethod
-    def from_param_definitions(cls, params: List[CustomToolParamsDefinition], target_params: dict[str, Json]):
+    def from_param_definitions(cls, params: List[CustomToolParamsDefinition], target_params: Dict[str, Json]):
         return cls.from_valid_template_vars([param.name for param in params], target_params)
 
 
 Statement: TypeAlias = Runnable[Dict[str, Json], Json]
 
 
+# noinspection PyTypeHints
 class ResultStatement(Runnable[Dict[str, Json], Json]):
     result_key: str = 'result'
+    key_param: str = 'key'
+    default_param: str = 'default'
 
     def __init__(self, valid_template_vars: List[str], model: ResultDefinition):
         params = { ResultStatement.result_key: model.result }
+        if model.key is not None:
+            params[ResultStatement.key_param] = model.key
+        if model.default is not None:
+            params[ResultStatement.default_param] = model.default
         self._template_helper = TemplateHelper.from_valid_template_vars(valid_template_vars, params)
+        self._has_key = model.key is not None
+
+    @staticmethod
+    def _resolve_with_key(result: Json, key: Json, default: Json = None) -> Json:
+        """Resolve result using the provided key, with optional default value."""
+        if isinstance(result, dict):
+            return result.get(str(key), default)
+        elif isinstance(result, list):
+            try:
+                # Convert key to int for list indexing
+                index = int(key)
+                if 0 <= index < len(result):
+                    return result[index]
+                else:
+                    return default
+            except (ValueError, TypeError):
+                return default
+        else:
+            return default
 
     def invoke(self, input: Dict[str, Json], config: Optional[RunnableConfig] = None, **kwargs: Any) -> Json:
-        result = self._template_helper.render(input)
-        return result[self.result_key]
+        rendered = self._template_helper.render(input)
+        result = rendered[self.result_key]
+        
+        if self._has_key:
+            key = rendered[self.key_param]
+            default = rendered.get(self.default_param)
+            return self._resolve_with_key(result, key, default)
+        
+        return result
 
     async def ainvoke(self, input: Dict[str, Json], config: Optional[RunnableConfig] = None, **kwargs: Any) -> Json:
-        result = self._template_helper.render(input)
-        return result[self.result_key]
+        return self.invoke(input, config, **kwargs)
 
 
+# noinspection PyTypeHints
 class CallStatement(Runnable[Dict[str, Json], Json]):
 
     def __init__(self, valid_template_vars: List[str], model: CallDefinition, context: WorkersContext):
@@ -223,6 +256,7 @@ class FlowStatement(Runnable[Dict[str, Json], Json]):
         return input
 
 
+# noinspection PyTypeHints
 class MatchStatement(Runnable[Dict[str, Json], Json]):
     match_key: str = 'match'
 
@@ -283,7 +317,7 @@ def create_statement_from_model(valid_template_vars: List[str], model: Statement
         raise ValueError(f"Invalid statement model type {type(model)}")
 
 
-def create_dynamic_schema(name: str, params: list[CustomToolParamsDefinition]) -> Type[BaseModel]:
+def create_dynamic_schema(name: str, params: List[CustomToolParamsDefinition]) -> Type[BaseModel]:
     # convert name to camel case
     cc_name = name.replace('_', ' ').title().replace(' ', '')
     model_name = f"{cc_name}DynamicSchema"
