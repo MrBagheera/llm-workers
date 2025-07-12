@@ -14,8 +14,8 @@ from langchain_core.tools.base import ToolException
 
 from llm_workers.api import WorkersContext, ConfirmationRequest, ConfirmationRequestParam, \
     ExtendedBaseTool, CONFIDENTIAL
-from llm_workers.config import BaseLLMConfig, ToolDefinition
-from llm_workers.utils import LazyFormatter, format_as_yaml
+from llm_workers.config import BaseLLMConfig, ToolDefinition, ToolReference
+from llm_workers.utils import LazyFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -30,18 +30,17 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
             self._system_message = SystemMessage(llm_config.system_message)
         self._llm = context.get_llm(llm_config.model_ref)
         self._tools = {}
-        self._tool_definitions = {}
         tools = []
-        tool_refs = llm_config.tool_refs
+        tool_refs: Optional[List[ToolReference]] = llm_config.tools
         if tool_refs is None:
             if top_level:
                 tool_refs = [tool_def.name for tool_def in context.config.tools if not tool_def.name.startswith("_")]
             else:
                 tool_refs = []
-        for tool_name in tool_refs:
-            tool = context.get_tool(tool_name)
-            self._tools[tool_name] = tool
-            self._tool_definitions[tool_name] = context.get_tool_definition(tool_name)
+        tool_ref: ToolReference
+        for tool_ref in tool_refs:
+            tool = context.get_tool(tool_ref)
+            self._tools[tool.name] = tool
             tools.append(tool)
         if len(tools) > 0:
             self._llm = self._llm.bind_tools(tools)
@@ -165,14 +164,14 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
         for tool_call in tool_calls:
             tool_name = tool_call['name']
             if tool_name not in self._tools:
-                logger.warning("Failed to call tool %s: no such tool", tool.name, exc_info=True)
+                logger.warning("Failed to call tool %s: no such tool", tool_name, exc_info=True)
                 content = f"Tool Error: no such tool %s" % tool_name
-                response = ToolMessage(content = content, tool_call_id = tool_call['id'], name = tool.name)
+                response = ToolMessage(content = content, tool_call_id = tool_call['id'], name = tool_name)
                 self._log_llm_message(response, "tool call message")
                 tool_results.append(response)
                 continue
             tool: BaseTool = self._tools[tool_name]
-            tool_definition: ToolDefinition = self._tool_definitions[tool_name]
+            tool_definition: ToolDefinition = tool.metadata['tool_definition']
             args: dict[str, Any] = tool_call['args']
             logger.info("Calling tool %s with args:\n%r", tool.name, LazyFormatter(args))
             try:
@@ -212,7 +211,7 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
             if tool_name not in self._tools:
                 continue
             tool: BaseTool = self._tools[tool_name]
-            tool_definition: ToolDefinition = self._tool_definitions[tool_name]
+            tool_definition: ToolDefinition = tool.metadata.get('tool_definition')
             args: dict[str, Any] = tool_call['args']
 
             if tool_definition.require_confirmation is not None:

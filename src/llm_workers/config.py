@@ -1,3 +1,4 @@
+from __future__ import annotations
 import importlib.resources
 from abc import ABC
 from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict
@@ -71,7 +72,7 @@ class ResultDefinition(BaseModel):
     default: Optional[Json] = None
 
 class CallDefinition(BaseModel):
-    call: str
+    call: ToolReference
     params: Optional[Dict[str, Json]] = None
     catch: Optional[str | list[str]] = None
 
@@ -144,13 +145,19 @@ class ToolDefinition(BaseModel):
     def ui_hint_template(self) -> Optional[PromptTemplate]:
         return self._ui_hint_template
 
+
+ToolReference = TypeAliasType(
+    'ToolReference',
+    Union[str, ToolDefinition],
+)
+
+
 class BaseLLMConfig(BaseModel):
     model_ref: str = "default"
     system_message: str = None
-    tool_refs: Optional[List[str]] = None
+    tools: Optional[List[ToolReference]] = None
     remove_past_reasoning: bool = False # experimental - to test on bigger chats.
                                         # If it proves to bring no benefits, remove it
-
 
 class ToolLLMConfig(BaseLLMConfig):
     extract_json: Optional[Union[bool, str]] = None

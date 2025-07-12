@@ -4,23 +4,11 @@ models:
     model: gpt-4o
 
 tools:
-  - name: _run_python_script_no_confirmation
-    import_from: llm_workers.tools.unsafe.RunPythonScriptTool
-    require_confirmation: false
-
   - name: show_plan_to_user
     import_from: llm_workers.tools.misc.RequestApprovalTool
     description: |-
       Show plan to user and asks for explicit confirmation; upon confirmation return 'approval_token' to be used in
       the following call to 'run_script'.
-
-  - name: _validate_approval
-    import_from: llm_workers.tools.misc.ValidateApprovalTool
-    ui_hint: Validating approval token  # print it just for fun
-
-  - name: _consume_approval
-    import_from: llm_workers.tools.misc.ConsumeApprovalTool
-    ui_hint: Consuming approval token  # print it just for fun
 
   - name: run_python_script
     description: Consume approval_token and run given Python script
@@ -34,13 +22,22 @@ tools:
 #    ui_hint: '' # do not print
     ui_hint: Running generated Python script  # print it just for fun
     body:
-      - call: _validate_approval
+      - call:
+          name: _validate_approval
+          import_from: llm_workers.tools.misc.ValidateApprovalTool
+          ui_hint: Validating approval token  # print it just for fun
         params:
           approval_token: "{approval_token}"
-      - call: _run_python_script_no_confirmation
+      - call:
+          name: _run_python_script_no_confirmation
+          import_from: llm_workers.tools.unsafe.RunPythonScriptTool
+          require_confirmation: false
         params:
           script: "{script}"
-      - call: _consume_approval
+      - call:
+          name: _consume_approval
+          import_from: llm_workers.tools.misc.ConsumeApprovalTool
+          ui_hint: Consuming approval token  # print it just for fun
         params:
           approval_token: "{approval_token}"
 

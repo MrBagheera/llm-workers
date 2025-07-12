@@ -276,7 +276,7 @@ Configuration for interactive chat mode:
 - `user_banner`: Optional markdown-formatted text displayed at the beginning of chat session, defaults to not shown
 - `remove_past_reasoning`: Whether to hide past LLM reasoning from subsequent LLM calls, defaults to `false`
 - `show_reasoning`: Whether to display LLM reasoning process to user, defaults to `false`
-- `tool_refs`: Optional list of tool names to make available to the LLM, defaults to all public tools (e.g. not starting with `_`)
+- `tools`: Optional list of tool names or inline tool definitions to make available to the LLM, defaults to all public tools (e.g. not starting with `_`)
 - `auto_open_changed_files`: Whether to automatically open files modified during LLM call, defaults to `false`
 - `file_monitor_include`: List of glob patterns for files to monitor for changes, defaults to ['*']
 - `file_monitor_exclude`: List of glob patterns for files to exclude from monitoring, defaults to ['.*', '*.log']
@@ -520,7 +520,7 @@ Creates a tool that allows calling an LLM with a prompt and returning its respon
 **Configuration Parameters**:
 - `model_ref`: (Optional) Reference to a model defined in the models section, defaults to "default"
 - `system_message`: (Optional) System message to use for this specific LLM tool
-- `tool_refs`: (Optional) List of tool names to make available for this specific LLM tool, default to all public tools (e.g. not starting with `_`)
+- `tools`: (Optional) List of tool names or inline tool definitions to make available for this specific LLM tool, default to all public tools (e.g. not starting with `_`)
 - `remove_past_reasoning`: (Optional) Whether to hide past LLM reasoning, defaults to false
 - `extract_json`: (Optional) Filters result to include only JSON blocks, defaults to "false".
 Useful for models without Structured Output, like Claude. Fallbacks to entire message if no "```json" blocks are found. Possible values:
@@ -908,8 +908,9 @@ The `body` section contains one or more statements that can be composed in vario
 
 ## `call` Statement
 
-Executes a specific tool with optional parameters.
+Executes a specific tool with optional parameters. Tools can be referenced by name or defined inline.
 
+**Call by name:**
 ```yaml
 - call: tool_name
   params:
@@ -917,6 +918,27 @@ Executes a specific tool with optional parameters.
     param2: value2
   catch: [error_type1, error_type2]  # Optional error handling
 ```
+
+**Inline tool definition:**
+```yaml
+- call:
+    name: tool_name
+    import_from: module.path.ToolClass
+    description: "Tool description"  # Optional
+    config:  # Optional tool-specific configuration
+      key: value
+    return_direct: true  # Optional
+    confidential: false  # Optional
+    require_confirmation: true  # Optional
+    ui_hint: "Processing {param1}..."  # Optional
+  params:
+    param1: value1
+    param2: value2
+  catch: [error_type1, error_type2]  # Optional error handling
+```
+
+Inline tool definitions allow you to define and use tools without pre-declaring them in the `tools` section. 
+This is useful for tools that are only used once or when you want to customize tool behavior for specific calls.
 
 ## `result` Statement
 

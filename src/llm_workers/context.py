@@ -2,6 +2,7 @@ import importlib
 import inspect
 import logging
 from copy import copy
+from typing import Dict, Any
 
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
@@ -9,7 +10,8 @@ from langchain_core.tools import BaseTool
 from langchain_core.rate_limiters import InMemoryRateLimiter
 
 from llm_workers.api import WorkersContext, WorkerException, ExtendedBaseTool
-from llm_workers.config import WorkersConfig, load_config, StandardModelDefinition, ImportModelDefinition, ToolDefinition
+from llm_workers.config import WorkersConfig, load_config, StandardModelDefinition, ImportModelDefinition, \
+    ToolDefinition, ToolReference
 from llm_workers.tools.custom_tool import build_custom_tool
 
 logger = logging.getLogger(__name__)
@@ -21,7 +23,6 @@ class StandardContext(WorkersContext):
         self._config = config
         self._models = dict[str, BaseChatModel]()
         self._tools = dict[str, BaseTool]()
-        self._tools_definitions = dict[str, ToolDefinition]()
         self._register_models()
         self._register_tools()
 
@@ -71,23 +72,31 @@ class StandardContext(WorkersContext):
         for tool_def in self._config.tools:
             if tool_def.name in self._tools:
                 raise WorkerException(f"Failed to create tool {tool_def.name}: tool already defined")
-            self._tools_definitions[tool_def.name] = tool_def
-            try:
-                if tool_def.import_from is not None:
-                    tool = self._import_tool(tool_def)
-                else:
-                    tool = build_custom_tool(tool_def, self)
-                # common post-processing
-                if tool_def.return_direct is not None:
-                    tool.return_direct = tool_def.return_direct
-                if tool_def.confidential:   # confidential implies return_direct
-                    tool.return_direct = True
-                self._tools[tool.name] = tool
-                logger.info(f"Registered tool {tool.name}")
-            except ImportError as e:
-                raise WorkerException(f"Failed to import module for tool {tool_def.name}: {e}")
-            except Exception as e:
-                raise WorkerException(f"Failed to create tool {tool_def.name}: {e}", e)
+            tool = self._create_tool(tool_def)
+            self._tools[tool.name] = tool
+            logger.info(f"Registered tool {tool.name}")
+
+    def _create_tool(self, tool_def: ToolDefinition) -> BaseTool:
+        try:
+            if tool_def.import_from is not None:
+                tool = self._import_tool(tool_def)
+            else:
+                tool = build_custom_tool(tool_def, self)
+            # common post-processing
+            if tool_def.return_direct is not None:
+                tool.return_direct = tool_def.return_direct
+            if tool_def.confidential:   # confidential implies return_direct
+                tool.return_direct = True
+            if tool.metadata is None:
+                tool.metadata = {}
+            tool.metadata['tool_definition'] = tool_def
+            if isinstance(tool, ExtendedBaseTool):
+                tool.metadata['__extension'] = tool # TODO really hackish
+            return tool
+        except ImportError as e:
+            raise WorkerException(f"Failed to import module for tool {tool_def.name}: {e}")
+        except Exception as e:
+            raise WorkerException(f"Failed to create tool {tool_def.name}: {e}", e)
 
     def _import_tool(self, tool_def: ToolDefinition) -> BaseTool:
         tool_config = copy(tool_def.config if tool_def.config else tool_def.model_extra)
@@ -139,26 +148,25 @@ class StandardContext(WorkersContext):
         else:
             logger.info(f"Registered tool {tool.name}")
 
-    def get_tool(self, tool_name: str) -> BaseTool:
-        if tool_name in self._tools:
-            return self._tools[tool_name]
+    def get_tool(self, tool_ref: ToolReference) -> BaseTool:
+        if isinstance(tool_ref, ToolDefinition):
+            return self._create_tool(tool_ref)
+        if tool_ref in self._tools:
+            return self._tools[tool_ref]
         else:
             available_tools = list(self._tools.keys())
             available_tools.sort()
-            raise ValueError(f"Tool {tool_name} not found, available tools: {available_tools}")
-
-    def get_tool_definition(self, tool_name: str) -> ToolDefinition:
-        return self._tools_definitions[tool_name]
+            raise ValueError(f"Tool {tool_ref} not found, available tools: {available_tools}")
 
     def get_llm(self, llm_name: str):
         if llm_name in self._models:
             return self._models[llm_name]
         raise WorkerException(f"LLM {llm_name} not found")
 
-    def get_start_tool_message(self, tool_name: str, inputs: dict[str, any]) -> str | None:
+    def get_start_tool_message(self, tool_name: str, tool_meta: Dict[str, Any], inputs: Dict[str, Any]) -> str | None:
         try:
             # check if ui_hint is defined in tool definition
-            tool_def = self.get_tool_definition(tool_name)
+            tool_def = tool_meta['tool_definition']
             if tool_def.ui_hint_template is not None:
                 hint = tool_def.ui_hint_template.format(**inputs)
                 if hint.strip():  # only return if hint is not empty
@@ -166,9 +174,9 @@ class StandardContext(WorkersContext):
                 else:
                     return None  # empty hint means no message should be shown
             # fallback to ExtendedBaseTool
-            tool = self._tools[tool_name]
-            if isinstance(tool, ExtendedBaseTool):
-                hint = tool.get_ui_hint(inputs)
+            if '__extension' in tool_meta:
+                extension: ExtendedBaseTool = tool_meta['__extension']
+                hint = extension.get_ui_hint(inputs)
                 if hint.strip():  # only return if hint is not empty
                     return hint
                 else:

@@ -72,7 +72,7 @@ tools:
 
 cli:
   call: _llm
-  tool_refs:
+  tools:
     - fetch_page_markdown
     - generate_navigation_summary
     - generate_navigation_summary_from_url

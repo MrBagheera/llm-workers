@@ -2,7 +2,7 @@ import argparse
 import sys
 from argparse import Namespace
 from logging import getLogger
-from typing import Optional, Union, Any
+from typing import Optional, Union, Any, Dict, List, Tuple
 from uuid import UUID
 
 from langchain_community.callbacks import get_openai_callback
@@ -249,8 +249,8 @@ class ChatSession:
             self._console.print("[Message above is confidential, not shown to AI Assistant]", style="bold red")
 
     @staticmethod
-    def _extract_reasoning(message: AIMessage) -> list[(int, str)]:
-        reasoning: list[(int, str)] = []
+    def _extract_reasoning(message: AIMessage) -> List[Tuple[int, str]]:
+        reasoning: List[Tuple[int, str]] = []
         if isinstance(message.content, list):
             i = 0
             for block in message.content:
@@ -266,12 +266,12 @@ class ChatSession:
                 i = i + 1
         return reasoning
 
-    def process_tool_start(self, name: str, inputs: dict[str, Any], run_id: UUID, parent_run_id: Optional[UUID]):
+    def process_tool_start(self, name: str, tool_meta: Dict[str, Any], inputs: dict[str, Any], run_id: UUID, parent_run_id: Optional[UUID]):
         if self._has_unfinished_output or self._streamed_reasoning_index is not None:
             print()
             self._has_unfinished_output = False
             self._streamed_reasoning_index = None
-        message = self._chat_context.context.get_start_tool_message(name, inputs)
+        message = self._chat_context.context.get_start_tool_message(name, tool_meta, inputs)
         if parent_run_id is not None and parent_run_id in self._running_tools_depths:
             # increase depth of running tool
             depth = self._running_tools_depths[parent_run_id] + (1 if message is not None else 0)
@@ -352,7 +352,7 @@ class ChatSessionCallbackDelegate(BaseCallbackHandler):
                       parent_run_id: Optional[UUID] = None, tags: Optional[list[str]] = None,
                       metadata: Optional[dict[str, Any]] = None, inputs: Optional[dict[str, Any]] = None,
                       **kwargs: Any) -> Any:
-        self._chat_session.process_tool_start(serialized.get("name", "<tool>"), inputs, run_id, parent_run_id)
+        self._chat_session.process_tool_start(serialized['name'], metadata, inputs, run_id, parent_run_id)
 
     def on_custom_event(self, name: str, data: Any, *, run_id: UUID, tags: Optional[list[str]] = None,
                         metadata: Optional[dict[str, Any]] = None, **kwargs: Any) -> Any:

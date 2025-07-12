@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional, Callable, List
 from langchain_core.tools import BaseTool
 from langchain_core.language_models import BaseChatModel
 
-from llm_workers.config import WorkersConfig, ToolDefinition
+from llm_workers.config import WorkersConfig, ToolDefinition, ToolReference
 
 # Flag for confidential messages (not shown to LLM)
 CONFIDENTIAL: str = 'confidential'
@@ -19,11 +19,7 @@ class WorkersContext(ABC):
         pass
 
     @abstractmethod
-    def get_tool(self, tool_name: str) -> BaseTool:
-        pass
-
-    @abstractmethod
-    def get_tool_definition(self, tool_name: str) -> ToolDefinition:
+    def get_tool(self, tool_ref: ToolReference) -> BaseTool:
         pass
 
     @abstractmethod
@@ -31,7 +27,7 @@ class WorkersContext(ABC):
         pass
 
     @abstractmethod
-    def get_start_tool_message(self, tool_name: str, inputs: dict[str, any]) -> str:
+    def get_start_tool_message(self, tool_name: str, tool_meta: Dict[str, Any], inputs: Dict[str, Any]) -> str:
         pass
 
 
