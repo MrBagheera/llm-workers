@@ -9,43 +9,49 @@ and files in [`examples`](examples/) directory.
 
 Table of Contents
 =================
-
+<!--ts-->
 * [Basic Structure](#basic-structure)
-  * [Models Section](#models-section)
-  * [Tools Section](#tools-section)
-  * [Shared Section](#shared-section)
-  * [Common Tool Parameters](#common-tool-parameters)
-  * [Chat Section](#chat-section)
-  * [CLI Section](#cli-section)
-* [Using Python tools](#using-python-tools)
-  * [Importing From Classes](#importing-from-classes)
-  * [Importing From Factory Methods](#importing-from-factory-methods)
-  * [Built-in Tools](#built-in-tools)
-    * [Web Fetching Tools](#web-fetching-tools)
-      * [fetch_content](#fetch_content)
-      * [fetch_page_markdown](#fetch_page_markdown)
-      * [fetch_page_text](#fetch_page_text)
-      * [fetch_page_links](#fetch_page_links)
-    * [LLM Tool](#llm-tool)
-      * [build_llm_tool](#build_llm_tool)
-    * [File and System Tools](#file-and-system-tools)
-      * [read_file](#read_file)
-      * [write_file](#write_file)
-      * [run_python_script](#run_python_script)
-      * [show_file](#show_file)
-      * [bash](#bash)
-      * [list_files](#list_files)
-      * [run_process](#run_process)
-    * [Miscellaneous Tools](#miscellaneous-tools)
-      * [user_input](#user_input)
-      * [request_approval](#request_approval)
-      * [validate_approval](#validate_approval)
-      * [consume_approval](#consume_approval)
+   * [Models Section](#models-section)
+      * [Standard Model Configuration](#standard-model-configuration)
+      * [Import Model Configuration](#import-model-configuration)
+      * [Model Parameters](#model-parameters)
+   * [Tools Section](#tools-section)
+   * [Shared Section](#shared-section)
+   * [Common Tool Parameters](#common-tool-parameters)
+   * [Chat Section](#chat-section)
+   * [CLI Section](#cli-section)
+* [Using Tools](#using-tools)
+   * [Importing Tools](#importing-tools)
+   * [Built-in Tools](#built-in-tools)
+      * [Web Fetching Tools](#web-fetching-tools)
+         * [fetch_content](#fetch_content)
+         * [fetch_page_markdown](#fetch_page_markdown)
+         * [fetch_page_text](#fetch_page_text)
+         * [fetch_page_links](#fetch_page_links)
+      * [LLM Tool](#llm-tool)
+         * [build_llm_tool](#build_llm_tool)
+      * [File and System Tools](#file-and-system-tools)
+         * [read_file](#read_file)
+         * [write_file](#write_file)
+         * [run_python_script](#run_python_script)
+         * [show_file](#show_file)
+         * [bash](#bash)
+         * [list_files](#list_files)
+         * [run_process](#run_process)
+      * [Miscellaneous Tools](#miscellaneous-tools)
+         * [user_input](#user_input)
+         * [request_approval](#request_approval)
+         * [validate_approval](#validate_approval)
+         * [consume_approval](#consume_approval)
 * [Defining Custom Tools](#defining-custom-tools)
-  * [Composing Statements](#composing-statements)
-  * [Template Variables](#template-variables)
+      * [Dynamic Key Resolution](#dynamic-key-resolution)
+   * [Composing Statements](#composing-statements)
+   * [Template Variables](#template-variables)
 
 <!-- Created by https://github.com/ekalinin/github-markdown-toc -->
+<!-- Added by: dmikhaylov, at: Wed Aug 20 15:49:14 EEST 2025 -->
+
+<!--te-->
 
 # Basic Structure
 
@@ -110,6 +116,30 @@ Defines the LLMs to use. There are two types of model configurations:
 - `rate_limiter`: Optional rate limiting configuration
 - `config`: Optional model-specific parameters (overrides main section parameters if used)
 
+```yaml
+models:
+  - name: default
+    provider: openai
+    model: gpt-4o
+    rate_limiter:
+      requests_per_second: 1.0
+      max_bucket_size: 10
+    # model specific parameters defined inline
+    temperature: 0.7
+    max_tokens: 1500
+
+  - name: thinking
+    provider: bedrock_converse
+    model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
+    config: # model specific parameters defined in separate section
+      temperature: 1
+      max_tokens: 32768
+      additional_model_request_fields:
+        thinking:
+          type: enabled
+          budget_tokens: 16000
+```
+
 ### Import Model Configuration
 - `name`: Identifier for the model
 - `import_from`: Fully-qualified Python class/function path for custom model implementation
@@ -121,53 +151,26 @@ The imported symbol can be:
 - A class (instantiated with config parameters)
 - A function/method (called with config parameters to create the model)
 
+```yaml
+models:
+  - name: custom_model
+    import_from: my_module.models.CustomChatModel
+    rate_limiter:
+      requests_per_second: 2.0
+      max_bucket_size: 5
+    config:
+      base_url: "https://api.example.com"
+      api_key: "your-api-key"
+      model_type: "advanced"
+      timeout: 30
+```
+
 ### Model Parameters
 
 Any extra parameters not defined above will be passed to the model. If model requires
 specific parameters that conflict with standard parameters, those specific parameters can be defined in the `config` section.
 In this case no parameters from main section will be passed to the model, only those defined in `config`.
 
-### Example Standard Model Configuration:
-```yaml
-models:
-  - name: default
-    provider: openai
-    model: gpt-4o
-    rate_limiter:
-      requests_per_second: 1.0
-      max_bucket_size: 10
-    temperature: 0.7
-    max_tokens: 1500
-
-  - name: thinking
-    provider: bedrock_converse
-    model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
-    config:
-      temperature: 1
-      max_tokens: 32768
-      additional_model_request_fields:
-        thinking:
-          type: enabled
-          budget_tokens: 16000
-```
-
-### Example Import Model Configuration:
-```yaml
-models:
-  - name: custom_model
-    import_from: my_module.models.CustomChatModel
-    api_key: "your-api-key"
-    base_url: "https://api.example.com"
-      
-  - name: factory_model
-    import_from: my_module.factories.create_model
-    rate_limiter:
-      requests_per_second: 2.0
-      max_bucket_size: 5
-    config:
-      model_type: "advanced"
-      timeout: 30
-```
 
 ## Tools Section
 
@@ -200,7 +203,6 @@ tools:
           url: "https://www.metacritic.com/search/{movie_title}/?page=1&category=2"
           xpath: "//*[@class=\"c-pageSiteSearch-results\"]"
       - call: _LLM
-        model: default
         params:
           prompt: >
             Find Metacritic score for movie "{movie_title}" released in {movie_year}.
@@ -212,6 +214,10 @@ tools:
             Possible matches:
             {output0}
 ```
+
+In addition to defining tools in the `tools` section, you can define tools inline within `call` statements and within 
+the `tools` configuration of LLMs. This provides flexibility for single-use tools or when you need to customize 
+tool behavior for specific calls. See relevant sections below.
 
 ## Shared Section
 
@@ -249,7 +255,7 @@ tools:
 ## Common Tool Parameters
 - `name`: Unique identifier for the tool. This name is used to reference the tool in other parts of the script.
   Names should be unique within the script and should not contain spaces or special characters. Tools with names starting with `_`
-  are considered to be "private". Those are not available for LLM use unless added to `tool_refs` list explicitly.
+  are considered to be "private". Those are not available for LLM use unless added to `tools` list explicitly.
 - `description`: Brief description of the tool's purpose. For imported tools is optional, and is taken from Python code if omitted.
 - `return_direct`: Optional, defaults to `false`. If `true`, the tool's result is returned directly to the user without
   further processing by the LLM. This is useful for tools that provide direct answers or results.
@@ -276,7 +282,11 @@ Configuration for interactive chat mode:
 - `user_banner`: Optional markdown-formatted text displayed at the beginning of chat session, defaults to not shown
 - `remove_past_reasoning`: Whether to hide past LLM reasoning from subsequent LLM calls, defaults to `false`
 - `show_reasoning`: Whether to display LLM reasoning process to user, defaults to `false`
-- `tools`: Optional list of tool names or inline tool definitions to make available to the LLM, defaults to all public tools (e.g. not starting with `_`)
+- `tools`: (Optional) List of tool names or inline tool definitions to make available for this LLM.
+  Defaults to all public tools (e.g. not starting with `_`). Supports:
+  - Tool names (strings): References to tools defined in the global tools section
+  - Inline tool definitions: Complete tool definitions with `name`, `import_from`/`input`, and other tool parameters
+  - Mixed usage: Combination of tool names and inline definitions
 - `auto_open_changed_files`: Whether to automatically open files modified during LLM call, defaults to `false`
 - `file_monitor_include`: List of glob patterns for files to monitor for changes, defaults to ['*']
 - `file_monitor_exclude`: List of glob patterns for files to exclude from monitoring, defaults to ['.*', '*.log']
@@ -310,6 +320,12 @@ chat:
     If unsure about the requirements, ask for clarification.
   default_prompt: |-
     Please run Python script to detect Python version.
+  tools:
+    # reference to tool defined in the tools section
+    - read_file
+    # inline tool definition
+    - name: _run_python_script
+      import_from: llm_workers.tools.unsafe.RunPythonScriptTool
 ```
 
 
@@ -388,7 +404,7 @@ cli:
       - result: "{input}: FIXED"
 ```
 
-# Using Python tools
+# Using Tools
 
 ## Importing Tools
 
@@ -404,7 +420,7 @@ Factory functions must conform to this signature:
 def build_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> BaseTool:
 ```
 
-### Examples:
+Examples:
 
 **Importing a tool class:**
 ```yaml
@@ -520,7 +536,8 @@ Creates a tool that allows calling an LLM with a prompt and returning its respon
 **Configuration Parameters**:
 - `model_ref`: (Optional) Reference to a model defined in the models section, defaults to "default"
 - `system_message`: (Optional) System message to use for this specific LLM tool
-- `tools`: (Optional) List of tool names or inline tool definitions to make available for this specific LLM tool, default to all public tools (e.g. not starting with `_`)
+- `tools`: (Optional) List of tool names or inline tool definitions to make available for this specific LLM tool.
+See `tools` definition in [Chat Section](#chat-section) for details.
 - `remove_past_reasoning`: (Optional) Whether to hide past LLM reasoning, defaults to false
 - `extract_json`: (Optional) Filters result to include only JSON blocks, defaults to "false".
 Useful for models without Structured Output, like Claude. Fallbacks to entire message if no "```json" blocks are found. Possible values:
@@ -908,7 +925,7 @@ The `body` section contains one or more statements that can be composed in vario
 
 ## `call` Statement
 
-Executes a specific tool with optional parameters. Tools can be referenced by name or defined inline.
+Executes a specific tool with optional parameters. Tools can be referenced by name or defined inline for single-use scenarios.
 
 **Call by name:**
 ```yaml
@@ -919,7 +936,7 @@ Executes a specific tool with optional parameters. Tools can be referenced by na
   catch: [error_type1, error_type2]  # Optional error handling
 ```
 
-**Inline tool definition:**
+**Inline tool definition (recommended for single-use tools):**
 ```yaml
 - call:
     name: tool_name
@@ -937,8 +954,32 @@ Executes a specific tool with optional parameters. Tools can be referenced by na
   catch: [error_type1, error_type2]  # Optional error handling
 ```
 
-Inline tool definitions allow you to define and use tools without pre-declaring them in the `tools` section. 
-This is useful for tools that are only used once or when you want to customize tool behavior for specific calls.
+**Inline custom tool definition:**
+```yaml
+- call:
+    name: custom_processor
+    description: "Processes data with custom logic"
+    input:
+      - name: data
+        description: "Data to process"
+        type: str
+    body:
+      - call: some_other_tool
+        params:
+          input: "{data}"
+      - result: "Processed: {output0}"
+  params:
+    data: "input_value"
+```
+
+Inline tool definitions provide maximum flexibility by allowing you to:
+- Define tools exactly where they're needed
+- Avoid cluttering the global tools section with single-use tools  
+- Customize tool behavior for specific contexts
+- Create specialized tool configurations without affecting other usages
+
+Like regular tool definitions, inline tools also support the `config` option for flexible parameter configuration, 
+which is particularly useful when dealing with complex tool configurations or potential property conflicts.
 
 ## `result` Statement
 

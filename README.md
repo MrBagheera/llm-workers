@@ -1,20 +1,25 @@
 Table of Contents
 =================
 
+<!--ts-->
 * [Project Overview](#project-overview)
-    * [Goals](#goals)
-    * [What This Project Is <em>Not</em>](#what-this-project-is-not)
+   * [Goals](#goals)
+   * [What This Project Is <em>Not</em>](#what-this-project-is-not)
 * [Configuration](#configuration)
+* [Example scripts](#example-scripts)
 * [Running](#running)
 * [Releases](#releases)
-    * [Next](#next)
-    * [Version 0.1.0](#version-010)
-    * [Version 0.1.1](#version-011)
-    * [Further Ideas](#further-ideas)
+   * [Next](#next)
+   * [Version 0.1.0](#version-010)
+   * [Version 0.1.1](#version-011)
+   * [Further Ideas](#further-ideas)
 * [Devlopment](#devlopment)
-    * [Packaging for release](#packaging-for-release)
+   * [Packaging for release](#packaging-for-release)
 
 <!-- Created by https://github.com/ekalinin/github-markdown-toc -->
+<!-- Added by: dmikhaylov, at: Wed Aug 20 16:26:22 EEST 2025 -->
+
+<!--te-->
 
 # Project Overview
 
@@ -43,6 +48,16 @@ to some web site.
 
 See [LLM Script.md](LLM%20Script.md) file for reference.
 
+# Example scripts
+
+The [`examples`](examples/) directory contains sample LLM scripts demonstrating various features:
+
+- **[Metacritic-monkey.yaml](examples/Metacritic-monkey.yaml)** - Custom tools with statement composition, web fetching tools, inline tool definitions, match statements with stubbed data, LLM tool integration, template variables, UI hints
+- **[explicit-approval-tools.yaml](examples/explicit-approval-tools.yaml)** - Explicit approval workflow with token-based confirmation system, custom tool composition with inline imports, approval tools (request/validate/consume), safe execution of potentially dangerous operations
+- **[find-concurrency-bugs.yaml](examples/find-concurrency-bugs.yaml)** - CLI mode with statement composition, AWS Bedrock model configuration with thinking mode, file reading tools, structured LLM output with JSON schema validation, inline tool definitions
+- **[navigation-planning.yaml](examples/navigation-planning.yaml)** - Multiple model configurations (OpenAI + Bedrock), web fetching tools with markdown conversion, nested custom tools, tool composition with return_direct flag, CLI mode with tool restrictions, chat mode configuration
+- **[reformat-Scala.yaml](examples/reformat-Scala.yaml)** - AWS Bedrock model configuration, CLI mode with complex file processing pipeline, match statements with conditional file operations, file I/O tools, LLM tool integration for code transformation
+- **[using-context-help-tool.yaml](examples/using-context-help-tool.yaml)** - Shared configuration section for reusable data, context help tools with dynamic key resolution, thinking mode configuration with rate limiting, chat mode with advanced model settings, literal type parameters
 
 # Running 
 
@@ -86,6 +101,11 @@ debug whole `llm_workers` package / debug all)
 - [0.1.0-rc3](https://github.com/MrBagheera/llm-workers/milestone/5)
 - [0.1.0-rc4](https://github.com/MrBagheera/llm-workers/milestone/6)
 - [0.1.0-rc5](https://github.com/MrBagheera/llm-workers/milestone/8)
+- [0.1.0-rc6](https://github.com/MrBagheera/llm-workers/milestone/9)
+- [0.1.0-rc7](https://github.com/MrBagheera/llm-workers/milestone/10)
+- [0.1.0-rc8](https://github.com/MrBagheera/llm-workers/milestone/11)
+- [0.1.0-rc9](https://github.com/MrBagheera/llm-workers/milestone/12)
+- [0.1.0-rc10](https://github.com/MrBagheera/llm-workers/milestone/13)
 
 ## Next
 

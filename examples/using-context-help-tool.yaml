@@ -1,3 +1,5 @@
+# Demonstrates: Shared configuration section for reusable data, context help tools with dynamic key resolution,
+# thinking mode configuration with rate limiting, chat mode with advanced model settings, literal type parameters
 # This is an experiment in using context help tool to provide additional information to the LLM.
 # The idea is that we have a tool that provides help on fixed list of topics, and we rely on LLM
 # to call it to get information relevant to fulfilling user request.

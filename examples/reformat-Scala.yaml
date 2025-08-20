@@ -1,3 +1,5 @@
+# Demonstrates: AWS Bedrock model configuration, CLI mode with complex file processing pipeline,
+# match statements with conditional file operations, file I/O tools, LLM tool integration for code transformation
 models:
   - name: default
     provider: bedrock
@@ -5,19 +7,15 @@ models:
     temperature: 0
     max_tokens: 32768
 
-tools:
-  - name: read_file
-    import_from: llm_workers.tools.unsafe.ReadFileTool
-  - name: write_file
-    import_from: llm_workers.tools.unsafe.WriteFileTool
-  - name: llm
-    import_from: llm_workers.tools.llm_tool.build_llm_tool
-
 cli:
-  - call: read_file
+  - call:
+      name: read_file
+      import_from: llm_workers.tools.unsafe.ReadFileTool
     params:
       filename: "{input}"
-  - call: llm
+  - call:
+      name: llm
+      import_from: llm_workers.tools.llm_tool.build_llm_tool
     params:
       prompt: |-
         You are senior Scala developer. Your job is to reformat give file according to the rules below. 
@@ -72,7 +70,9 @@ cli:
         then:
           result: "{input}: NO CHANGES"
     default:
-      - call: write_file
+      - call:
+          name: write_file
+          import_from: llm_workers.tools.unsafe.WriteFileTool
         params:
           filename: "{input}"
           content: "{output1}"

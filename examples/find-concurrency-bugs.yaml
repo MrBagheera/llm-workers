@@ -1,3 +1,5 @@
+# Demonstrates: CLI mode with statement composition, AWS Bedrock model configuration with thinking mode,
+# file reading tools, structured LLM output with JSON schema validation, inline tool definitions
 models:
   - name: default
     provider: bedrock_converse
@@ -9,17 +11,15 @@ models:
         type: enabled
         budget_tokens: 16000
 
-tools:
-  - name: read_file
-    import_from: llm_workers.tools.unsafe.ReadFileTool
-  - name: llm
-    import_from: llm_workers.tools.llm_tool.build_llm_tool
-
 cli:
-  - call: read_file
+  - call:
+      name: read_file
+      import_from: llm_workers.tools.unsafe.ReadFileTool
     params:
       filename: "{input}"
-  - call: llm
+  - call:
+      name: llm
+      import_from: llm_workers.tools.llm_tool.build_llm_tool
     params:
       prompt: |-
         You are senior C# developer. Your job is to inspect given file looking for potential concurrency issues. 

@@ -1,3 +1,5 @@
+# Demonstrates: Explicit approval workflow with token-based confirmation system, custom tool composition
+# with inline imports, approval tools (request/validate/consume), safe execution of potentially dangerous operations
 models:
   - name: default
     provider: openai
@@ -19,8 +21,7 @@ tools:
       - name: script
         description: Python script to run
         type: str
-#    ui_hint: '' # do not print
-    ui_hint: Running generated Python script  # print it just for fun
+    ui_hint: Running generated Python script  # print it just for fun, use '' to hide
     body:
       - call:
           name: _validate_approval

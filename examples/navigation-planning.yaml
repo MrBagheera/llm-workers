@@ -1,3 +1,5 @@
+# Demonstrates: Multiple model configurations (OpenAI + Bedrock), web fetching tools with markdown conversion,
+# nested custom tools, tool composition with return_direct flag, CLI mode with tool restrictions, chat mode configuration
 models:
   - name: default
     provider: openai
