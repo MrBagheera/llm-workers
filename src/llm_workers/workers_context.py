@@ -4,70 +4,23 @@ import logging
 from copy import copy
 from typing import Dict, Any
 
-from langchain.chat_models import init_chat_model
-from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
-from langchain_core.rate_limiters import InMemoryRateLimiter
 
-from llm_workers.api import WorkersContext, WorkerException, ExtendedBaseTool
-from llm_workers.config import WorkersConfig, load_config, StandardModelDefinition, ImportModelDefinition, \
-    ToolDefinition, ToolReference
+from llm_workers.api import WorkersContext, WorkerException, ExtendedBaseTool, UserContext
+from llm_workers.config import WorkersConfig, load_config, ToolDefinition, ToolReference
 from llm_workers.tools.custom_tool import build_custom_tool
 
 logger = logging.getLogger(__name__)
 
 
-class StandardContext(WorkersContext):
+class StandardWorkersContext(WorkersContext):
 
-    def __init__(self, config: WorkersConfig):
+    def __init__(self, config: WorkersConfig, user_context: UserContext):
         self._config = config
-        self._models = dict[str, BaseChatModel]()
+        self._user_context = user_context
         self._tools = dict[str, BaseTool]()
-        self._register_models()
         self._register_tools()
 
-    def _register_models(self):
-        # register models
-        for model_def in self._config.models:
-            model_params = copy(model_def.config) if model_def.config else model_def.model_extra
-            if model_def.rate_limiter:
-                model_params['rate_limiter'] = InMemoryRateLimiter(
-                    requests_per_second = model_def.rate_limiter.requests_per_second,
-                    check_every_n_seconds = model_def.rate_limiter.check_every_n_seconds,
-                    max_bucket_size = model_def.rate_limiter.max_bucket_size)
-            model: BaseChatModel
-            try:
-                if isinstance(model_def, StandardModelDefinition):
-                    model = init_chat_model(model_def.model, model_provider=model_def.provider,
-                                            configurable_fields=None, **model_params)
-                elif isinstance(model_def, ImportModelDefinition):
-                    # split model.import_from into module_name and symbol
-                    segments = model_def.import_from.split('.')
-                    module_name = '.'.join(segments[:-1])
-                    symbol_name = segments[-1]
-                    module = importlib.import_module(module_name)  # Import the module
-                    symbol = getattr(module, symbol_name, None)  # Retrieve the symbol
-                    if symbol is None:
-                        raise ValueError(f"Cannot import model from {model_def.import_from}: symbol {symbol_name} not found")
-                    elif isinstance(symbol, BaseChatModel):
-                        model = symbol
-                    elif inspect.isclass(symbol):
-                        model = symbol(**model_params) # use default constructor
-                    elif inspect.isfunction(symbol) or inspect.ismethod(symbol):
-                        model = symbol(**model_params) # use default constructor
-                    else:
-                        raise ValueError(f"Invalid symbol type {type(symbol)}")
-                    if not isinstance(model, BaseChatModel):
-                        raise ValueError(f"Invalid model type {type(model)}")
-                else:
-                    raise ValueError(f"Invalid config type {type(model_def)}")
-            except Exception as e:
-                raise WorkerException(f"Failed to create model {model_def.name}: {e}", e)
-
-            self._models[model_def.name] = model
-            logger.info(f"Registered model {model_def.name}")
-
-    # noinspection DuplicatedCode
     def _register_tools(self):
         for tool_def in self._config.tools:
             if tool_def.name in self._tools:
@@ -132,9 +85,9 @@ class StandardContext(WorkersContext):
         return tool
 
     @classmethod
-    def load(cls, script_name: str):
+    def load(cls, script_name: str, user_context: UserContext):
         logger.info(f"Loading {script_name}")
-        return cls(load_config(script_name))
+        return cls(load_config(script_name), user_context)
 
     @property
     def config(self) -> WorkersConfig:
@@ -159,9 +112,7 @@ class StandardContext(WorkersContext):
             raise ValueError(f"Tool {tool_ref} not found, available tools: {available_tools}")
 
     def get_llm(self, llm_name: str):
-        if llm_name in self._models:
-            return self._models[llm_name]
-        raise WorkerException(f"LLM {llm_name} not found")
+        return self._user_context.get_llm(llm_name)
 
     def get_start_tool_message(self, tool_name: str, tool_meta: Dict[str, Any], inputs: Dict[str, Any]) -> str | None:
         try:
@@ -185,3 +136,4 @@ class StandardContext(WorkersContext):
             logger.warning(f"Unexpected exception formating start message for tool {tool_name}: {e}", exc_info=True)
         # default
         return f"Running tool {tool_name}"
+

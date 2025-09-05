@@ -6,6 +6,8 @@ Table of Contents
    * [Goals](#goals)
    * [What This Project Is <em>Not</em>](#what-this-project-is-not)
 * [Configuration](#configuration)
+   * [User-specific Configuration](#user-specific-configuration)
+   * [LLM Scripts](#llm-scripts)
 * [Example scripts](#example-scripts)
 * [Running](#running)
 * [Releases](#releases)
@@ -17,7 +19,7 @@ Table of Contents
    * [Packaging for release](#packaging-for-release)
 
 <!-- Created by https://github.com/ekalinin/github-markdown-toc -->
-<!-- Added by: dmikhaylov, at: Wed Aug 20 16:26:22 EEST 2025 -->
+<!-- Added by: dmikhaylov, at: Mon Sep  8 06:50:59 EEST 2025 -->
 
 <!--te-->
 
@@ -40,6 +42,105 @@ Provide developers with a simple way to experiment with LLMs and LangChain:
 
 
 # Configuration
+
+## User-specific Configuration
+
+User-specific configuration is stored in `~/.config/llm-workers/config.yaml`.
+
+```yaml
+models:
+  - name: <model_name>
+    provider: <provider_name>
+    model: <model_id>
+    rate_limiter: # Optional
+      requests_per_second: <float>
+      check_every_n_seconds: <float> # Optional, defaults to 0.1
+      max_bucket_size: <float>
+    # Optional model parameters (any additional parameters are passed directly to the model)
+    temperature: <float>
+    max_tokens: <int>
+    # [additional parameters...]
+
+```
+
+On first launch, `llm-workers` CLI will guide you through initial setup. You can choose from:
+- **OpenAI presets**: Configure GPT-4o, GPT-4o-mini for the standard model slots
+- **Anthropic presets**: Configure Claude models for the standard model slots
+- **Manual configuration**: Set up custom model configurations
+
+### Models Section
+
+Defines the LLMs to use. Configuration must define at least those standard models:
+- `fast`: Optimized for speed and simple tasks
+- `default`: Balanced performance for most use cases
+- `thinking`: Advanced reasoning with internal thought processes
+
+There are two types of model configurations:
+
+#### Standard Model Configuration
+- `name`: Identifier for the model
+- `provider`: Service provider (e.g., `bedrock`, `bedrock_converse`, `openai`)
+- `model`: Model identifier
+- `rate_limiter`: Optional rate limiting configuration
+- `config`: Optional model-specific parameters (overrides main section parameters if used)
+
+```yaml
+models:
+  - name: default
+    provider: openai
+    model: gpt-4o
+    rate_limiter:
+      requests_per_second: 1.0
+      max_bucket_size: 10
+    # model specific parameters defined inline
+    temperature: 0.7
+    max_tokens: 1500
+
+  - name: thinking
+    provider: bedrock_converse
+    model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
+    config: # model specific parameters defined in separate section
+      temperature: 1
+      max_tokens: 32768
+      additional_model_request_fields:
+        thinking:
+          type: enabled
+          budget_tokens: 16000
+```
+
+#### Import Model Configuration
+- `name`: Identifier for the model
+- `import_from`: Fully-qualified Python class/function path for custom model implementation
+- `rate_limiter`: Optional rate limiting configuration
+- `config`: Optional parameters passed to the model constructor/factory (overrides main section parameters if used)
+
+The imported symbol can be:
+- A `BaseChatModel` instance (used directly)
+- A class (instantiated with config parameters)
+- A function/method (called with config parameters to create the model)
+
+```yaml
+models:
+  - name: custom_model
+    import_from: my_module.models.CustomChatModel
+    rate_limiter:
+      requests_per_second: 2.0
+      max_bucket_size: 5
+    config:
+      base_url: "https://api.example.com"
+      api_key: "your-api-key"
+      model_type: "advanced"
+      timeout: 30
+```
+
+#### Model Parameters
+
+Any extra parameters not defined above will be passed to the model. If model requires
+specific parameters that conflict with standard parameters, those specific parameters can be defined in the `config` section.
+In this case no parameters from main section will be passed to the model, only those defined in `config`.
+
+
+## LLM Scripts
 
 LLM scripts are YAML configuration files that define how to interact with large language models (LLMs) and what
 tools LLMs can use. You should treat them like a normal scripts. In particular - DO NOT run LLM scripts from

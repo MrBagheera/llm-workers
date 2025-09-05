@@ -13,4 +13,4 @@ if __name__ == "__main__":
 
     setup_logging(args)
 
-    chat_with_llm_script("llm_workers:generic-assistant.yaml", args)
+    chat_with_llm_script("llm_workers:generic-assistant.yaml")

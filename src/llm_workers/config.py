@@ -56,6 +56,10 @@ class ImportModelDefinition(ModelDefinition):
     import_from: str
 
 
+class UserConfig(BaseModel):
+    models: list[StandardModelDefinition | ImportModelDefinition] = ()
+
+
 StatementDefinition = TypeAliasType(
     'StatementDefinition',
     Union['CallDefinition', 'MatchDefinition', 'ResultDefinition'],
@@ -174,7 +178,6 @@ class ChatConfig(BaseLLMConfig):
 
 
 class WorkersConfig(BaseModel):
-    models: list[StandardModelDefinition | ImportModelDefinition] = ()
     tools: list[ToolDefinition] = ()
     shared: Dict[str, Json] = {}
     chat: Optional[ChatConfig] = None

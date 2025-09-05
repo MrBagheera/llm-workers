@@ -1,0 +1,19 @@
+models:
+  - name: fast
+    provider: anthropic
+    model: claude-3-5-haiku-20241022
+    temperature: 0
+    max_tokens: 32768
+  - name: default
+    provider: anthropic
+    model: claude-sonnet-4-20250514
+    temperature: 0
+    max_tokens: 32768
+  - name: thinking
+    provider: anthropic
+    model: claude-sonnet-4-20250514
+    temperature: 1
+    max_tokens: 32768
+    thinking:
+      type: enabled
+      budget_tokens: 16000

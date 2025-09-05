@@ -1,8 +1,7 @@
 import argparse
 import sys
-from argparse import Namespace
 from logging import getLogger
-from typing import Optional, Union, Any, Dict, List, Tuple
+from typing import Optional, Union, Any, Dict, List, Tuple, Callable
 from uuid import UUID
 
 from langchain_community.callbacks import get_openai_callback
@@ -15,9 +14,10 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 
-from llm_workers.api import ConfirmationRequest, CONFIDENTIAL
-from llm_workers.context import StandardContext
-from llm_workers.utils import setup_logging, LazyFormatter, find_and_load_dotenv, FileChangeDetector, \
+from llm_workers.api import ConfirmationRequest, CONFIDENTIAL, UserContext
+from llm_workers.workers_context import StandardWorkersContext
+from llm_workers.user_context import StandardUserContext
+from llm_workers.utils import setup_logging, LazyFormatter, FileChangeDetector, \
     open_file_in_default_app, is_safe_to_open, prepare_cache, get_key_press
 from llm_workers.worker import Worker
 
@@ -26,12 +26,12 @@ logger = getLogger(__name__)
 
 class _ChatSessionContext:
     worker: Worker
-    context: StandardContext
+    context: StandardWorkersContext
     script_name: str
 
-    def __init__(self, script_file: str):
+    def __init__(self, script_file: str, user_context: UserContext):
         self.script_name = script_file
-        self.context = StandardContext.load(script_file)
+        self.context = StandardWorkersContext.load(script_file, user_context)
         if not self.context.config.chat:
             raise ValueError(f"'chat' section is missing from '{self.script_name}'")
         self.worker = Worker(self.context.config.chat, self.context, top_level=True)
@@ -42,9 +42,12 @@ class _ChatSessionContext:
 
 
 class ChatSession:
-    def __init__(self, console: Console, script_name: str):
+    commands: dict[str, Callable[[list[str]], None]]
+
+    def __init__(self, console: Console, script_name: str, user_context: UserContext):
         self._console = console
-        self._chat_context = _ChatSessionContext(script_name)
+        self._user_context = user_context
+        self._chat_context = _ChatSessionContext(script_name, user_context)
         self._file_monitor: Optional[FileChangeDetector] = None
         self._iteration = 1
         self._messages = list[BaseMessage]()
@@ -150,7 +153,7 @@ class ChatSession:
         self._console.print(f"(Re)loading LLM script from {script_file}", style="bold white")
         logger.debug(f"Reloading LLM script from {script_file}")
         try:
-            self._chat_context = _ChatSessionContext(script_file)
+            self._chat_context = _ChatSessionContext(script_file, self._user_context)
         except Exception as e:
             self._console.print(f"Failed to load LLM script from {script_file}: {e}", style="bold red")
             logger.warning(f"Failed to load LLM script from {script_file}: {e}", exc_info=True)
@@ -360,22 +363,20 @@ class ChatSessionCallbackDelegate(BaseCallbackHandler):
             self._chat_session.process_confirmation_request(data)
 
 
-def chat_with_llm_script(script_name: str, args: Namespace):
+def chat_with_llm_script(script_name: str):
     """
     Load LLM script and chat with it.
 
     Args:
         script_name: The name of the script to run. Can be either file name or `module_name:resource.yaml`.
-        args: command line arguments to look for `--verbose` and `--debug`
     """
-    find_and_load_dotenv(".config/llm-workers/.env")
+    user_context = StandardUserContext.load()
+
     prepare_cache(create_dir=False)
 
-    # Create a console object for output
     console = Console()
 
-    # Create a chat session and run it
-    chat_session = ChatSession(console, script_name)
+    chat_session = ChatSession(console, script_name, user_context)
     with get_openai_callback() as cb:
         chat_session.run()
 
@@ -396,7 +397,7 @@ def main():
 
     setup_logging(debug_level = args.debug, verbosity = args.verbose, log_filename = "llm-workers.log")
 
-    chat_with_llm_script(args.script_file, args)
+    chat_with_llm_script(args.script_file)
 
 
 if __name__ == "__main__":

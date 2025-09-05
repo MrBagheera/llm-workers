@@ -167,14 +167,14 @@ def run_process(cmd: List[str]) -> str:
         raise RunProcessException(f"Sub-process [{cmd_str}] finished with exit code {exit_code}, result_len={len(result)}, stderr:\n{stderr_data}")
 
 
-def find_and_load_dotenv(path_from_home_dir: str):
+def find_and_load_dotenv(fallback_path: Path):
     """Tries to find and load .env file. Order:
     1. Current directory
     2. Parent directories of current directory
-    3. Home directory
+    3. Fallback path
 
     Args:
-        path_from_home_dir: path of the file within home directory
+        fallback_path: path of the file within home directory
     """
     env_path = None
     # 1. check current directory and parent directories
@@ -182,12 +182,10 @@ def find_and_load_dotenv(path_from_home_dir: str):
     if std_env_path and os.path.exists(std_env_path):
         env_path = std_env_path
 
-    # 2. check path within home directory
+    # 2. check fallback path
     if not env_path:
-        home_dir = os.path.expanduser("~")
-        path = os.path.join(home_dir, path_from_home_dir)
-        if os.path.exists(path):
-            env_path = path
+        if os.path.exists(fallback_path):
+            env_path = fallback_path
 
     if env_path:
         logger.info(f"Loading {env_path}")

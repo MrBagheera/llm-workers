@@ -11,6 +11,13 @@ CONFIDENTIAL: str = 'confidential'
 
 
 
+class UserContext(ABC):
+
+    @abstractmethod
+    def get_llm(self, llm_name: str) -> BaseChatModel:
+        pass
+
+
 class WorkersContext(ABC):
 
     @property

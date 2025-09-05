@@ -11,10 +11,6 @@ Table of Contents
 =================
 <!--ts-->
 * [Basic Structure](#basic-structure)
-   * [Models Section](#models-section)
-      * [Standard Model Configuration](#standard-model-configuration)
-      * [Import Model Configuration](#import-model-configuration)
-      * [Model Parameters](#model-parameters)
    * [Tools Section](#tools-section)
    * [Shared Section](#shared-section)
    * [Common Tool Parameters](#common-tool-parameters)
@@ -49,25 +45,13 @@ Table of Contents
    * [Template Variables](#template-variables)
 
 <!-- Created by https://github.com/ekalinin/github-markdown-toc -->
-<!-- Added by: dmikhaylov, at: Wed Aug 20 15:49:14 EEST 2025 -->
+<!-- Added by: dmikhaylov, at: Mon Sep  8 06:51:46 EEST 2025 -->
 
 <!--te-->
 
 # Basic Structure
 
 ```yaml
-models:
-  - name: <model_name>
-    provider: <provider_name>
-    model: <model_id>
-    rate_limiter: # Optional
-      requests_per_second: <float>
-      max_bucket_size: <int>
-    model_params: # Optional
-      temperature: <float>
-      max_tokens: <int>
-      # [additional parameters...]
-
 tools:
   - name: <tool_name>
     import_from: <import_path> # Required for importing tools
@@ -90,7 +74,7 @@ shared: # Optional shared configuration accessible to all tools
   # Can contain any JSON-serializable data
 
 chat: # For interactive chat mode
-  model_ref: <model_name> # Optional, references model by name. If not defined, uses model named "default".
+  model_ref: <model_name> # Optional, references model by name (fast/default/thinking). If not defined, uses "default".
   remove_past_reasoning: <boolean> # Optional
   show_reasoning: <boolean> # Optional
   auto_open_changed_files: <boolean> # Optional
@@ -104,73 +88,6 @@ chat: # For interactive chat mode
 cli: # For command-line interface
   <statement(s)> # List of statements for more complex flows
 ```
-
-## Models Section
-
-Defines the LLMs to use. There are two types of model configurations:
-
-### Standard Model Configuration
-- `name`: Identifier for the model
-- `provider`: Service provider (e.g., `bedrock`, `bedrock_converse`, `openai`)
-- `model`: Model identifier
-- `rate_limiter`: Optional rate limiting configuration
-- `config`: Optional model-specific parameters (overrides main section parameters if used)
-
-```yaml
-models:
-  - name: default
-    provider: openai
-    model: gpt-4o
-    rate_limiter:
-      requests_per_second: 1.0
-      max_bucket_size: 10
-    # model specific parameters defined inline
-    temperature: 0.7
-    max_tokens: 1500
-
-  - name: thinking
-    provider: bedrock_converse
-    model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
-    config: # model specific parameters defined in separate section
-      temperature: 1
-      max_tokens: 32768
-      additional_model_request_fields:
-        thinking:
-          type: enabled
-          budget_tokens: 16000
-```
-
-### Import Model Configuration
-- `name`: Identifier for the model
-- `import_from`: Fully-qualified Python class/function path for custom model implementation
-- `rate_limiter`: Optional rate limiting configuration
-- `config`: Optional parameters passed to the model constructor/factory (overrides main section parameters if used)
-
-The imported symbol can be:
-- A `BaseChatModel` instance (used directly)
-- A class (instantiated with config parameters)
-- A function/method (called with config parameters to create the model)
-
-```yaml
-models:
-  - name: custom_model
-    import_from: my_module.models.CustomChatModel
-    rate_limiter:
-      requests_per_second: 2.0
-      max_bucket_size: 5
-    config:
-      base_url: "https://api.example.com"
-      api_key: "your-api-key"
-      model_type: "advanced"
-      timeout: 30
-```
-
-### Model Parameters
-
-Any extra parameters not defined above will be passed to the model. If model requires
-specific parameters that conflict with standard parameters, those specific parameters can be defined in the `config` section.
-In this case no parameters from main section will be passed to the model, only those defined in `config`.
-
 
 ## Tools Section
 
@@ -276,7 +193,7 @@ more details on how to define and use tools.
 
 Configuration for interactive chat mode:
 
-- `model_ref`: References a model defined in the models section, defaults to "default"
+- `model_ref`: References a model configured in `~/.config/llm-workers/config.yaml` (fast/default/thinking), defaults to "default"
 - `system_message`: Instructions for the LLM's behavior
 - `default_prompt`: Initial prompt when starting the chat, defaults to empty string
 - `user_banner`: Optional markdown-formatted text displayed at the beginning of chat session, defaults to not shown
@@ -534,7 +451,7 @@ Based on the `llm_tool.py` file, here is documentation for the LLM tool function
 Creates a tool that allows calling an LLM with a prompt and returning its response.
 
 **Configuration Parameters**:
-- `model_ref`: (Optional) Reference to a model defined in the models section, defaults to "default"
+- `model_ref`: (Optional) Reference to a model configured in `~/.config/llm-workers/config.yaml` (fast/default/thinking), defaults to "default"
 - `system_message`: (Optional) System message to use for this specific LLM tool
 - `tools`: (Optional) List of tool names or inline tool definitions to make available for this specific LLM tool.
 See `tools` definition in [Chat Section](#chat-section) for details.

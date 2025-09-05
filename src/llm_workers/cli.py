@@ -7,9 +7,10 @@ from typing import Any
 from langchain_community.callbacks import get_openai_callback
 from langchain_core.runnables import Runnable
 
-from llm_workers.context import StandardContext
+from llm_workers.workers_context import StandardWorkersContext
+from llm_workers.user_context import StandardUserContext
 from llm_workers.tools.custom_tool import create_statement_from_model
-from llm_workers.utils import setup_logging, find_and_load_dotenv, prepare_cache
+from llm_workers.utils import setup_logging, prepare_cache
 
 
 def run_llm_script(script_name: str, parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
@@ -20,10 +21,11 @@ def run_llm_script(script_name: str, parser: argparse.ArgumentParser, args: argp
         parser: Argument parser for command-line arguments.
         args: parsed command line arguments to look for `--verbose`, `--debug` and positional arguments.
     """
-    find_and_load_dotenv(".config/llm-workers/.env")
+    user_context = StandardUserContext.load()
+
     prepare_cache(create_dir=False)
 
-    context = StandardContext.load(script_name)
+    context = StandardWorkersContext.load(script_name, user_context)
     if context.config.cli is None:
         parser.error(f"No CLI configuration found in {script_name}.")
 
