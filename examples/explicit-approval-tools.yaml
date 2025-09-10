@@ -1,10 +1,5 @@
 # Demonstrates: Explicit approval workflow with token-based confirmation system, custom tool composition
 # with inline imports, approval tools (request/validate/consume), safe execution of potentially dangerous operations
-models:
-  - name: default
-    provider: openai
-    model: gpt-4o
-
 tools:
   - name: show_plan_to_user
     import_from: llm_workers.tools.misc.RequestApprovalTool

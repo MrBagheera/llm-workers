@@ -1,10 +1,5 @@
 # Demonstrates: Custom tools with statement composition, web fetching tools, inline tool definitions,
 # match statements with stubbed data, LLM tool integration, template variables, UI hints
-models:
-  - name: default
-    provider: openai
-    model: gpt-4o
-
 tools:
   - name: _search_movie_on_metacritic_stub
     description: >

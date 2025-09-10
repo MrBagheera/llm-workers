@@ -155,12 +155,11 @@ The [`examples`](examples/) directory contains sample LLM scripts demonstrating 
 
 - **[Metacritic-monkey.yaml](examples/Metacritic-monkey.yaml)** - Custom tools with statement composition, web fetching tools, inline tool definitions, match statements with stubbed data, LLM tool integration, template variables, UI hints
 - **[explicit-approval-tools.yaml](examples/explicit-approval-tools.yaml)** - Explicit approval workflow with token-based confirmation system, custom tool composition with inline imports, approval tools (request/validate/consume), safe execution of potentially dangerous operations
-- **[find-concurrency-bugs.yaml](examples/find-concurrency-bugs.yaml)** - CLI mode with statement composition, AWS Bedrock model configuration with thinking mode, file reading tools, structured LLM output with JSON schema validation, inline tool definitions
-- **[navigation-planning.yaml](examples/navigation-planning.yaml)** - Multiple model configurations (OpenAI + Bedrock), web fetching tools with markdown conversion, nested custom tools, tool composition with return_direct flag, CLI mode with tool restrictions, chat mode configuration
-- **[reformat-Scala.yaml](examples/reformat-Scala.yaml)** - AWS Bedrock model configuration, CLI mode with complex file processing pipeline, match statements with conditional file operations, file I/O tools, LLM tool integration for code transformation
-- **[using-context-help-tool.yaml](examples/using-context-help-tool.yaml)** - Shared configuration section for reusable data, context help tools with dynamic key resolution, thinking mode configuration with rate limiting, chat mode with advanced model settings, literal type parameters
+- **[find-concurrency-bugs.yaml](examples/find-concurrency-bugs.yaml)** - CLI mode with statement composition, file reading tool, thinking model via model_ref, structured JSON output (by instruction)
+- **[navigation-planning.yaml](examples/navigation-planning.yaml)** - Web fetching tools with markdown conversion, nested custom tools, tool composition with return_direct flag, CLI mode with tool restrictions, chat mode configuration
+- **[reformat-Scala.yaml](examples/reformat-Scala.yaml)** - CLI mode with complex file processing pipeline, match statements with conditional file operations, file I/O tools, LLM tool integration for code transformation
 
-# Running 
+# Running
 
 Library comes with two command-line tools that can be used to run LLM scripts: `llm-workers-cli` and `llm-workers-chat`.
 

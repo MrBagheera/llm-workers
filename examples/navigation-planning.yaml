@@ -1,15 +1,5 @@
-# Demonstrates: Multiple model configurations (OpenAI + Bedrock), web fetching tools with markdown conversion,
+# Demonstrates: Web fetching tools with markdown conversion,
 # nested custom tools, tool composition with return_direct flag, CLI mode with tool restrictions, chat mode configuration
-models:
-  - name: default
-    provider: openai
-    model: gpt-4o
-  - name: claude_bedrock
-    provider: bedrock_converse
-    model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
-    temperature: 0
-    max_tokens: 32768
-
 tools:
   - name: fetch_page_markdown
     import_from: llm_workers.tools.fetch.FetchPageMarkdownTool

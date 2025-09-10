@@ -1,12 +1,5 @@
-# Demonstrates: AWS Bedrock model configuration, CLI mode with complex file processing pipeline,
+# Demonstrates: CLI mode with complex file processing pipeline,
 # match statements with conditional file operations, file I/O tools, LLM tool integration for code transformation
-models:
-  - name: default
-    provider: bedrock
-    model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
-    temperature: 0
-    max_tokens: 32768
-
 cli:
   - call:
       name: read_file
