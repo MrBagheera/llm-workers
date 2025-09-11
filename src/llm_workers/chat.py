@@ -363,14 +363,16 @@ class ChatSessionCallbackDelegate(BaseCallbackHandler):
             self._chat_session.process_confirmation_request(data)
 
 
-def chat_with_llm_script(script_name: str):
+def chat_with_llm_script(script_name: str, user_context: Optional[UserContext] = None):
     """
     Load LLM script and chat with it.
 
     Args:
-        script_name: The name of the script to run. Can be either file name or `module_name:resource.yaml`.
+        :param script_name: The name of the script to run. Can be either file name or `module_name:resource.yaml`.
+        :param user_context: custom implementation of UserContext if needed, defaults to StandardUserContext
     """
-    user_context = StandardUserContext.load()
+    if user_context is None:
+        user_context = StandardUserContext.load()
 
     prepare_cache(create_dir=False)
 

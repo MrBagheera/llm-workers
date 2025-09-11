@@ -2,26 +2,34 @@ import argparse
 import json
 import logging
 import sys
-from typing import Any
+from typing import Any, Optional
 
 from langchain_community.callbacks import get_openai_callback
 from langchain_core.runnables import Runnable
 
+from llm_workers.api import UserContext
 from llm_workers.workers_context import StandardWorkersContext
 from llm_workers.user_context import StandardUserContext
 from llm_workers.tools.custom_tool import create_statement_from_model
 from llm_workers.utils import setup_logging, prepare_cache
 
 
-def run_llm_script(script_name: str, parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+def run_llm_script(
+        script_name: str,
+        parser: argparse.ArgumentParser,
+        args: argparse.Namespace,
+        user_context: Optional[UserContext] = None
+) -> None:
     """Load LLM script and run it taking input from command line or stdin.
 
     Args:
-        script_name: The name of the script to run. Can be either file name or `module_name:resource.yaml`.
-        parser: Argument parser for command-line arguments.
-        args: parsed command line arguments to look for `--verbose`, `--debug` and positional arguments.
+        :param script_name: The name of the script to run. Can be either file name or `module_name:resource.yaml`.
+        :param parser: Argument parser for command-line arguments.
+        :param args: parsed command line arguments to look for `--verbose`, `--debug` and positional arguments.
+        :param user_context: custom implementation of UserContext if needed, defaults to StandardUserContext
     """
-    user_context = StandardUserContext.load()
+    if user_context is None:
+        user_context = StandardUserContext.load()
 
     prepare_cache(create_dir=False)
 
