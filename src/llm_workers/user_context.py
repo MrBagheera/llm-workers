@@ -97,9 +97,10 @@ class StandardUserContext(UserContext):
         print("To get started, we need to configure your AI models.\n")
 
         print("Which AI provider would you like to use?")
-        print("1. OpenAI (GPT models)")
-        print("2. Anthropic (Claude models)")
-        print("3. Custom configuration")
+        print("1. OpenAI (GPT-5 models, requires verified organization)")
+        print("2. OpenAI Old (GPT-4o, o3 models)")
+        print("3. Anthropic (Claude models)")
+        print("4. Custom configuration")
 
         while True:
             choice = input("\nEnter your choice (1-3): ").strip()
@@ -109,10 +110,14 @@ class StandardUserContext(UserContext):
                 cls._setup_api_key(config_env_path, "openai")
                 break
             elif choice == "2":
+                cls._copy_default_models(config_path, "openai-old")
+                cls._setup_api_key(config_env_path, "openai")
+                break
+            elif choice == "3":
                 cls._copy_default_models(config_path, "anthropic")
                 cls._setup_api_key(config_env_path, "anthropic")
                 break
-            elif choice == "3":
+            elif choice == "4":
                 cls._show_custom_example(config_path)
                 sys.exit(254)  # Exit to let user edit config
                 break
