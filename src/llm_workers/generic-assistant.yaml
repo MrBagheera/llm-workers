@@ -1,18 +1,3 @@
-models:
-  - name: default
-    provider: anthropic
-    model: claude-sonnet-4-20250514
-    temperature: 0
-    max_tokens: 32768
-  - name: bedrock
-    provider: bedrock_converse
-    model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
-    rate_limiter: # My AWS account has limit of only 4 requests per minute!!!
-      requests_per_second: 0.06666666666666667
-      max_bucket_size: 4
-    temperature: 0
-    max_tokens: 32768
-
 tools:
   - name: read_file
     import_from: llm_workers.tools.unsafe.ReadFileTool
