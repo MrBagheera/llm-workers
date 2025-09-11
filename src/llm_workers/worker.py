@@ -25,6 +25,7 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
 
     def __init__(self, llm_config: BaseLLMConfig, context: WorkersContext, top_level: bool = False):
         self._llm_config = llm_config
+        self._context = context
         self._system_message: Optional[SystemMessage] = None
         if llm_config.system_message is not None:
             self._system_message = SystemMessage(llm_config.system_message)
@@ -45,6 +46,26 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
         if len(tools) > 0:
             self._llm = self._llm.bind_tools(tools)
         self._direct_tools = set([tool.name for tool in tools if tool.return_direct])
+
+    @property
+    def model_ref(self) -> str:
+        """Get the current model reference."""
+        return self._llm_config.model_ref
+
+    @model_ref.setter
+    def model_ref(self, model_ref: str) -> None:
+        """Set the model reference and reinitialize the LLM."""
+        if model_ref == self._llm_config.model_ref:
+            return  # No change needed
+        
+        self._llm_config.model_ref = model_ref
+        new_llm = self._context.get_llm(model_ref)
+        
+        # Re-bind tools if we have any
+        if len(self._tools) > 0:
+            self._llm = new_llm.bind_tools(list(self._tools.values()))
+        else:
+            self._llm = new_llm
 
     def invoke(self, input: List[BaseMessage], config: Optional[RunnableConfig] = None, stream: bool = False, **kwargs: Any) -> List[BaseMessage]:
         result = []

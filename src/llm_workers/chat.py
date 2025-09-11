@@ -57,6 +57,7 @@ class ChatSession:
             "reload": self._reload,
             "rewind": self._rewind,
             "bye": self._bye,
+            "model": self._model,
         }
         self._finished = False
         self._pre_input = ""
@@ -65,6 +66,7 @@ class ChatSession:
         self._streamed_reasoning_index: Optional[int] = None
         self._has_unfinished_output = False
         self._running_tools_depths = {}
+        self._available_models = [model.name for model in self._user_context.models]
 
     @property
     def _chat_config(self):
@@ -87,7 +89,7 @@ class ChatSession:
                     print()
                     print()
                 self._console.print(f"#{self._iteration} Your input:", style="bold green", end="")
-                self._console.print(" (Meta+Enter or Escape,Enter to submit, /help for commands list)", style="grey69 italic")
+                self._console.print(f" (Model: {self._chat_context.worker.model_ref}, Meta+Enter or Escape,Enter to submit, /help for commands list)", style="grey69 italic")
                 text = session.prompt(default=self._pre_input.strip(), multiline=True)
                 self._pre_input = ""
                 if self._parse_and_run_command(text):
@@ -198,6 +200,31 @@ class ChatSession:
     def _bye(self, params: list[str]):
         """- Ends chat session"""
         self._finished = True
+
+    def _model(self, params: list[str]):
+        """<model> - Switch to specified model (fast, default, thinking)"""
+        if len(params) != 1:
+            self._console.print("Usage: /model <model_name>", style="bold red")
+            self._console.print(f"Available models: {', '.join(self._available_models)}", style="bold white")
+            return
+        
+        model_name = params[0]
+        if model_name not in self._available_models:
+            self._console.print(f"Unknown model: {model_name}", style="bold red")
+            self._console.print(f"Available models: {', '.join(self._available_models)}", style="bold white")
+            return
+        
+        if model_name == self._chat_context.worker.model_ref:
+            self._console.print(f"Already using model: {model_name}", style="bold white")
+            return
+        
+        try:
+            # Use the Worker's model_ref setter to switch models
+            self._chat_context.worker.model_ref = model_name
+            self._console.print(f"Switched to model: {model_name}", style="bold green")
+        except Exception as e:
+            self._console.print(f"Failed to switch to model {model_name}: {e}", style="bold red")
+            logger.warning(f"Failed to switch to model {model_name}: {e}", exc_info=True)
 
     def process_model_chunk(self, token: str, message: Optional[BaseMessage]):
         self._streamed_message_id = message.id if message is not None else None

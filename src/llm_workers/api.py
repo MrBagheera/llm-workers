@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional, Callable, List
 from langchain_core.tools import BaseTool
 from langchain_core.language_models import BaseChatModel
 
-from llm_workers.config import WorkersConfig, ToolDefinition, ToolReference
+from llm_workers.config import WorkersConfig, ToolDefinition, ToolReference, ModelDefinition
 
 # Flag for confidential messages (not shown to LLM)
 CONFIDENTIAL: str = 'confidential'
@@ -12,6 +12,12 @@ CONFIDENTIAL: str = 'confidential'
 
 
 class UserContext(ABC):
+
+    @property
+    @abstractmethod
+    def models(self) -> List[ModelDefinition]:
+        """Get list of available model definitions."""
+        pass
 
     @abstractmethod
     def get_llm(self, llm_name: str) -> BaseChatModel:

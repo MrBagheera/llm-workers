@@ -12,7 +12,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.rate_limiters import InMemoryRateLimiter
 
 from llm_workers.api import WorkerException, UserContext
-from llm_workers.config import UserConfig, StandardModelDefinition, ImportModelDefinition
+from llm_workers.config import UserConfig, StandardModelDefinition, ImportModelDefinition, ModelDefinition
 from llm_workers.utils import find_and_load_dotenv
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,11 @@ class StandardUserContext(UserContext):
         self._user_config = user_config
         self._models = dict[str, BaseChatModel]()
         self._register_models()
+
+    @property
+    def models(self) -> list[ModelDefinition]:
+        """Get list of available model definitions."""
+        return self._user_config.models
 
     def _register_models(self):
         # register models
