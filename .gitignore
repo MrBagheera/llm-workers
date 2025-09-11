@@ -7,6 +7,10 @@ __pycache__/
 # (Poetry defaults to ~/.cache/pypoetry for venvs unless configured otherwise)
 .venv/
 
+# GitHub Copilot config
+/.github/
+
+
 # Distribution / packaging
 build/
 dist/
