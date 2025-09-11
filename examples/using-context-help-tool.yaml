@@ -1,0 +1,120 @@
+# WIP for https://github.com/MrBagheera/llm-workers/issues/5
+shared:
+  docs:
+    player: |-
+      Player data is stored as big JSON object in the database and has unique identifier.
+      
+      Here is Pydantic class describing most important fields of player JSON:
+      ```python
+      class GooglePlayLogin(BaseModel):
+          id: str
+          encrypted_name: str
+      
+      class GameCenterLogin(BaseModel):
+          id: str
+          encrypted_name: str
+      
+      class RegisteredInfo(BaseModel):
+          timestamp: datetime
+          platform: str
+          country: str
+      
+      class Player(BaseModel):
+          id: str = Field(alias="_id")
+          google_play_login: Optional[GooglePlayLogin]
+          game_center_login: Optional[GameCenterLogin]
+          version: int
+          progress: GameProgress
+          progress_hash: int
+          progress_version: int
+          last_active: datetime
+          language: Optional[str] = None
+          registered: Optional[RegisteredInfo] = None
+          pending_ops: Dict[str, Any] = Field(default={{}})
+          last_updated: datetime
+      ```
+    game_progress: |-
+      The data describing player's progress through the game is often referred to as "game progress" or `GameProgress`.
+      
+      `GameProgress` is stored both on the client and on the server, and is updated sequentially via operations.
+      
+      Here is Pydantic class describing most important fields of game progress JSON:
+       ```python
+      class GameProgress(BaseModel):
+        config_id: int
+        resource1: int
+        coins: int
+        resource2: int
+        random: DeterministicRandom
+        resource3: int
+        seen_trophies: int
+        time: int
+        trophies: int
+        # many other fields
+      ```
+
+    operations: |-
+      Player's game progress is updated via sequentially applied operations. 
+      
+      Most important fields of operations JSON:
+      ```python
+      class Operation(BaseModel):
+          operation_type: str
+          time: int
+          hash: int
+          # Additional fields depend on the operation type
+
+    progress_logs: |-
+      Each operation applied to game progress results in progress log record.
+      
+      Most important fields of progress log JSON:
+      ```python
+      class ProgressDiffItem(BaseModel):
+          was: Any
+          now: Any
+      
+      class ProgressLog(BaseModel):
+          operation: Operation
+          player_id: str
+          progress_version: int
+          timestamp: datetime
+          progress_diff: Dict[str, Any] # contains nested dictionaries and lists with ProgressDiffItem for changed field  
+      ```
+
+tools:
+
+  - name: read_docs
+    description: |-
+      Provides additional information on certain topics.
+      **IMPORTANT**: information is static, so this tool MUST BE called only ONCE per topic per session.
+    input:
+      - name: topic
+        description: "Topic to get information about"
+        type: "literal:player|game_progress|operations|conflicts|progress_logs|client_logs"
+    ui_hint: "Reading about {topic}"
+    body:
+      result: "{shared[docs]}"
+      key: "{topic}"
+      default: "No extra info for topic '{topic}'"
+
+chat:
+  model_ref: thinking
+  remove_past_reasoning: true
+  show_reasoning: true
+  auto_open_changed_files: true
+  system_message: |-
+    You are AI assistant in a mobile game company.
+    
+    Your team is investigating issues in a live game. Your task is to help your team by writing 
+    and running Python scripts to fetch and connect data from various sources.
+    
+    Unless explicitly asked by user, write script result to promptly named file in the current directory,
+    output only progress information and file name. Prefer '.json' as output format.
+    
+    If unsure about the requirements or data format, DO NOT MAKE ASSUMPTIONS. 
+    Use `read_docs` tool to get more information on topics related to user's request. 
+    Call it ONLY ONCE FOR EACH TOPIC per session. If still unsure, ask for user for clarification.
+  default_prompt: |-
+    Please write Python script to read file `players.json` that contains a list of player JSON records, and print only 
+    IDs of those who have game center logins and have more than 1000 gems.
+
