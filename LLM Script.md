@@ -40,12 +40,15 @@ Table of Contents
          * [validate_approval](#validate_approval)
          * [consume_approval](#consume_approval)
 * [Defining Custom Tools](#defining-custom-tools)
+   * [call Statement](#call-statement)
+   * [result Statement](#result-statement)
       * [Dynamic Key Resolution](#dynamic-key-resolution)
+   * [match Statement](#match-statement)
    * [Composing Statements](#composing-statements)
    * [Template Variables](#template-variables)
 
 <!-- Created by https://github.com/ekalinin/github-markdown-toc -->
-<!-- Added by: dmikhaylov, at: Mon Sep  8 06:51:46 EEST 2025 -->
+<!-- Added by: dmikhaylov, at: Thu Sep 11 12:23:19 EEST 2025 -->
 
 <!--te-->
 
@@ -371,7 +374,7 @@ any imported library, or [define your own](https://python.langchain.com/docs/con
 
 ### Web Fetching Tools
 
-#### `fetch_content`
+#### fetch_content
 
 ```yaml
 - name: fetch_content
@@ -386,7 +389,7 @@ Fetches raw content from a given URL and returns it as a string.
 - `on_no_content`: (Optional) What to do if no matching content is found ('raise_exception', 'return_error', 'return_empty')
 - `on_error`: (Optional) What to do if an error occurs ('raise_exception', 'return_error', 'return_empty')
 
-#### `fetch_page_markdown`
+#### fetch_page_markdown
 
 ```yaml
 - name: fetch_page_markdown
@@ -402,7 +405,7 @@ Fetches web page or page element and converts it to markdown.
 - `on_no_content`: (Optional) What to do if no matching content is found
 - `on_error`: (Optional) What to do if an error occurs
 
-#### `fetch_page_text`
+#### fetch_page_text
 
 ```yaml
 - name: fetch_page_text
@@ -418,7 +421,7 @@ Fetches the text from web page or web page element.
 - `on_no_content`: (Optional) What to do if no matching content is found
 - `on_error`: (Optional) What to do if an error occurs
 
-#### `fetch_page_links`
+#### fetch_page_links
 
 ```yaml
 - name: fetch_page_links
@@ -441,7 +444,7 @@ Based on the `llm_tool.py` file, here is documentation for the LLM tool function
 
 ### LLM Tool
 
-#### `build_llm_tool`
+#### build_llm_tool
 
 ```yaml
 - name: llm
@@ -524,7 +527,7 @@ Based on the `unsafe.py` file, here are the available tools that interact with t
 
 These tools provide access to the file system and allow code execution, which makes them potentially unsafe for use with untrusted inputs:
 
-#### `read_file`
+#### read_file
 
 ```yaml
 - name: read_file
@@ -537,7 +540,7 @@ Reads a file and returns its content.
 - `filename`: Path to the file to read
 - `lines`: (Optional) Number of lines to read. If 0 (default), reads the entire file. If negative, reads from the end of file (tail)
 
-#### `write_file`
+#### write_file
 
 ```yaml
 - name: write_file
@@ -551,7 +554,7 @@ Writes content to a file.
 - `content`: Content to write
 - `append`: (Optional) If true, append to the file instead of overwriting it (default: false)
 
-#### `run_python_script`
+#### run_python_script
 
 ```yaml
 - name: run_python_script
@@ -575,7 +578,7 @@ Runs a Python script and returns its output.
 - Requires user confirmation by default
 - Raises `ToolException` if script returns non-zero exit code or encounters errors
 
-#### `show_file`
+#### show_file
 
 ```yaml
 - name: show_file
@@ -587,7 +590,7 @@ Opens a file in the OS default application.
 **Parameters:**
 - `filename`: Path to the file to open
 
-#### `bash`
+#### bash
 
 ```yaml
 - name: bash
@@ -607,7 +610,7 @@ Executes a bash script and returns its output.
 - Deletes the script file after execution
 - Requires user confirmation by default
 
-#### `list_files`
+#### list_files
 
 ```yaml
 - name: list_files
@@ -623,7 +626,7 @@ Lists files and directories with optional detailed information.
 - `times`: (Optional) Whether to show creation and modification times (default: false)
 - `sizes`: (Optional) Whether to show file sizes (default: false)
 
-#### `run_process`
+#### run_process
 
 ```yaml
 - name: run_process
@@ -645,7 +648,7 @@ Runs a system process and returns its output.
 
 ### Miscellaneous Tools
 
-#### `user_input`
+#### user_input
 
 ```yaml
 - name: user_input
@@ -695,7 +698,7 @@ This approach allows you to quickly prototype and test tool interactions before 
 
 
 
-#### `request_approval`
+#### request_approval
 
 The approval tools provide a way to require explicit user confirmation for potentially dangerous operations through a token-based system:
 
@@ -718,7 +721,7 @@ Shows a prompt to the user for approval and returns an approval token that can b
 - Stores token (and original prompt) in module-local memory for validation
 - Not shown in UI by default
 
-#### `validate_approval`
+#### validate_approval
 
 ```yaml
 - name: validate_approval
@@ -738,7 +741,7 @@ Validates that an approval token exists and has not been consumed.
 - Does not require user confirmation
 - Not shown in UI by default
 
-#### `consume_approval`
+#### consume_approval
 
 ```yaml
 - name: consume_approval
@@ -840,7 +843,7 @@ later be referenced in the `body` section using the `{param_name}` syntax.
 
 The `body` section contains one or more statements that can be composed in various ways:
 
-## `call` Statement
+## call Statement
 
 Executes a specific tool with optional parameters. Tools can be referenced by name or defined inline for single-use scenarios.
 
@@ -898,7 +901,7 @@ Inline tool definitions provide maximum flexibility by allowing you to:
 Like regular tool definitions, inline tools also support the `config` option for flexible parameter configuration, 
 which is particularly useful when dealing with complex tool configurations or potential property conflicts.
 
-## `result` Statement
+## result Statement
 
 Returns a specific value directly.
 
@@ -966,7 +969,7 @@ With default value for missing keys:
 # Returns user_data[field_to_extract] or "field_not_found" if key doesn't exist
 ```
 
-## `match` Statement
+## match Statement
 
 Conditionally executes different actions based on matching patterns:
 
