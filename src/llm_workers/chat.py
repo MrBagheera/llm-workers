@@ -392,7 +392,7 @@ def main():
     )
     parser.add_argument('--verbose', action='count', default=0, help="Enable verbose output. Can be used multiple times to increase verbosity.")
     parser.add_argument('--debug', action='count', default=0, help="Enable debug mode. Can be used multiple times to increase verbosity.")
-    parser.add_argument('script_file', type=str, help="Path to the script file.")
+    parser.add_argument('script_file', type=str, nargs='?', help="Path to the script file. Generic assistant script will be used if omitted.", default="llm_workers:generic-assistant.yaml")
     args = parser.parse_args()
 
     setup_logging(debug_level = args.debug, verbosity = args.verbose, log_filename = "llm-workers.log")
