@@ -4353,4 +4353,4 @@ dev = ["boto3", "langchain-aws"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "12355d6c4306e7af544a116a5bbe927428d90be7e02c49871e06f5564b36e904"
+content-hash = "cf413e3ff083a45a76146b5a9ec7ad1c6d2c90f108fffe5dc55d85fef8113b75"
