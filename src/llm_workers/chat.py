@@ -58,6 +58,7 @@ class ChatSession:
             "rewind": self._rewind,
             "bye": self._bye,
             "model": self._model,
+            "show_reasoning": self._show_reasoning,
         }
         self._finished = False
         self._pre_input = ""
@@ -67,6 +68,7 @@ class ChatSession:
         self._has_unfinished_output = False
         self._running_tools_depths = {}
         self._available_models = [model.name for model in self._user_context.models]
+        self._show_reasoning = self._chat_config.show_reasoning
 
     @property
     def _chat_config(self):
@@ -204,7 +206,7 @@ class ChatSession:
     def _model(self, params: list[str]):
         """<model> - Switch to specified model (fast, default, thinking)"""
         if len(params) != 1:
-            self._console.print("Usage: /model <model_name>", style="bold red")
+            self._console.print("Usage: /model <model_name>", style="bold white")
             self._console.print(f"Available models: {', '.join(self._available_models)}", style="bold white")
             return
         
@@ -226,9 +228,31 @@ class ChatSession:
             self._console.print(f"Failed to switch to model {model_name}: {e}", style="bold red")
             logger.warning(f"Failed to switch to model {model_name}: {e}", exc_info=True)
 
+    def _show_reasoning(self, params: list[str]):
+        """[true|false] - Enable or disable reasoning display"""
+        if len(params) == 0:
+            # Show current state
+            self._console.print(f"Show reasoning: {self._show_reasoning}", style="bold white")
+            return
+        
+        if len(params) != 1:
+            self._console.print("Usage: /show_reasoning [true|false]", style="bold red")
+            return
+        
+        param = params[0].lower()
+        if param in ['true', '1', 'on', 'yes']:
+            self._show_reasoning = True
+            self._console.print("Reasoning display enabled", style="bold green")
+        elif param in ['false', '0', 'off', 'no']:
+            self._show_reasoning = False
+            self._console.print("Reasoning display disabled", style="bold green")
+        else:
+            self._console.print("Usage: /show_reasoning [true|false]", style="bold red")
+            self._console.print("Valid values: true, false, 1, 0, on, off, yes, no", style="bold white")
+
     def process_model_chunk(self, token: str, message: Optional[BaseMessage]):
         self._streamed_message_id = message.id if message is not None else None
-        if message is not None and isinstance(message, AIMessage) and self._chat_config.show_reasoning:
+        if message is not None and isinstance(message, AIMessage) and self._show_reasoning:
             reasoning = self._extract_reasoning(message)
             if len(reasoning) > 0:
                 if self._has_unfinished_output:
@@ -261,7 +285,7 @@ class ChatSession:
             if isinstance(message, AIMessage):
                 self._streamed_message_id = None
                 return
-        if self._chat_config.show_reasoning:
+        if self._show_reasoning:
             reasoning = self._extract_reasoning(message)
             if len(reasoning) > 0:
                 self._console.print("Reasoning:", style="bold white")
@@ -287,12 +311,15 @@ class ChatSession:
                 if isinstance(block, dict):
                     # noinspection PyShadowingBuiltins
                     type = block.get('type', None)
+                    text = None
                     if type == 'reasoning_content':
                         reasoning_content = block.get("reasoning_content", {})
                         text = reasoning_content.get("text", None)
-                        if text is not None:
-                            index = block.get('index', i)
-                            reasoning.append((index, str(text)))
+                    elif type == 'reasoning':
+                        text = block.get("text", None)
+                    if text is not None:
+                        index = block.get('index', i)
+                        reasoning.append((index, str(text)))
                 i = i + 1
         return reasoning
 
