@@ -130,7 +130,8 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                     yield message # return delayed messages from previous tool call cycles
                 return
 
-    def _filter_outgoing_messages(self, input, next_index):
+    @staticmethod
+    def _filter_outgoing_messages(input, next_index):
         for i in range(next_index, len(input)):
             message = input[i]
             if isinstance(message, AIMessage):
@@ -138,19 +139,6 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
                 if getattr(message, CONFIDENTIAL, False):
                     message = message.model_copy(update={'content': '[CONFIDENTIAL]'}, deep=False)
                     input[i] = message
-                if self._llm_config.remove_past_reasoning:
-                    # do not send reasoning content
-                    if isinstance(message.content, list):
-                        fixed_content: Optional[list] = None
-                        for block in message.content:
-                            if isinstance(block, dict):
-                                if block.get("type") == "reasoning_content":
-                                    if fixed_content is None:
-                                        fixed_content = message.content.copy()
-                                    fixed_content.remove(block)
-                        if fixed_content is not None:
-                            message = message.model_copy(update={'content': fixed_content}, deep=False)
-                            input[i] = message
 
     def _invoke_llm(self, stream: bool, input: List[BaseMessage], config: Optional[RunnableConfig], **kwargs: Any) -> BaseMessage:
         if llm_calls_logger.isEnabledFor(logging.DEBUG):

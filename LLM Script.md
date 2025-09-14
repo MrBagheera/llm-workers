@@ -78,7 +78,6 @@ shared: # Optional shared configuration accessible to all tools
 
 chat: # For interactive chat mode
   model_ref: <model_name> # Optional, references model by name (fast/default/thinking). If not defined, uses "default".
-  remove_past_reasoning: <boolean> # Optional
   show_reasoning: <boolean> # Optional
   auto_open_changed_files: <boolean> # Optional
   user_banner: | # Optional, markdown-formatted text displayed at the beginning of chat
@@ -200,7 +199,6 @@ Configuration for interactive chat mode:
 - `system_message`: Instructions for the LLM's behavior
 - `default_prompt`: Initial prompt when starting the chat, defaults to empty string
 - `user_banner`: Optional markdown-formatted text displayed at the beginning of chat session, defaults to not shown
-- `remove_past_reasoning`: Whether to hide past LLM reasoning from subsequent LLM calls, defaults to `false`
 - `show_reasoning`: Whether to display LLM reasoning process to user, defaults to `false`
 - `tools`: (Optional) List of tool names or inline tool definitions to make available for this LLM.
   Defaults to all public tools (e.g. not starting with `_`). Supports:
@@ -215,7 +213,6 @@ Configuration for interactive chat mode:
 ```yaml
 chat:
   model_ref: thinking
-  remove_past_reasoning: true
   show_reasoning: true
   auto_open_changed_files: true
   user_banner: |

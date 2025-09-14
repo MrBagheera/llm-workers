@@ -99,7 +99,6 @@ tools:
 
 chat:
   model_ref: thinking
-  remove_past_reasoning: true
   show_reasoning: true
   auto_open_changed_files: true
   system_message: |-

@@ -1,11 +1,12 @@
 from __future__ import annotations
+
 import importlib.resources
 from abc import ABC
 from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict
 
 import yaml
 from langchain_core.prompts import PromptTemplate
-from pydantic import BaseModel, model_validator, Field, PrivateAttr, ConfigDict
+from pydantic import BaseModel, model_validator, PrivateAttr, ConfigDict
 from pydantic import ValidationError, WrapValidator
 from pydantic_core import PydanticCustomError
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler, ValidationInfo
@@ -160,8 +161,7 @@ class BaseLLMConfig(BaseModel):
     model_ref: str = "default"
     system_message: str = None
     tools: Optional[List[ToolReference]] = None
-    remove_past_reasoning: bool = False # experimental - to test on bigger chats.
-                                        # If it proves to bring no benefits, remove it
+
 
 class ToolLLMConfig(BaseLLMConfig):
     extract_json: Optional[Union[bool, str]] = None
