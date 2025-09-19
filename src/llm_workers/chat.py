@@ -18,7 +18,7 @@ from llm_workers.api import ConfirmationRequest, CONFIDENTIAL, UserContext
 from llm_workers.workers_context import StandardWorkersContext
 from llm_workers.user_context import StandardUserContext
 from llm_workers.utils import setup_logging, LazyFormatter, FileChangeDetector, \
-    open_file_in_default_app, is_safe_to_open, prepare_cache, get_key_press
+    open_file_in_default_app, is_safe_to_open, prepare_cache, get_key_press, is_cache_prepared
 from llm_workers.worker import Worker
 
 logger = getLogger(__name__)
@@ -428,7 +428,7 @@ def chat_with_llm_script(script_name: str, user_context: Optional[UserContext] =
     if user_context is None:
         user_context = StandardUserContext.load()
 
-    prepare_cache(create_dir=False)
+    prepare_cache()
 
     console = Console()
 

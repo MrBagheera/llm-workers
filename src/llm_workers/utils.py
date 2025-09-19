@@ -23,33 +23,103 @@ logger =  logging.getLogger(__name__)
 
 # Global variable to track when we last cleaned the cache
 _last_cache_cleaning_time = 0
+# Cache configuration/state
+_cache_dir: str = '.cache'
+_cache_ttl: Optional[int] = None  # also serves as "prepared" flag
+_cache_warning_emitted: bool = False
 
-def prepare_cache(ttl: int = 3600*24, create_dir: bool = True) -> str:
-    """Prepares cache directory and cleans up old files.
+
+def _ensure_cache_dir_exists(create: bool = True) -> str:
+    """Ensure cache directory exists and return its path.
+    If create is False, do not create the directory if missing.
+    """
+    if create and not os.path.exists(_cache_dir):
+        os.makedirs(_cache_dir, exist_ok=True)
+    return _cache_dir
+
+
+_cache_cleanup_interval_sec = 300  # 5 minutes
+
+def is_cache_prepared() -> bool:
+    """Check if cache is prepared (i.e., prepare_cache was called)."""
+    return _cache_ttl is not None
+
+def _prepare_cache(create_dir: bool, now: Optional[float] = None) -> str:
+    """Cleanup expired cache files if prepared; otherwise warn once.
+    Does not create the cache dir; if not present, silently returns.
+    """
+    global _cache_dir, _last_cache_cleaning_time, _cache_warning_emitted, _cache_cleanup_interval_sec
+
+    dir_exists = os.path.exists(_cache_dir)
+    if not dir_exists and create_dir:
+        os.makedirs(_cache_dir, exist_ok=True)
+        dir_exists = True
+
+    if not is_cache_prepared():
+        if not _cache_warning_emitted:
+            logger.warning("prepare_cache not called, cache will not be cleaned")
+            _cache_warning_emitted = True
+        return _cache_dir
+
+    if now is None:
+        now = time.time()
+
+    if now - _last_cache_cleaning_time <= _cache_cleanup_interval_sec:
+        return _cache_dir
+
+    if not dir_exists:
+        return _cache_dir
+
+    removed_files = 0
+    for file in os.listdir(_cache_dir):
+        file_path = os.path.join(_cache_dir, file)
+        try:
+            if os.path.isfile(file_path) and (now - os.path.getmtime(file_path) > _cache_ttl):
+                logger.debug('Removing expired cache file %s', file_path)
+                os.remove(file_path)
+                removed_files += 1
+        except FileNotFoundError:
+            # File might be removed concurrently; ignore
+            pass
+        except Exception:
+            logger.debug("Failed to check/remove cache file %s", file_path, exc_info=True)
+    if removed_files > 0:
+        logger.info(f"Removed {removed_files} expired cache files from {_cache_dir}")
+
+    _last_cache_cleaning_time = now
+    return _cache_dir
+
+def prepare_cache(ttl: int = 3600*24) -> str:
+    """Prepare cache by setting TTL, optionally creating directory, and cleaning up old files.
     Args:
         ttl: time to live for cache files in seconds
-        create_dir: if True, creates cache directory if it doesn't exist
     Returns:
         path to cache directory
     """
-    global _last_cache_cleaning_time
-    cache_dir = '.cache'
-    current_time = time.time()
+    global _cache_ttl
 
-    if os.path.exists(cache_dir):
-        # Only clean once every 5 minutes (300 seconds)
-        if current_time - _last_cache_cleaning_time > 300:
-            for file in os.listdir(cache_dir):
-                file_path = f'{cache_dir}/{file}'
-                if current_time - os.path.getmtime(file_path) > ttl:
-                    logger.debug('Removing expired cache file %s', file_path)
-                    os.remove(file_path)
-    else:
-        if create_dir:
-            os.makedirs(cache_dir)
+    if _cache_ttl is not None:
+        logger.debug(f"prepare_cache already called, ignoring subsequent call with ttl={ttl}")
+        return _cache_dir
 
-    _last_cache_cleaning_time = current_time
-    return cache_dir
+    _cache_ttl = ttl
+    logger.debug(f"Cache ttl is set to {ttl} seconds")
+    return _prepare_cache(create_dir=False)
+
+
+def get_cache_dir() -> str:
+    """Return cache directory path, ensuring it exists and attempting cleanup.
+    If prepare_cache() wasn't called before, a warning will be logged (once).
+    """
+    return _prepare_cache(create_dir=True)
+
+
+def get_cache_filename(input: any, suffix: str) -> str:
+    """Return content-based cache filename with given suffix.
+    Triggers cleanup which will warn once if prepare_cache() wasn't called.
+    """
+    return os.path.join(get_cache_dir(), f"{calculate_hash(input)}{suffix}")
+
 
 def calculate_hash(input: any) -> str:
     """Calculate MD5 hash of given input."""
@@ -67,10 +137,6 @@ def _hash_any(value: any, hasher: hashlib.md5) -> None:
             _hash_any(item, hasher)
     else:
         hasher.update(str(value).encode())
-
-def _build_cache_filename(source_file_paths: List[str], cache_file_suffix: str, discriminator: str) -> str:
-    filename = calculate_hash([source_file_paths, discriminator])
-    return f"{filename}{cache_file_suffix}"
 
 def cached(
         input_path: str,
@@ -106,10 +172,7 @@ def multi_cached(
         discriminator: if specified, md5 hash of it is appended to cache filename to differentiate between different
         parameters used in transformation process.
     """
-    cache_dir = prepare_cache()
-
-    cached_filename = _build_cache_filename(input_paths, cache_file_suffix, discriminator)
-    cached_path = os.path.join(cache_dir, cached_filename)
+    cached_path = get_cache_filename([input_paths, discriminator], cache_file_suffix)
 
     needs_run = False
     if not os.path.exists(cached_path):
@@ -122,16 +185,19 @@ def multi_cached(
                 needs_run = True
                 break
     if not needs_run:
-        logger.debug(f"Cached file {cached_filename} is up-to-date")
+        logger.debug(f"Cached file {cached_path} is up-to-date")
         return cached_path
 
     try:
         func(cached_path)
         return cached_path
     except Exception:
-        logger.info(f"Deleted cached file {cached_filename} due to error")
+        logger.info(f"Deleted cached file {cached_path} due to error")
         if os.path.exists(cached_path):
-            os.remove(cached_path)
+            try:
+                os.remove(cached_path)
+            except Exception:
+                logger.debug("Failed to remove errored cache file %s", cached_path, exc_info=True)
         raise
 
 

@@ -11,7 +11,7 @@ from llm_workers.api import UserContext
 from llm_workers.workers_context import StandardWorkersContext
 from llm_workers.user_context import StandardUserContext
 from llm_workers.tools.custom_tool import create_statement_from_model
-from llm_workers.utils import setup_logging, prepare_cache
+from llm_workers.utils import setup_logging, prepare_cache, is_cache_prepared
 
 
 def run_llm_script(
@@ -31,7 +31,7 @@ def run_llm_script(
     if user_context is None:
         user_context = StandardUserContext.load()
 
-    prepare_cache(create_dir=False)
+    prepare_cache()
 
     context = StandardWorkersContext.load(script_name, user_context)
     if context.config.cli is None:

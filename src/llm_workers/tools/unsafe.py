@@ -4,7 +4,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime
-from typing import Type, Any, Dict
+from typing import Type, Any, Dict, Optional
 
 from langchain_core.tools import BaseTool
 from langchain_core.tools.base import ToolException
@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from llm_workers.api import ConfirmationRequest, ConfirmationRequestParam
 from llm_workers.api import ExtendedBaseTool
-from llm_workers.utils import LazyFormatter, open_file_in_default_app, is_safe_to_open, calculate_hash
+from llm_workers.utils import LazyFormatter, open_file_in_default_app, is_safe_to_open, get_cache_filename
 
 logger = logging.getLogger(__name__)
 
@@ -128,14 +128,10 @@ class RunPythonScriptTool(BaseTool, ExtendedBaseTool):
         )
 
     def get_ui_hint(self, input: dict[str, Any]) -> str:
-        return f"Running Python script (${self._get_filename(input['script'])})"
-
-    @staticmethod
-    def _get_filename(script:str) -> str:
-        return f".cache/{calculate_hash(script)}.py"
+        return f"Running generated Python script ({get_cache_filename(input['script'], ".py")})"
 
     def _run(self, script: str) -> str:
-        file_path = self._get_filename(script)
+        file_path = get_cache_filename(script, ".py")
         with open(file_path, 'w') as file:
             file.write(script)
         try:
@@ -220,6 +216,7 @@ class BashTool(BaseTool, ExtendedBaseTool):
     
     def _run(self, script: str, timeout: int = 30) -> str:
         file_path = f"script_{time.strftime('%Y%m%d_%H%M%S')}.sh"
+        process: Optional[subprocess.Popen[str]] = None
         try:
             with open(file_path, 'w') as file:
                 file.write(script)
@@ -241,7 +238,8 @@ class BashTool(BaseTool, ExtendedBaseTool):
             
             return result
         except subprocess.TimeoutExpired:
-            process.kill()
+            if process is not None:
+                process.kill()
             raise ToolException(f"Bash script execution timed out after {timeout} seconds")
         except Exception as e:
             raise ToolException(f"Error executing bash script: {e}")
@@ -417,8 +415,11 @@ class RunProcessTool(BaseTool, ExtendedBaseTool):
     def get_ui_hint(self, input: dict[str, Any]) -> str:
         return f"Running process {input['command']}"
 
-    def _run(self, command: str, args: list[str] = [], timeout: int = 30) -> str:
+    def _run(self, command: str, args: Optional[list[str]] = None, timeout: int = 30) -> str:
+        process: Optional[subprocess.Popen[str]] = None
         try:
+            if args is None:
+                args = []
             cmd = [command] + args
             cmd_str = LazyFormatter(cmd, custom_formatter = lambda x: " ".join(x))
             logger.debug("Running process %s", cmd_str)
@@ -432,13 +433,17 @@ class RunProcessTool(BaseTool, ExtendedBaseTool):
             
             (result, stderr) = process.communicate(timeout=timeout)
             exit_code = process.wait()
-            
+            logger.debug("Process %s exited with code %d and following output:\n%s", cmd_str, exit_code, result)
+            if len(stderr) > 0:
+                logger.debug("Process %s stderr:\n%s", cmd_str, exit_code, stderr)
+
             if exit_code != 0:
                 raise ToolException(f"Process returned code {exit_code}:\n{stderr}")
                 
             return result
         except subprocess.TimeoutExpired:
-            process.kill()
+            if process is not None:
+                process.kill()
             raise ToolException(f"Process execution timed out after {timeout} seconds")
         except Exception as e:
             raise ToolException(f"Error running process: {e}")
