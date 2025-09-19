@@ -16,12 +16,14 @@ tools:
       - name: script
         description: Python script to run
         type: str
-    ui_hint: Running generated Python script  # print it just for fun, use '' to hide
+      - name: ui_hint
+        description: Hint to show in UI when running the script
+        type: str
+    ui_hint: "{ui_hint}"
     body:
       - call:
           name: _validate_approval
           import_from: llm_workers.tools.misc.ValidateApprovalTool
-          ui_hint: Validating approval token  # print it just for fun
         params:
           approval_token: "{approval_token}"
       - call:
@@ -33,7 +35,6 @@ tools:
       - call:
           name: _consume_approval
           import_from: llm_workers.tools.misc.ConsumeApprovalTool
-          ui_hint: Consuming approval token  # print it just for fun
         params:
           approval_token: "{approval_token}"
 

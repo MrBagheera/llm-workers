@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from llm_workers.api import ConfirmationRequest, ConfirmationRequestParam
 from llm_workers.api import ExtendedBaseTool
-from llm_workers.utils import LazyFormatter, open_file_in_default_app, is_safe_to_open
+from llm_workers.utils import LazyFormatter, open_file_in_default_app, is_safe_to_open, calculate_hash
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ class RunPythonScriptTool(BaseTool, ExtendedBaseTool):
     name: str = "run_python_script"
     description: str = "Run a Python script and return its output."
     args_schema: Type[RunPythonScriptToolSchema] = RunPythonScriptToolSchema
-    delete_after_run: bool = True  # Whether to delete the script file after running
+    delete_after_run: bool = False  # Whether to delete the script file after running
     require_confirmation: bool = True
 
     def needs_confirmation(self, input: dict[str, Any]) -> bool:
@@ -128,10 +128,14 @@ class RunPythonScriptTool(BaseTool, ExtendedBaseTool):
         )
 
     def get_ui_hint(self, input: dict[str, Any]) -> str:
-        return "Running Python script"
+        return f"Running Python script (${self._get_filename(input['script'])})"
+
+    @staticmethod
+    def _get_filename(script:str) -> str:
+        return f".cache/{calculate_hash(script)}.py"
 
     def _run(self, script: str) -> str:
-        file_path = f".cache/script_{time.strftime('%Y%m%d_%H%M%S')}.py"
+        file_path = self._get_filename(script)
         with open(file_path, 'w') as file:
             file.write(script)
         try:

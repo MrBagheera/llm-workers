@@ -564,7 +564,7 @@ Runs a Python script and returns its output.
 - `script`: Python script to run. Must be valid Python code
 
 **Configuration Options:**
-- `delete_after_run`: (Optional) Whether to delete the script file after running (default: true)
+- `delete_after_run`: (Optional) Whether to delete the script file after running (default: false)
 - `require_confirmation`: (Optional) Whether to require user confirmation before execution (default: true)
 
 **Behavior:**
