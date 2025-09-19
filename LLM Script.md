@@ -12,8 +12,8 @@ Table of Contents
 <!--ts-->
 * [Basic Structure](#basic-structure)
    * [Tools Section](#tools-section)
+      * [Common Tool Parameters](#common-tool-parameters)
    * [Shared Section](#shared-section)
-   * [Common Tool Parameters](#common-tool-parameters)
    * [Chat Section](#chat-section)
    * [CLI Section](#cli-section)
 * [Using Tools](#using-tools)
@@ -48,7 +48,7 @@ Table of Contents
    * [Template Variables](#template-variables)
 
 <!-- Created by https://github.com/ekalinin/github-markdown-toc -->
-<!-- Added by: dmikhaylov, at: Thu Sep 11 12:23:19 EEST 2025 -->
+<!-- Added by: dmikhaylov, at: Fri Sep 19 11:19:35 EEST 2025 -->
 
 <!--te-->
 
@@ -138,6 +138,26 @@ In addition to defining tools in the `tools` section, you can define tools inlin
 the `tools` configuration of LLMs. This provides flexibility for single-use tools or when you need to customize 
 tool behavior for specific calls. See relevant sections below.
 
+### Common Tool Parameters
+
+- `name`: Unique identifier for the tool. This name is used to reference the tool in other parts of the script.
+  Names should be unique within the script and should not contain spaces or special characters. Tools with names starting with `_`
+  are considered to be "private". Those are not available for LLM use unless added to `tools` list explicitly.
+- `description`: Brief description of the tool's purpose. For imported tools is optional, and is taken from Python code if omitted.
+- `return_direct`: Optional, defaults to `false`. If `true`, the tool's result is returned directly to the user without
+  further processing by the LLM. This is useful for tools that provide direct answers or results.
+- `confidential`: Optional, defaults to `false`. If `true`, the tool's result is considered sensitive and will not be
+  used in subsequent LLM calls. This is useful for tools that return sensitive data, such as passwords or personal information.
+  Implies `return_direct: true`.
+- `require_confirmation`: Optional, defaults to Python tool logic (if defined, can be on per-call basis) or `false`
+    - If `true`, the tool requires user confirmation before executing. This is useful for tools that perform actions that may have significant consequences, such as deleting files or sending emails.
+    - If `false`, the tool does not require user confirmation before executing, even if Python tool code does.
+- `ui_hint`: Optional, defaults to Python tool logic (if defined), or empty. If defined, it is used to generate a UI
+  hint for the tool. This can be a template string referencing tool's parameters.
+
+See [Using Python Tools](#using-python-tools) and [Defining Custom Tools](#defining-custom-tools) sections below for
+more details on how to define and use tools.
+
 ## Shared Section
 
 The `shared` section provides a way to define reusable configuration data that can be accessed by all custom tools in the script. This is useful for avoiding duplication of common values like API endpoints, prompts, or configuration settings.
@@ -170,26 +190,6 @@ tools:
 - Use bracket notation for accessing nested values: `{shared[category][subcategory]}`
 - Shared data is read-only during tool execution
 - Changes to the shared section require reloading the script configuration
-
-## Common Tool Parameters
-- `name`: Unique identifier for the tool. This name is used to reference the tool in other parts of the script.
-  Names should be unique within the script and should not contain spaces or special characters. Tools with names starting with `_`
-  are considered to be "private". Those are not available for LLM use unless added to `tools` list explicitly.
-- `description`: Brief description of the tool's purpose. For imported tools is optional, and is taken from Python code if omitted.
-- `return_direct`: Optional, defaults to `false`. If `true`, the tool's result is returned directly to the user without
-  further processing by the LLM. This is useful for tools that provide direct answers or results.
-- `confidential`: Optional, defaults to `false`. If `true`, the tool's result is considered sensitive and will not be
-  used in subsequent LLM calls. This is useful for tools that return sensitive data, such as passwords or personal information.
-  Implies `return_direct: true`.
-- `require_confirmation`: Optional, defaults to Python tool logic (if defined, can be on per-call basis) or `false`
-    - If `true`, the tool requires user confirmation before executing. This is useful for tools that perform actions that may have significant consequences, such as deleting files or sending emails.
-    - If `false`, the tool does not require user confirmation before executing, even if Python tool code does.
-- `ui_hint`: Optional, defaults to Python tool logic (if defined), or empty. If defined, it is used to generate a UI
-  hint for the tool. This can be a template string referencing tool's parameters.
-
-See [Using Python Tools](#using-python-tools) and [Defining Custom Tools](#defining-custom-tools) sections below for 
-more details on how to define and use tools.
-
 
 ## Chat Section
 
