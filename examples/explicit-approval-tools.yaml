@@ -39,6 +39,7 @@ tools:
           approval_token: "{approval_token}"
 
 chat:
+  model_ref: thinking
   system_message: |-
     You are a helpful AI assistant that can run Python scripts to answer user questions.
     Provided with user query, you will:

@@ -6,7 +6,7 @@ from uuid import UUID
 
 from langchain_community.callbacks import get_openai_callback
 from langchain_core.callbacks import BaseCallbackHandler
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.outputs import GenerationChunk, ChatGenerationChunk
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
@@ -59,6 +59,7 @@ class ChatSession:
             "bye": self._bye,
             "model": self._model,
             "show_reasoning": self._show_reasoning,
+            "export": self._export,
         }
         self._finished = False
         self._pre_input = ""
@@ -249,6 +250,89 @@ class ChatSession:
         else:
             self._console.print("Usage: /show_reasoning [true|false]", style="bold red")
             self._console.print("Valid values: true, false, 1, 0, on, off, yes, no", style="bold white")
+
+    def _export(self, params: list[str]):
+        """<name> - Export chat history as <name>.md markdown file"""
+        if len(params) != 1:
+            self._console.print("Usage: /export <filename>", style="bold red")
+            return
+        
+        filename = params[0]
+        if not filename.endswith('.md'):
+            filename += '.md'
+        
+        try:
+            markdown_content = self._generate_markdown_export()
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(markdown_content)
+            self._console.print(f"Chat history exported to {filename}", style="bold green")
+        except Exception as e:
+            self._console.print(f"Failed to export chat history: {e}", style="bold red")
+            logger.warning(f"Failed to export chat history to {filename}: {e}", exc_info=True)
+
+    def _generate_markdown_export(self) -> str:
+        """Generate markdown content from chat history"""
+        if not self._messages:
+            return "# Chat History\n\nNo messages to export.\n"
+        
+        markdown_lines = []
+        current_iteration = 0
+        last_ai_iteration = 0
+        
+        for i, message in enumerate(self._messages):
+            # Skip tool messages (tool call responses)
+            if isinstance(message, ToolMessage):
+                continue
+                
+            # Add separator between messages (except before the first message)
+            if len(markdown_lines) > 1:
+                markdown_lines.append("---\n")
+            
+            if isinstance(message, HumanMessage):
+                current_iteration += 1
+                markdown_lines.append(f"# Human input #{current_iteration}\n")
+                markdown_lines.append(f"{message.content}\n")
+                
+            elif isinstance(message, AIMessage):
+                if current_iteration != last_ai_iteration:
+                    markdown_lines.append(f"# AI Assistant #{current_iteration}\n")
+                    last_ai_iteration = current_iteration
+                
+                # Add message text content
+                if message.content:
+                    if isinstance(message.content, list):
+                        for block in message.content:
+                            if isinstance(block, dict):
+                                type = block.get('type', None)
+                                if type == 'text':
+                                    text = block.get("text", "")
+                                    markdown_lines.append(f"{text}\n")
+                            else:
+                                markdown_lines.append(f"{str(block)}\n")
+                    else:
+                        markdown_lines.append(f"{message.content}\n")
+
+                # Add tool calls if present
+                if hasattr(message, 'tool_calls') and message.tool_calls:
+                    for tool_call in message.tool_calls:
+                        tool_name = tool_call.get('name', 'unknown_tool')
+                        tool_args = tool_call.get('args', {})
+                        markdown_lines.append(f"Calling `{tool_name}`:\n")
+                        markdown_lines.append("```\n")
+                        result = None
+                        if len(tool_args) == 1:
+                            # single argument, format as is
+                            arg_value = next(iter(tool_args.values()))
+                            if isinstance(arg_value, str):
+                                result = f"{arg_value}\n"
+                        if result is None:
+                            formatted_args = LazyFormatter(tool_args).__repr__()
+                            result = f"{formatted_args}\n"
+                        markdown_lines.append(result)
+                        markdown_lines.append("```\n")
+                        markdown_lines.append("\n")
+
+        return "\n".join(markdown_lines)
 
     def process_model_chunk(self, token: str, message: Optional[BaseMessage]):
         self._streamed_message_id = message.id if message is not None else None
