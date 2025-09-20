@@ -207,6 +207,7 @@ debug whole `llm_workers` package / debug all)
 - [0.1.0-rc9](https://github.com/MrBagheera/llm-workers/milestone/12)
 - [0.1.0-rc10](https://github.com/MrBagheera/llm-workers/milestone/13)
 - [0.1.0-rc11](https://github.com/MrBagheera/llm-workers/milestone/14?closed=1)
+- [0.1.0-rc12](https://github.com/MrBagheera/llm-workers/milestone/15?closed=1)
 
 ## Next
 
