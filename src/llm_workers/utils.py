@@ -28,6 +28,9 @@ _cache_dir: str = '.cache'
 _cache_ttl: Optional[int] = None  # also serves as "prepared" flag
 _cache_warning_emitted: bool = False
 
+# Environment variable configuration/state
+_env_file_path: Optional[str] = None  # tracks which .env file was loaded or would be used
+
 
 def _ensure_cache_dir_exists(create: bool = True) -> str:
     """Ensure cache directory exists and return its path.
@@ -242,6 +245,8 @@ def find_and_load_dotenv(fallback_path: Path):
     Args:
         fallback_path: path of the file within home directory
     """
+    global _env_file_path
+
     env_path = None
     # 1. check current directory and parent directories
     std_env_path = find_dotenv(usecwd=True)
@@ -253,19 +258,83 @@ def find_and_load_dotenv(fallback_path: Path):
         if os.path.exists(fallback_path):
             env_path = fallback_path
 
+    # Always set the env file path, even if no file was found (use fallback path)
+    _env_file_path = env_path if env_path else str(fallback_path)
+
     if env_path:
         logger.info(f"Loading {env_path}")
         return load_dotenv(env_path)
     return False
 
-def get_environment_variable(name: str, default: str | None) -> str | None:
-    return os.environ.get(name, default)
-
-def ensure_environment_variable(name: str) -> str:
+def get_env_var_or_fail(name: str) -> str:
     var = os.environ.get(name)
     if var is None:
         raise OSError(f"Environment variable {name} not set")
     return var
+
+def ensure_environment_variable(var_name: str, description: str = None) -> str:
+    """
+    Ensure an environment variable is set, prompting the user if it's missing.
+
+    Args:
+        var_name: Name of the environment variable
+        description: Optional description to show to the user
+
+    Returns:
+        The value of the environment variable
+
+    Raises:
+        RuntimeError: If find_and_load_dotenv was not called prior to this function
+    """
+    global _env_file_path
+
+    if _env_file_path is None:
+        raise RuntimeError("find_and_load_dotenv must be called before ensure_environment_variable")
+
+    # Check if the variable is already set
+    value = os.environ.get(var_name)
+    if value is not None:
+        return value
+
+    # Variable is not set, prompt the user
+    print(f"\nEnvironment variable '{var_name}' is not set.")
+    if description:
+        print(f"This is: {description}")
+    print(f"\nThe value will be saved to: {_env_file_path}")
+    print("If you don't want this, exit with Ctrl-C and run the program with:")
+    print(f"  {var_name}=your_token {Path(sys.argv[0]).name}\n")
+
+    # Get input from user
+    try:
+        value = input(f"Enter value for {var_name}: ").strip()
+    except KeyboardInterrupt:
+        print("\nExiting...")
+        exit(1)
+
+    # Validate input
+    if not value:
+        print(f"Error: {var_name} cannot be empty")
+        exit(1)
+
+    # Try to save to .env file
+    try:
+        env_path = Path(_env_file_path)
+        # Ensure the directory exists
+        env_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Append to the .env file
+        with open(env_path, 'a', encoding='utf-8') as f:
+            f.write(f"{var_name}={value}\n")
+
+        print(f"Successfully saved {var_name} to {env_path}")
+    except Exception as e:
+        logger.warning(f"Failed to save {var_name} to {_env_file_path}: {e}")
+        print(f"Warning: Could not save to {_env_file_path}, but continuing with entered value")
+
+    # Set the environment variable for this session
+    os.environ[var_name] = value
+
+    return value
 
 
 ####################################################

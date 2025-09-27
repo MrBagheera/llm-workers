@@ -13,7 +13,7 @@ from langchain_core.rate_limiters import InMemoryRateLimiter
 
 from llm_workers.api import WorkerException, UserContext
 from llm_workers.config import UserConfig, StandardModelDefinition, ImportModelDefinition, ModelDefinition
-from llm_workers.utils import find_and_load_dotenv
+from llm_workers.utils import find_and_load_dotenv, ensure_environment_variable
 
 logger = logging.getLogger(__name__)
 
@@ -167,30 +167,8 @@ class StandardUserContext(UserContext):
             print(f"{env_var_name} already configured in environment variables.")
             return
 
-        # Ask user for API key
+        # Use the new ensure_environment_variable function
         provider_name = "OpenAI" if provider == "openai" else "Anthropic"
-        print(f"\nPlease enter your {provider_name} API key:")
-        print(f"It will be written to {config_env_path} file.")
-        print(f"You can also set the {env_var_name} environment variable manually.")
-
-        api_key = input(f"{provider_name} API key: ").strip()
-
-        if not api_key:
-            print(f"  No API key provided. Please set {env_var_name} environment variable and run again.")
-            sys.exit(254)
-
-        # Write to .env file
-        config_env_path.parent.mkdir(parents=True, exist_ok=True)
-
-        env_line = f"{env_var_name}={api_key}\n"
-
-        if config_env_path.exists():
-            with open(config_env_path, 'a') as f:
-                f.write(env_line)
-        else:
-            config_env_path.write_text(env_line)
-
-        # set in current environment for immediate use
-        os.environ[env_var_name] = api_key
-        print(f"API key saved to {config_env_path}")
+        description = f"Your {provider_name} API key for accessing {provider_name} models"
+        ensure_environment_variable(env_var_name, description)
 
