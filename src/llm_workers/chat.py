@@ -610,7 +610,12 @@ class ChatSession:
                         reasoning_content = block.get("reasoning_content", {})
                         text = reasoning_content.get("text", None)
                     elif type == 'reasoning':
-                        text = block.get("text", None)
+                        if 'summary' in block: # OpenAI GPT-5
+                            block = block.get("summary")
+                            if isinstance(block, list) and len(block) > 0:
+                                block = block[0]
+                        if 'text' in block:
+                            text = block.get("text")
                     if text is not None:
                         index = block.get('index', i)
                         reasoning.append((index, str(text)))

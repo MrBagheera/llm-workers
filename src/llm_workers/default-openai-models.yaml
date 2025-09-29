@@ -17,3 +17,4 @@ models:
     reasoning:
       effort: medium
       summary: detailed
+    output_version: "responses/v1"
