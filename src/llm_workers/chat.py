@@ -18,7 +18,7 @@ from llm_workers.api import ConfirmationRequest, CONFIDENTIAL, UserContext
 from llm_workers.workers_context import StandardWorkersContext
 from llm_workers.user_context import StandardUserContext
 from llm_workers.utils import setup_logging, LazyFormatter, FileChangeDetector, \
-    open_file_in_default_app, is_safe_to_open, prepare_cache, get_key_press, is_cache_prepared
+    open_file_in_default_app, is_safe_to_open, prepare_cache
 from llm_workers.worker import Worker
 
 logger = getLogger(__name__)
@@ -443,15 +443,15 @@ class ChatSession:
                 else:
                     self._console.print(arg.value, style="bold white")
         while True:
-            self._console.print("Do you approve (y/n)?", style="bold green", end="")
-            response = get_key_press()
-            print()
-            if response == 'y':
+            response = self._console.input("[bold green]Do you approve (y/n)?[/bold green] ").strip().lower()
+            if response in ['y', 'yes']:
                 request.approved = True
                 return
-            elif response == 'n':
+            elif response in ['n', 'no']:
                 request.approved = False
                 return
+            else:
+                self._console.print("Please enter 'y' or 'n'", style="bold red")
 
     def _handle_changed_files(self):
         changes = self._chat_context.file_monitor.check_changes()
