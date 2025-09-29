@@ -12,14 +12,15 @@ from prompt_toolkit.history import InMemoryHistory
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.syntax import Syntax
+from rich.text import Text
 
 from llm_workers.api import ConfirmationRequest, CONFIDENTIAL, UserContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
-from llm_workers.workers_context import StandardWorkersContext
 from llm_workers.user_context import StandardUserContext
 from llm_workers.utils import setup_logging, LazyFormatter, FileChangeDetector, \
     open_file_in_default_app, is_safe_to_open, prepare_cache
 from llm_workers.worker import Worker
+from llm_workers.workers_context import StandardWorkersContext
 
 logger = getLogger(__name__)
 
@@ -116,6 +117,7 @@ class ChatSession:
         self._has_unfinished_output = False
         self._running_tools_depths = {}
         self._available_models = [model.name for model in self._user_context.models]
+        self._thinking_live = None
 
     @property
     def _chat_config(self):
@@ -459,6 +461,7 @@ class ChatSession:
     def process_model_chunk(self, token: str, message: Optional[BaseMessage]):
         self._streamed_message_id = message.id if message is not None else None
         if message is not None and isinstance(message, AIMessage) and self._user_context.user_config.display_settings.show_reasoning:
+            self.clear_thinking_message()
             reasoning = self._extract_reasoning(message)
             if len(reasoning) > 0:
                 if self._has_unfinished_output:
@@ -473,6 +476,7 @@ class ChatSession:
                     self._streamed_reasoning_index = index
                     self._console.print(text, style="bold white", end = "")
         if len(token) > 0:
+            self.clear_thinking_message()
             if self._streamed_reasoning_index is not None:
                 print()
                 self._streamed_reasoning_index = None
@@ -487,6 +491,7 @@ class ChatSession:
         # Update token tracking from response metadata with current model
         current_model = self._chat_context.worker.model_ref
         self._token_tracker.update_from_message(message, current_model)
+        self.clear_thinking_message()
         if self._has_unfinished_output or self._streamed_reasoning_index is not None:
             print()
             self._has_unfinished_output = False
@@ -534,6 +539,7 @@ class ChatSession:
         return reasoning
 
     def process_tool_start(self, name: str, tool_meta: Dict[str, Any], inputs: dict[str, Any], run_id: UUID, parent_run_id: Optional[UUID]):
+        self.clear_thinking_message()
         if self._has_unfinished_output or self._streamed_reasoning_index is not None:
             print()
             self._has_unfinished_output = False
@@ -553,6 +559,7 @@ class ChatSession:
             self._console.print(f"⏺ {message}...", style="bold white")
 
     def process_confirmation_request(self, request: ConfirmationRequest):
+        self.clear_thinking_message()
         self._console.print("\n\n")
         self._console.print(f"AI assistant wants to {request.action}:", style="bold green")
         if len(request.args) == 1:
@@ -587,6 +594,19 @@ class ChatSession:
         """Get detailed per-model session token summary for exit display."""
         return self._token_tracker.format_total_usage()
 
+    def show_thinking(self):
+        """Display 'Thinking...' message using Rich Live display."""
+        if not self._thinking_live:
+            thinking_text = Text("Thinking...", style="dim cyan")
+            self._thinking_live = self._console.status("[dim cyan]Thinking...", spinner="dots")
+            self._thinking_live.start()
+
+    def clear_thinking_message(self):
+        """Clear the 'Thinking...' message."""
+        if self._thinking_live:
+            self._thinking_live.stop()
+            self._thinking_live = None
+
     def _handle_changed_files(self):
         changes = self._chat_context.file_monitor.check_changes()
         to_open = []
@@ -614,6 +634,11 @@ class ChatSessionCallbackDelegate(BaseCallbackHandler):
 
     def __init__(self, chat_session: ChatSession):
         self._chat_session = chat_session
+
+    def on_llm_start(self, serialized: dict[str, Any], prompts: list[str], *, run_id: UUID,
+                      parent_run_id: Optional[UUID] = None, tags: Optional[list[str]] = None,
+                      metadata: Optional[dict[str, Any]] = None, **kwargs: Any) -> Any:
+        self._chat_session.show_thinking()
 
     def on_llm_new_token(self, token: str, *, chunk: Optional[Union[GenerationChunk, ChatGenerationChunk]] = None,
                          run_id: UUID, parent_run_id: Optional[UUID] = None, **kwargs: Any) -> Any:
