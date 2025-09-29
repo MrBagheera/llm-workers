@@ -27,6 +27,11 @@ class StandardUserContext(UserContext):
         self._register_models()
 
     @property
+    def user_config(self) -> UserConfig:
+        """Get the user configuration."""
+        return self._user_config
+
+    @property
     def models(self) -> list[ModelDefinition]:
         """Get list of available model definitions."""
         return self._user_config.models
@@ -125,7 +130,6 @@ class StandardUserContext(UserContext):
             elif choice == "4":
                 cls._show_custom_example(config_path)
                 sys.exit(254)  # Exit to let user edit config
-                break
             else:
                 print("Invalid choice. Please enter 1, 2, or 3.")
 

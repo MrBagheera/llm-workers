@@ -57,8 +57,14 @@ class ImportModelDefinition(ModelDefinition):
     import_from: str
 
 
+class DisplaySettings(BaseModel):
+    """Display configuration settings."""
+    show_token_usage: bool = True
+
+
 class UserConfig(BaseModel):
     models: list[StandardModelDefinition | ImportModelDefinition] = ()
+    display_settings: DisplaySettings = DisplaySettings()
 
 
 StatementDefinition = TypeAliasType(

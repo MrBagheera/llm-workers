@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional, Callable, List
 from langchain_core.tools import BaseTool
 from langchain_core.language_models import BaseChatModel
 
-from llm_workers.config import WorkersConfig, ToolDefinition, ToolReference, ModelDefinition
+from llm_workers.config import WorkersConfig, ToolDefinition, ToolReference, ModelDefinition, UserConfig
 
 # Flag for confidential messages (not shown to LLM)
 CONFIDENTIAL: str = 'confidential'
@@ -12,6 +12,12 @@ CONFIDENTIAL: str = 'confidential'
 
 
 class UserContext(ABC):
+
+    @property
+    @abstractmethod
+    def user_config(self) -> UserConfig:
+        """Get the user configuration."""
+        pass
 
     @property
     @abstractmethod

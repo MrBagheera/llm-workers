@@ -95,7 +95,7 @@ class ChatSession:
                     print()
 
                 # Display token usage before prompting for input
-                if self._iteration > 1:  # Only show after first response
+                if self._iteration > 1 and self._user_context.user_config.display_settings.show_token_usage:  # Only show after first response and if enabled
                     usage_display = self._token_tracker.format_current_usage()
                     if usage_display is not None:
                         self._console.print(f"{usage_display}", style="dim cyan")
@@ -546,9 +546,10 @@ def chat_with_llm_script(script_name: str, user_context: Optional[UserContext] =
     chat_session.run()
 
     # Print detailed per-model session token summary
-    session_summary = chat_session.get_session_token_summary()
-    if session_summary is not None:
-        print(f"{session_summary}", file=sys.stderr)
+    if user_context.user_config.display_settings.show_token_usage:
+        session_summary = chat_session.get_session_token_summary()
+        if session_summary is not None:
+            print(f"{session_summary}", file=sys.stderr)
 
 
 def main():

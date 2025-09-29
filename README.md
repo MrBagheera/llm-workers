@@ -61,6 +61,10 @@ models:
     max_tokens: <int>
     # [additional parameters...]
 
+# Display settings
+display_settings:
+  show_token_usage: true  # Optional, defaults to true
+
 ```
 
 On first launch, `llm-workers` CLI will guide you through initial setup. You can choose from:
@@ -138,6 +142,26 @@ models:
 Any extra parameters not defined above will be passed to the model. If model requires
 specific parameters that conflict with standard parameters, those specific parameters can be defined in the `config` section.
 In this case no parameters from main section will be passed to the model, only those defined in `config`.
+
+### Display Settings
+
+#### Token Usage Display
+
+By default, the chat interface displays token usage statistics during conversations and when exiting. This can be controlled with:
+
+```yaml
+display_settings:
+  show_token_usage: true  # Default: show token usage statistics
+# display_settings:
+#   show_token_usage: false  # Hide all token usage display
+```
+
+When enabled (`true`), the chat interface will:
+- Display current token usage after each AI response
+- Show detailed per-model token summary when exiting the chat session
+- Include input, output, reasoning tokens (when available), and cache usage
+
+When disabled (`false`), no token usage information is displayed.
 
 
 ## LLM Scripts
