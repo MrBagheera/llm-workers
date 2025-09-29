@@ -8,7 +8,9 @@ from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.outputs import GenerationChunk, ChatGenerationChunk
 from prompt_toolkit import PromptSession
+from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.styles import Style
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.syntax import Syntax
@@ -23,6 +25,96 @@ from llm_workers.worker import Worker
 from llm_workers.workers_context import StandardWorkersContext
 
 logger = getLogger(__name__)
+
+
+class SlashCommandCompleter(Completer):
+    """Command completer for slash commands in chat interface."""
+
+    # Minimal style: only the active completion is bold.
+    style = Style.from_dict({
+        "completion-menu.completion.current": "bold",
+        # (Optional) keep the rest untouched; no colors set.
+        "completion-menu.completion": "",
+        "completion-menu.meta.completion": "",
+        "completion-menu.meta.completion.current": "",
+        "scrollbar.background": "",
+        "scrollbar.button": "",
+    })
+
+    def __init__(self, commands_config: dict):
+        """Initialize completer with available commands and formatting.
+
+        Args:
+            commands_config: Dictionary of command configurations
+        """
+        self.commands_config = commands_config
+
+        # Calculate the maximum width for command column alignment
+        command_strs = []
+        for cmd, config in commands_config.items():
+            cmd_str, _ = self._format_command_display_raw(cmd, config)
+            command_strs.append(cmd_str)
+
+        self.max_cmd_width = max(len(cmd_str) for cmd_str in command_strs)
+
+    def _format_command_display_raw(self, cmd: str, config: dict) -> tuple[str, str]:
+        """Format a command for display with aliases and parameters (without alignment).
+
+        Args:
+            cmd: Primary command name
+            config: Command configuration dict
+
+        Returns:
+            Tuple of (formatted_command_string, description)
+        """
+        # Build command string with aliases and params
+        cmd_aliases = [cmd]
+        if "aliases" in config:
+            cmd_aliases.extend(config["aliases"])
+
+        cmd_str = "/" + ", /".join(cmd_aliases)
+        if "params" in config:
+            cmd_str += f" {config['params']}"
+
+        return cmd_str, config["description"]
+
+    def _format_command_display(self, cmd: str, config: dict) -> tuple[str, str]:
+        """Format a command for display with full alignment.
+
+        Args:
+            cmd: Primary command name
+            config: Command configuration dict
+
+        Returns:
+            Tuple of (primary_command, fully_formatted_aligned_string)
+        """
+        cmd_str, description = self._format_command_display_raw(cmd, config)
+        aligned_display = f"  {cmd_str:<{self.max_cmd_width}}  {description}"
+        return cmd, aligned_display
+
+    def get_completions(self, document, complete_event):
+        """Generate completions for slash commands."""
+        text = document.text_before_cursor
+
+        # Only trigger suggestions if input starts with "/"
+        if text.startswith("/"):
+            prefix = text[1:]  # part after "/"
+
+            for cmd, config in self.commands_config.items():
+                # Check if primary command or any alias matches the prefix
+                all_names = [cmd]
+                if "aliases" in config:
+                    all_names.extend(config["aliases"])
+
+                if any(name.startswith(prefix) for name in all_names):
+                    # Use formatting logic
+                    _, aligned_display = self._format_command_display(cmd, config)
+
+                    yield Completion(
+                        text=cmd,                     # insert only primary command name
+                        start_position=-len(prefix),  # replace just the typed part (after /)
+                        display=aligned_display,      # show full formatted display
+                    )
 
 
 
@@ -108,6 +200,9 @@ class ChatSession:
             if "aliases" in config:
                 for alias in config["aliases"]:
                     self.alias_to_command[alias] = cmd
+
+        # Initialize command completer
+        self._completer = SlashCommandCompleter(self.commands_config)
         self._finished = False
         self._pre_input = ""
         self._callbacks = [ChatSessionCallbackDelegate(self)]
@@ -132,7 +227,7 @@ class ChatSession:
         if self._chat_config.default_prompt is not None:
             self._pre_input = self._chat_config.default_prompt
 
-        session = PromptSession(history = self._history)
+        session = PromptSession(history=self._history, completer=self._completer, style=self._completer.style)
         try:
             while not self._finished:
                 if len(self._messages) > 0:
@@ -200,26 +295,10 @@ class ChatSession:
         """-                 Shows this message"""
         print("Available commands:")
 
-        # Calculate the maximum width for command column alignment
-        command_strs = []
+        # Use completer's formatting for consistency
         for cmd, config in self.commands_config.items():
-            # Build command string with aliases and params
-            cmd_aliases = [cmd]
-            if "aliases" in config:
-                cmd_aliases.extend(config["aliases"])
-
-            cmd_str = "/" + ", /".join(cmd_aliases)
-            if "params" in config:
-                cmd_str += f" {config['params']}"
-
-            command_strs.append(cmd_str)
-
-        max_cmd_width = max(len(cmd_str) for cmd_str in command_strs)
-
-        # Print aligned commands and descriptions
-        for (cmd, config), cmd_str in zip(self.commands_config.items(), command_strs):
-            description = config["description"]
-            print(f"  {cmd_str:<{max_cmd_width}}  {description}")
+            _, aligned_display = self._completer._format_command_display(cmd, config)
+            print(aligned_display)
 
     def _reload(self, params: list[str]):
         """[<script.yaml>] - Reloads given LLM script (defaults to current)"""
