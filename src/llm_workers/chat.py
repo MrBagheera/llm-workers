@@ -83,10 +83,10 @@ class ChatSession:
                 "description": "Switch to specified model (fast, default, thinking)",
                 "params": "<model>"
             },
-            "show_reasoning": {
-                "function": self._show_reasoning,
-                "description": "Enable or disable reasoning display",
-                "params": "[true|false]"
+            "display": {
+                "function": self._display,
+                "description": "Show or modify display settings",
+                "params": "[<setting> [<value>]]"
             },
             "export": {
                 "function": self._export,
@@ -308,28 +308,70 @@ class ChatSession:
             self._console.print(f"Failed to switch to model {model_name}: {e}", style="bold red")
             logger.warning(f"Failed to switch to model {model_name}: {e}", exc_info=True)
 
-    def _show_reasoning(self, params: list[str]):
-        """[true|false] - Enable or disable reasoning display"""
+    def _get_boolean_settings(self) -> dict[str, bool]:
+        """Get all boolean display settings as a dictionary."""
+        settings = self._user_context.user_config.display_settings
+        return {
+            "show_token_usage": settings.show_token_usage,
+            "show_reasoning": settings.show_reasoning,
+            "auto_open_changed_files": settings.auto_open_changed_files,
+            "markdown_output": settings.markdown_output
+        }
+
+    def _display(self, params: list[str]):
+        """[<setting> [<value>]] - Show or modify display settings"""
         if len(params) == 0:
-            # Show current state
-            current_value = self._user_context.user_config.display_settings.show_reasoning
-            self._console.print(f"Show reasoning: {current_value}", style="bold white")
+            # Show all current boolean settings
+            settings = self._get_boolean_settings()
+            self._console.print("Current display settings:", style="bold white")
+            for setting, value in settings.items():
+                self._console.print(f"  {setting}: {value}", style="white")
             return
 
-        if len(params) != 1:
-            self._console.print("Usage: /show_reasoning [true|false]", style="bold red")
+        if len(params) == 1:
+            # Show specific setting
+            setting_name = params[0]
+            settings = self._get_boolean_settings()
+            if setting_name not in settings:
+                self._console.print(f"Unknown setting: {setting_name}", style="bold red")
+                self._console.print(f"Available settings: {', '.join(settings.keys())}", style="bold white")
+                return
+
+            value = settings[setting_name]
+            self._console.print(f"{setting_name}: {value}", style="bold white")
             return
 
-        param = params[0].lower()
-        if param in ['true', '1', 'on', 'yes']:
-            self._user_context.user_config.display_settings.show_reasoning = True
-            self._console.print("Reasoning display enabled", style="bold green")
-        elif param in ['false', '0', 'off', 'no']:
-            self._user_context.user_config.display_settings.show_reasoning = False
-            self._console.print("Reasoning display disabled", style="bold green")
-        else:
-            self._console.print("Usage: /show_reasoning [true|false]", style="bold red")
-            self._console.print("Valid values: true, false, 1, 0, on, off, yes, no", style="bold white")
+        if len(params) == 2:
+            # Set specific setting
+            setting_name = params[0]
+            new_value_str = params[1].lower()
+
+            settings = self._get_boolean_settings()
+            if setting_name not in settings:
+                self._console.print(f"Unknown setting: {setting_name}", style="bold red")
+                self._console.print(f"Available settings: {', '.join(settings.keys())}", style="bold white")
+                return
+
+            # Parse boolean value
+            if new_value_str in ['true', '1', 'on', 'yes']:
+                new_value = True
+            elif new_value_str in ['false', '0', 'off', 'no']:
+                new_value = False
+            else:
+                self._console.print(f"Invalid value: {params[1]}", style="bold red")
+                self._console.print("Valid values: true, false, 1, 0, on, off, yes, no", style="bold white")
+                return
+
+            # Set the value
+            display_settings = self._user_context.user_config.display_settings
+            setattr(display_settings, setting_name, new_value)
+
+            status = "enabled" if new_value else "disabled"
+            self._console.print(f"{setting_name.replace('_', ' ').title()} {status}", style="bold green")
+            return
+
+        # Too many parameters
+        self._console.print("Usage: /display [<setting> [<value>]]", style="bold red")
 
     def _export(self, params: list[str]):
         """<name> - Export chat history as <name>.md markdown file"""

@@ -387,7 +387,7 @@ class TestDisplaySettings(unittest.TestCase):
         self.assertTrue(settings.show_token_usage)
         self.assertFalse(settings.show_reasoning)
         self.assertFalse(settings.auto_open_changed_files)
-        self.assertFalse(settings.markdown_output)
+        self.assertTrue(settings.markdown_output)
         self.assertEqual(settings.file_monitor_include, ['*'])
         self.assertEqual(settings.file_monitor_exclude, ['.*', '*.log'])
 
