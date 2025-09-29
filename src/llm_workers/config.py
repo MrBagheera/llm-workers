@@ -63,7 +63,7 @@ class DisplaySettings(BaseModel):
     show_reasoning: bool = False
     auto_open_changed_files: bool = False
     markdown_output: bool = True
-    file_monitor_include: list[str] = ['*']
+    file_monitor_include: list[str] = [ '*.jpg', '*.jpeg', '*.png', '*.gif', '*.tiff', '*.svg', '*.wbp' ]
     file_monitor_exclude: list[str] = ['.*', '*.log']
 
 
