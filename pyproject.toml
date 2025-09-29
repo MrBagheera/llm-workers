@@ -1,6 +1,6 @@
 [project]
 name = "llm-workers"
-version = "0.1.0-rc12"
+version = "0.1.0-rc13"
 description = "Simple library and command-line tools for experimenting with LLMs"
 authors = [
     {name = "Dmitry Mikhaylov", email = "mikhailov.dmitry@gmail.com"}
@@ -17,6 +17,7 @@ dependencies = [
     "langchain-openai (>=0.3.32,<0.4.0)",
     "html-text (>=0.7.0,<0.8.0)",
     "notebook (>=7.3.2,<8.0.0)",
+    "rich (>=14.1.0,<15.0.0)",
 ]
 
 [project.optional-dependencies]
