@@ -145,23 +145,48 @@ In this case no parameters from main section will be passed to the model, only t
 
 ### Display Settings
 
-#### Token Usage Display
-
-By default, the chat interface displays token usage statistics during conversations and when exiting. This can be controlled with:
+The `display_settings` section controls various user experience and display options for the chat interface:
 
 ```yaml
 display_settings:
-  show_token_usage: true  # Default: show token usage statistics
-# display_settings:
-#   show_token_usage: false  # Hide all token usage display
+  # Token usage display (default: true)
+  show_token_usage: true
+
+  # Reasoning tokens display (default: false)
+  show_reasoning: false
+
+  # Auto-open changed files (default: false)
+  auto_open_changed_files: false
+
+  # Markdown output formatting (default: false)
+  markdown_output: true
+
+  # File monitoring patterns (defaults shown)
+  file_monitor_include: ['*']
+  file_monitor_exclude: ['.*', '*.log']
 ```
 
-When enabled (`true`), the chat interface will:
+#### Token Usage Display
+
+When `show_token_usage` is enabled (`true`), the chat interface will:
 - Display current token usage after each AI response
 - Show detailed per-model token summary when exiting the chat session
 - Include input, output, reasoning tokens (when available), and cache usage
 
 When disabled (`false`), no token usage information is displayed.
+
+#### Reasoning Display
+
+When `show_reasoning` is enabled (`true`), the chat interface will display reasoning tokens from models that support them (like Claude with thinking). This setting can also be toggled during chat sessions using the `/show_reasoning` command.
+
+#### File Management
+
+- `auto_open_changed_files`: When enabled, automatically opens files that are created or modified during the session
+- `file_monitor_include`/`file_monitor_exclude`: Patterns controlling which files are monitored for changes
+
+#### Output Formatting
+
+- `markdown_output`: When enabled, formats AI responses as markdown for better readability
 
 
 ## LLM Scripts

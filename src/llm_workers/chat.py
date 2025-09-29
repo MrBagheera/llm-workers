@@ -32,14 +32,15 @@ class _ChatSessionContext:
 
     def __init__(self, script_file: str, user_context: UserContext):
         self.script_name = script_file
+        self.user_context = user_context
         self.context = StandardWorkersContext.load(script_file, user_context)
         if not self.context.config.chat:
             raise ValueError(f"'chat' section is missing from '{self.script_name}'")
         self.worker = Worker(self.context.config.chat, self.context, top_level=True)
         self.file_monitor = FileChangeDetector(
             path='.',
-            included_patterns=self.context.config.chat.file_monitor_include,
-            excluded_patterns=self.context.config.chat.file_monitor_exclude)
+            included_patterns=self.user_context.user_config.display_settings.file_monitor_include,
+            excluded_patterns=self.user_context.user_config.display_settings.file_monitor_exclude)
 
 
 class ChatSession:
@@ -115,7 +116,6 @@ class ChatSession:
         self._has_unfinished_output = False
         self._running_tools_depths = {}
         self._available_models = [model.name for model in self._user_context.models]
-        self._show_reasoning = self._chat_config.show_reasoning
 
     @property
     def _chat_config(self):
@@ -312,19 +312,20 @@ class ChatSession:
         """[true|false] - Enable or disable reasoning display"""
         if len(params) == 0:
             # Show current state
-            self._console.print(f"Show reasoning: {self._show_reasoning}", style="bold white")
+            current_value = self._user_context.user_config.display_settings.show_reasoning
+            self._console.print(f"Show reasoning: {current_value}", style="bold white")
             return
-        
+
         if len(params) != 1:
             self._console.print("Usage: /show_reasoning [true|false]", style="bold red")
             return
-        
+
         param = params[0].lower()
         if param in ['true', '1', 'on', 'yes']:
-            self._show_reasoning = True
+            self._user_context.user_config.display_settings.show_reasoning = True
             self._console.print("Reasoning display enabled", style="bold green")
         elif param in ['false', '0', 'off', 'no']:
-            self._show_reasoning = False
+            self._user_context.user_config.display_settings.show_reasoning = False
             self._console.print("Reasoning display disabled", style="bold green")
         else:
             self._console.print("Usage: /show_reasoning [true|false]", style="bold red")
@@ -415,7 +416,7 @@ class ChatSession:
 
     def process_model_chunk(self, token: str, message: Optional[BaseMessage]):
         self._streamed_message_id = message.id if message is not None else None
-        if message is not None and isinstance(message, AIMessage) and self._show_reasoning:
+        if message is not None and isinstance(message, AIMessage) and self._user_context.user_config.display_settings.show_reasoning:
             reasoning = self._extract_reasoning(message)
             if len(reasoning) > 0:
                 if self._has_unfinished_output:
@@ -452,7 +453,7 @@ class ChatSession:
             if isinstance(message, AIMessage):
                 self._streamed_message_id = None
                 return
-        if self._show_reasoning:
+        if self._user_context.user_config.display_settings.show_reasoning:
             reasoning = self._extract_reasoning(message)
             if len(reasoning) > 0:
                 self._console.print("Reasoning:", style="bold white")
@@ -462,7 +463,7 @@ class ChatSession:
         confidential = getattr(message, CONFIDENTIAL, False)
         if confidential:
             self._console.print("[Message below is confidential, not shown to AI Assistant]", style="bold red")
-        if self._chat_config.markdown_output:
+        if self._user_context.user_config.display_settings.markdown_output:
             self._console.print(Markdown(message.text()))
         else:
             self._console.print(message.text())
@@ -558,7 +559,7 @@ class ChatSession:
         deleted = changes.get('deleted', [])
         if len(deleted) > 0:
             self._console.print(f"Files deleted: {', '.join(deleted)}", style="bold white")
-        if not self._chat_config.auto_open_changed_files:
+        if not self._user_context.user_config.display_settings.auto_open_changed_files:
             return
         for filename in to_open:
             if not is_safe_to_open(filename):
