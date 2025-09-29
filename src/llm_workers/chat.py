@@ -44,6 +44,8 @@ class _ChatSessionContext:
 
 class ChatSession:
     commands: dict[str, Callable[[list[str]], None]]
+    commands_config: dict[str, dict]
+    alias_to_command: dict[str, str]
 
     def __init__(self, console: Console, script_name: str, user_context: UserContext):
         self._console = console
@@ -53,15 +55,57 @@ class ChatSession:
         self._iteration = 1
         self._messages = list[BaseMessage]()
         self._history = InMemoryHistory()
-        self.commands = {
-            "help": self._print_help,
-            "reload": self._reload,
-            "rewind": self._rewind,
-            "bye": self._bye,
-            "model": self._model,
-            "show_reasoning": self._show_reasoning,
-            "export": self._export,
+
+        # Structured command configuration with optional aliases and params
+        self.commands_config = {
+            "help": {
+                "function": self._print_help,
+                "description": "Shows this message"
+            },
+            "reload": {
+                "function": self._reload,
+                "description": "Reloads given LLM script (defaults to current)",
+                "params": "[<script.yaml>]"
+            },
+            "rewind": {
+                "function": self._rewind,
+                "description": "Rewinds chat session to input N (default to -1 = previous)",
+                "params": "[N]"
+            },
+            "bye": {
+                "aliases": ["exit", "quit"],
+                "function": self._bye,
+                "description": "Ends chat session"
+            },
+            "model": {
+                "function": self._model,
+                "description": "Switch to specified model (fast, default, thinking)",
+                "params": "<model>"
+            },
+            "show_reasoning": {
+                "function": self._show_reasoning,
+                "description": "Enable or disable reasoning display",
+                "params": "[true|false]"
+            },
+            "export": {
+                "function": self._export,
+                "description": "Export chat history as <name>.md markdown file",
+                "params": "<name>"
+            },
         }
+
+        # Build commands dict for backward compatibility
+        self.commands = {cmd: config["function"] for cmd, config in self.commands_config.items()}
+
+        # Build alias lookup table
+        self.alias_to_command = {}
+        for cmd, config in self.commands_config.items():
+            # Add the primary command name
+            self.alias_to_command[cmd] = cmd
+            # Add any aliases
+            if "aliases" in config:
+                for alias in config["aliases"]:
+                    self.alias_to_command[alias] = cmd
         self._finished = False
         self._pre_input = ""
         self._callbacks = [ChatSessionCallbackDelegate(self)]
@@ -139,8 +183,11 @@ class ChatSession:
         message = message[1:].split()
         command = message[0]
         params = message[1:]
-        if command in self.commands:
-            self.commands[command](params)
+
+        # Resolve alias to primary command
+        if command in self.alias_to_command:
+            primary_command = self.alias_to_command[command]
+            self.commands[primary_command](params)
         else:
             print(f"Unknown command: {command}.")
             self._print_help([])
@@ -150,9 +197,27 @@ class ChatSession:
     def _print_help(self, params: list[str]):
         """-                 Shows this message"""
         print("Available commands:")
-        for cmd, func in self.commands.items():
-            doc = func.__doc__.strip()
-            print(f"  /{cmd} {doc}")
+
+        # Calculate the maximum width for command column alignment
+        command_strs = []
+        for cmd, config in self.commands_config.items():
+            # Build command string with aliases and params
+            cmd_aliases = [cmd]
+            if "aliases" in config:
+                cmd_aliases.extend(config["aliases"])
+
+            cmd_str = "/" + ", /".join(cmd_aliases)
+            if "params" in config:
+                cmd_str += f" {config['params']}"
+
+            command_strs.append(cmd_str)
+
+        max_cmd_width = max(len(cmd_str) for cmd_str in command_strs)
+
+        # Print aligned commands and descriptions
+        for (cmd, config), cmd_str in zip(self.commands_config.items(), command_strs):
+            description = config["description"]
+            print(f"  {cmd_str:<{max_cmd_width}}  {description}")
 
     def _reload(self, params: list[str]):
         """[<script.yaml>] - Reloads given LLM script (defaults to current)"""
