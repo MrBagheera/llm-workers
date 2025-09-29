@@ -78,15 +78,13 @@ shared: # Optional shared configuration accessible to all tools
 
 chat: # For interactive chat mode
   model_ref: <model_name> # Optional, references model by name (fast/default/thinking). If not defined, uses "default".
-  show_reasoning: <boolean> # Optional
-  auto_open_changed_files: <boolean> # Optional
   user_banner: | # Optional, markdown-formatted text displayed at the beginning of chat
     <banner text>
   system_message: |
     <system prompt>
   default_prompt: | # Optional
     <default prompt>
-
+  
 cli: # For command-line interface
   <statement(s)> # List of statements for more complex flows
 ```
@@ -199,22 +197,15 @@ Configuration for interactive chat mode:
 - `system_message`: Instructions for the LLM's behavior
 - `default_prompt`: Initial prompt when starting the chat, defaults to empty string
 - `user_banner`: Optional markdown-formatted text displayed at the beginning of chat session, defaults to not shown
-- `show_reasoning`: Whether to display LLM reasoning process to user, defaults to `false`
 - `tools`: (Optional) List of tool names or inline tool definitions to make available for this LLM.
   Defaults to all public tools (e.g. not starting with `_`). Supports:
   - Tool names (strings): References to tools defined in the global tools section
   - Inline tool definitions: Complete tool definitions with `name`, `import_from`/`input`, and other tool parameters
   - Mixed usage: Combination of tool names and inline definitions
-- `auto_open_changed_files`: Whether to automatically open files modified during LLM call, defaults to `false`
-- `file_monitor_include`: List of glob patterns for files to monitor for changes, defaults to ['*']
-- `file_monitor_exclude`: List of glob patterns for files to exclude from monitoring, defaults to ['.*', '*.log']
-- `markdown_output`: Whether to render AI messages as markdown in the chat interface, defaults to `false`
 
 ```yaml
 chat:
   model_ref: thinking
-  show_reasoning: true
-  auto_open_changed_files: true
   user_banner: |
     # Game Analytics Assistant
     
