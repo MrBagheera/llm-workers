@@ -4,7 +4,6 @@ from logging import getLogger
 from typing import Optional, Union, Any, Dict, List, Tuple, Callable
 from uuid import UUID
 
-from langchain_community.callbacks import get_openai_callback
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.outputs import GenerationChunk, ChatGenerationChunk
@@ -15,6 +14,7 @@ from rich.markdown import Markdown
 from rich.syntax import Syntax
 
 from llm_workers.api import ConfirmationRequest, CONFIDENTIAL, UserContext
+from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.workers_context import StandardWorkersContext
 from llm_workers.user_context import StandardUserContext
 from llm_workers.utils import setup_logging, LazyFormatter, FileChangeDetector, \
@@ -22,6 +22,7 @@ from llm_workers.utils import setup_logging, LazyFormatter, FileChangeDetector, 
 from llm_workers.worker import Worker
 
 logger = getLogger(__name__)
+
 
 
 class _ChatSessionContext:
@@ -64,6 +65,7 @@ class ChatSession:
         self._finished = False
         self._pre_input = ""
         self._callbacks = [ChatSessionCallbackDelegate(self)]
+        self._token_tracker = CompositeTokenUsageTracker()
         self._streamed_message_id = None
         self._streamed_reasoning_index: Optional[int] = None
         self._has_unfinished_output = False
@@ -91,6 +93,13 @@ class ChatSession:
                     print()
                     print()
                     print()
+
+                # Display token usage before prompting for input
+                if self._iteration > 1:  # Only show after first response
+                    usage_display = self._token_tracker.format_current_usage()
+                    if usage_display is not None:
+                        self._console.print(f"{usage_display}", style="dim cyan")
+
                 self._console.print(f"#{self._iteration} Your input:", style="bold green", end="")
                 self._console.print(f" (Model: {self._chat_context.worker.model_ref}, Meta+Enter or Escape,Enter to submit, /help for commands list)", style="grey69 italic")
                 text = session.prompt(default=self._pre_input.strip(), multiline=True)
@@ -185,6 +194,7 @@ class ChatSession:
         logger.info(f"Rewinding session to #{target_iteration}")
         self._console.clear()
         self._iteration = target_iteration
+
         i = 0
         iteration = 1
         while i < len(self._messages):
@@ -195,6 +205,10 @@ class ChatSession:
                     self._messages = self._messages[:i]
                     self._iteration = target_iteration
                     self._pre_input = str(message.content)
+
+                    # Reset and recalculate tokens for remaining messages
+                    current_model = self._chat_context.worker.model_ref
+                    self._token_tracker.reset_current_usage(self._messages, current_model)
                     return
                 iteration = iteration + 1
             i = i + 1
@@ -361,6 +375,10 @@ class ChatSession:
         self._messages.append(message)
         if not isinstance(message, AIMessage):
             return
+
+        # Update token tracking from response metadata with current model
+        current_model = self._chat_context.worker.model_ref
+        self._token_tracker.update_from_message(message, current_model)
         if self._has_unfinished_output or self._streamed_reasoning_index is not None:
             print()
             self._has_unfinished_output = False
@@ -453,6 +471,14 @@ class ChatSession:
             else:
                 self._console.print("Please enter 'y' or 'n'", style="bold red")
 
+    def get_token_usage_summary(self) -> str | None:
+        """Get formatted token usage summary."""
+        return self._token_tracker.format_current_usage()
+
+    def get_session_token_summary(self) -> str | None:
+        """Get detailed per-model session token summary for exit display."""
+        return self._token_tracker.format_total_usage()
+
     def _handle_changed_files(self):
         changes = self._chat_context.file_monitor.check_changes()
         to_open = []
@@ -517,13 +543,12 @@ def chat_with_llm_script(script_name: str, user_context: Optional[UserContext] =
     console = Console()
 
     chat_session = ChatSession(console, script_name, user_context)
-    with get_openai_callback() as cb:
-        chat_session.run()
+    chat_session.run()
 
-    print(f"Total Tokens: {cb.total_tokens}", file=sys.stderr)
-    print(f"Prompt Tokens: {cb.prompt_tokens}", file=sys.stderr)
-    print(f"Completion Tokens: {cb.completion_tokens}", file=sys.stderr)
-    print(f"Total Cost (USD): ${cb.total_cost}", file=sys.stderr)
+    # Print detailed per-model session token summary
+    session_summary = chat_session.get_session_token_summary()
+    if session_summary is not None:
+        print(f"{session_summary}", file=sys.stderr)
 
 
 def main():
