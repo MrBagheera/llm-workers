@@ -15,11 +15,11 @@ Table of Contents
    * [Version 0.1.0](#version-010)
    * [Version 0.1.1](#version-011)
    * [Further Ideas](#further-ideas)
-* [Devlopment](#devlopment)
+* [Development](#development)
    * [Packaging for release](#packaging-for-release)
 
 <!-- Created by https://github.com/ekalinin/github-markdown-toc -->
-<!-- Added by: dmikhaylov, at: Mon Sep  8 06:50:59 EEST 2025 -->
+<!-- Added by: dmikhaylov, at: Mon Sep 29 22:48:05 EEST 2025 -->
 
 <!--te-->
 
@@ -52,18 +52,11 @@ models:
   - name: <model_name>
     provider: <provider_name>
     model: <model_id>
-    rate_limiter: # Optional
-      requests_per_second: <float>
-      check_every_n_seconds: <float> # Optional, defaults to 0.1
-      max_bucket_size: <float>
-    # Optional model parameters (any additional parameters are passed directly to the model)
-    temperature: <float>
-    max_tokens: <int>
     # [additional parameters...]
 
 # Display settings
 display_settings:
-  show_token_usage: true  # Optional, defaults to true
+  # see below
 
 ```
 
@@ -162,7 +155,7 @@ display_settings:
   markdown_output: true
 
   # File monitoring patterns (defaults shown)
-  file_monitor_include: ['*']
+  file_monitor_include: [ '*.jpg', '*.jpeg', '*.png', '*.gif', '*.tiff', '*.svg', '*.wbp' ]
   file_monitor_exclude: ['.*', '*.log']
 ```
 
@@ -284,7 +277,7 @@ debug whole `llm_workers` package / debug all)
 - support acting as MCP host (use tools from configured MCP servers)
 
 
-# Devlopment
+# Development
 
 ## Packaging for release
 
