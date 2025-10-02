@@ -103,7 +103,7 @@ def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> Base
         else:
             content = text
 
-        message = ToolMessage(content = content)
+        message = ToolMessage(content = content, tool_call_id = "n/a")
         token_tracker.attach_usage_to_message(message)
         return message
 
