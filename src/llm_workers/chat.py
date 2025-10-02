@@ -147,7 +147,7 @@ class ChatSession:
                 if self._iteration > 1 and self._user_context.user_config.display_settings.show_token_usage:  # Only show after first response and if enabled
                     usage_display = self._token_tracker.format_current_usage()
                     if usage_display is not None:
-                        self._console.print(usage_display, style="dim cyan")
+                        self._console.print(usage_display)
 
                 self._console.print(f"#{self._iteration} Your input:", style="bold green", end="")
                 self._console.print(f" (Model: {self._chat_context.worker.model_ref}, Meta+Enter or Escape,Enter to submit, /help for commands list)", style="grey69 italic")
@@ -218,7 +218,7 @@ class ChatSession:
             self._print_help(params)
             return
 
-        self._console.print(f"(Re)loading LLM script from {script_file}", style="bold white")
+        self._console.print(f"(Re)loading LLM script from {script_file}")
         logger.debug(f"Reloading LLM script from {script_file}")
         try:
             self._chat_context = _ChatSessionContext(script_file, self._user_context)
@@ -271,24 +271,24 @@ class ChatSession:
     def _model(self, params: list[str]):
         """<model> - Switch to specified model (fast, default, thinking)"""
         if len(params) != 1:
-            self._console.print("Usage: /model <model_name>", style="bold white")
-            self._console.print(f"Available models: {', '.join(self._available_models)}", style="bold white")
+            self._console.print("Usage: /model <model_name>")
+            self._console.print(f"Available models: {', '.join(self._available_models)}")
             return
         
         model_name = params[0]
         if model_name not in self._available_models:
             self._console.print(f"Unknown model: {model_name}", style="bold red")
-            self._console.print(f"Available models: {', '.join(self._available_models)}", style="bold white")
+            self._console.print(f"Available models: {', '.join(self._available_models)}")
             return
         
         if model_name == self._chat_context.worker.model_ref:
-            self._console.print(f"Already using model: {model_name}", style="bold white")
+            self._console.print(f"Already using model: {model_name}",)
             return
         
         try:
             # Use the Worker's model_ref setter to switch models
             self._chat_context.worker.model_ref = model_name
-            self._console.print(f"Switched to model: {model_name}", style="bold green")
+            self._console.print(f"Switched to model: {model_name}")
         except Exception as e:
             self._console.print(f"Failed to switch to model {model_name}: {e}", style="bold red")
             logger.warning(f"Failed to switch to model {model_name}: {e}", exc_info=True)
@@ -308,9 +308,9 @@ class ChatSession:
         if len(params) == 0:
             # Show all current boolean settings
             settings = self._get_boolean_settings()
-            self._console.print("Current display settings:", style="bold white")
+            self._console.print("Current display settings:")
             for setting, value in settings.items():
-                self._console.print(f"  {setting}: {value}", style="white")
+                self._console.print(f"  {setting}: {value}")
             return
 
         if len(params) == 1:
@@ -319,11 +319,11 @@ class ChatSession:
             settings = self._get_boolean_settings()
             if setting_name not in settings:
                 self._console.print(f"Unknown setting: {setting_name}", style="bold red")
-                self._console.print(f"Available settings: {', '.join(settings.keys())}", style="bold white")
+                self._console.print(f"Available settings: {', '.join(settings.keys())}")
                 return
 
             value = settings[setting_name]
-            self._console.print(f"{setting_name}: {value}", style="bold white")
+            self._console.print(f"{setting_name}: {value}")
             return
 
         if len(params) == 2:
@@ -334,7 +334,7 @@ class ChatSession:
             settings = self._get_boolean_settings()
             if setting_name not in settings:
                 self._console.print(f"Unknown setting: {setting_name}", style="bold red")
-                self._console.print(f"Available settings: {', '.join(settings.keys())}", style="bold white")
+                self._console.print(f"Available settings: {', '.join(settings.keys())}")
                 return
 
             # Parse boolean value
@@ -344,7 +344,7 @@ class ChatSession:
                 new_value = False
             else:
                 self._console.print(f"Invalid value: {params[1]}", style="bold red")
-                self._console.print("Valid values: true, false, 1, 0, on, off, yes, no", style="bold white")
+                self._console.print("Valid values: true, false, 1, 0, on, off, yes, no")
                 return
 
             # Set the value
@@ -372,7 +372,7 @@ class ChatSession:
             markdown_content = self._generate_markdown_export()
             with open(filename, 'w', encoding='utf-8') as f:
                 f.write(markdown_content)
-            self._console.print(f"Chat history exported to {filename}", style="bold green")
+            self._console.print(f"Chat history exported to {filename}")
         except Exception as e:
             self._console.print(f"Failed to export chat history: {e}", style="bold red")
             logger.warning(f"Failed to export chat history to {filename}: {e}", exc_info=True)
@@ -451,13 +451,13 @@ class ChatSession:
                     print()
                     self._has_unfinished_output = False
                 if self._streamed_reasoning_index is None:
-                    self._console.print("Reasoning:", style="bold white")
+                    self._console.print("Reasoning:")
                     self._streamed_reasoning_index = reasoning[0][0]
                 for (index, text) in reasoning:
                     if index != self._streamed_reasoning_index:
                         print()
                     self._streamed_reasoning_index = index
-                    self._console.print(text, style="bold white", end = "")
+                    self._console.print(text, end = "")
         if len(token) > 0:
             self.clear_thinking_message()
             if self._streamed_reasoning_index is not None:
@@ -487,9 +487,9 @@ class ChatSession:
         if self._user_context.user_config.display_settings.show_reasoning:
             reasoning = self._extract_reasoning(message)
             if len(reasoning) > 0:
-                self._console.print("Reasoning:", style="bold white")
+                self._console.print("Reasoning:")
                 for (index, text) in reasoning:
-                    self._console.print(text, style="bold white")
+                    self._console.print(text)
         # text
         confidential = getattr(message, CONFIDENTIAL, False)
         if confidential:
@@ -540,12 +540,12 @@ class ChatSession:
             self._running_tools_depths[run_id] = depth
             if message is not None:
                 ident = "  " * depth
-                self._console.print(f"{ident}└ {message}...", style="bold white")
+                self._console.print(f"{ident}└ {message}...")
         else:
             if message is None:
                 return  # do not store depth to avoid showing nesting for sub-tools
             self._running_tools_depths[run_id] = 0
-            self._console.print(f"⏺ {message}...", style="bold white")
+            self._console.print(f"⏺ {message}...")
 
     def process_confirmation_request(self, request: ConfirmationRequest):
         self.clear_thinking_message()
@@ -556,14 +556,14 @@ class ChatSession:
             if arg.format is not None:
                 self._console.print(Syntax(arg.value, arg.format))
             else:
-                self._console.print(arg.value, style="bold white")
+                self._console.print(arg.value)
         else:
             for arg in request.args:
                 self._console.print(f"{arg.name}:")
                 if arg.format is not None:
                     self._console.print(Syntax(arg.value, arg.format))
                 else:
-                    self._console.print(arg.value, style="bold white")
+                    self._console.print(arg.value)
         while True:
             response = self._console.input("[bold green]Do you approve (y/n)?[/bold green] ").strip().lower()
             if response in ['y', 'yes']:
@@ -586,7 +586,7 @@ class ChatSession:
     def show_thinking(self):
         """Display 'Thinking...' message using Rich Live display."""
         if not self._thinking_live:
-            self._thinking_live = self._console.status("[dim cyan]Thinking...", spinner="dots")
+            self._thinking_live = self._console.status("Thinking...", spinner="dots")
             self._thinking_live.start()
 
     def clear_thinking_message(self):
@@ -601,14 +601,14 @@ class ChatSession:
         created = changes.get('created', [])
         if len(created) > 0:
             to_open += created
-            self._console.print(f"Files created: {', '.join(created)}", style="bold white")
+            self._console.print(f"Files created: {', '.join(created)}")
         modified = changes.get('modified', [])
         if len(modified) > 0:
             to_open += modified
-            self._console.print(f"Files updated: {', '.join(modified)}", style="bold white")
+            self._console.print(f"Files updated: {', '.join(modified)}")
         deleted = changes.get('deleted', [])
         if len(deleted) > 0:
-            self._console.print(f"Files deleted: {', '.join(deleted)}", style="bold white")
+            self._console.print(f"Files deleted: {', '.join(deleted)}")
         if not self._user_context.user_config.display_settings.auto_open_changed_files:
             return
         for filename in to_open:
