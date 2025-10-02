@@ -351,7 +351,7 @@ def setup_logging(
         debug_loggers_by_debug_level: list[list[str]] = DEBUG_LOGGERS,
         verbosity: int = 0,
         log_filename: Optional[str] = None
-) -> None:
+) -> str:
     """Configures logging to console and file in a standard way.
     Args:
         debug_level: verbosity level for file logging
@@ -376,7 +376,7 @@ def setup_logging(
             logging.getLogger(logger_name).setLevel(logging.DEBUG)
 
     # console logging
-    console_level: int = logging.WARNING
+    console_level: int = logging.FATAL
     if verbosity == 1:
         console_level = logging.INFO
     elif verbosity >= 2:
@@ -386,6 +386,8 @@ def setup_logging(
     formatter = logging.Formatter("%(name)s: %(message)s")
     console_handler.setFormatter(formatter)
     logging.getLogger().addHandler(console_handler)
+
+    return os.path.abspath(log_filename)
 
 def format_as_yaml(obj: Any, trim: bool) -> str:
     """Format given object as YAML string with optional trimming of all string fields recursively.
@@ -558,7 +560,7 @@ def open_file_in_default_app(filepath: str) -> bool:
             subprocess.run(['xdg-open', str(path)])
         return True
     except Exception as e:
-        logger.warning(f"Failed to open file {filepath} in default app: {e}", exc_info=True)
+        logger.warning(f"Failed to open file {filepath} in default app", exc_info=True)
         return False
 
 

@@ -98,7 +98,7 @@ def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> Base
                 # return json.loads(json_text)
                 content = ast.literal_eval(json_text.replace("true", "True").replace("false", "False"))
             except (json.JSONDecodeError, ValueError) as e:
-                _logger.warning("Failed to parse JSON from LLM output, returning as plain text:\n%s", json_text, exc_info=e)
+                _logger.warning("Failed to parse JSON from LLM output, returning as plain text:\n%s", json_text, exc_info=True)
                 content = json_text
         else:
             content = text

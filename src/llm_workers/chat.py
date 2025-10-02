@@ -224,7 +224,7 @@ class ChatSession:
             self._chat_context = _ChatSessionContext(script_file, self._user_context)
         except Exception as e:
             self._console.print(f"Failed to load LLM script from {script_file}: {e}", style="bold red")
-            logger.warning(f"Failed to load LLM script from {script_file}: {e}", exc_info=True)
+            logger.warning(f"Failed to load LLM script from {script_file}", exc_info=True)
 
     def _rewind(self, params: list[str]):
         """[N] - Rewinds chat session to input N (default to previous)"""
@@ -291,7 +291,7 @@ class ChatSession:
             self._console.print(f"Switched to model: {model_name}")
         except Exception as e:
             self._console.print(f"Failed to switch to model {model_name}: {e}", style="bold red")
-            logger.warning(f"Failed to switch to model {model_name}: {e}", exc_info=True)
+            logger.warning(f"Failed to switch to model {model_name}", exc_info=True)
 
     def _get_boolean_settings(self) -> dict[str, bool]:
         """Get all boolean display settings as a dictionary."""
@@ -375,7 +375,7 @@ class ChatSession:
             self._console.print(f"Chat history exported to {filename}")
         except Exception as e:
             self._console.print(f"Failed to export chat history: {e}", style="bold red")
-            logger.warning(f"Failed to export chat history to {filename}: {e}", exc_info=True)
+            logger.warning(f"Failed to export chat history to {filename}", exc_info=True)
 
     def _generate_markdown_export(self) -> str:
         """Generate markdown content from chat history"""
@@ -682,7 +682,8 @@ def main():
     parser.add_argument('script_file', type=str, nargs='?', help="Path to the script file. Generic assistant script will be used if omitted.", default="llm_workers:generic-assistant.yaml")
     args = parser.parse_args()
 
-    setup_logging(debug_level = args.debug, verbosity = args.verbose, log_filename = "llm-workers.log")
+    log_file = setup_logging(debug_level = args.debug, verbosity = args.verbose, log_filename = "llm-workers.log")
+    print(f"Logging to {log_file}", file=sys.stderr)
 
     chat_with_llm_script(args.script_file)
 

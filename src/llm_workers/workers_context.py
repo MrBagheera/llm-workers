@@ -133,7 +133,7 @@ class StandardWorkersContext(WorkersContext):
                 else:
                     return None  # empty hint means no message should be shown
         except Exception as e:
-            logger.warning(f"Unexpected exception formating start message for tool {tool_name}: {e}", exc_info=True)
+            logger.warning(f"Unexpected exception formating start message for tool {tool_name}", exc_info=True)
         # default
         return f"Running tool {tool_name}"
 
