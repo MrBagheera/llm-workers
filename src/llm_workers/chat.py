@@ -156,7 +156,7 @@ class ChatSession:
                 if self._parse_and_run_command(text):
                     continue
                 # submitting input to the worker
-                self._console.print(f"#{self._iteration} AI Assistant:", style="bold green")
+                self._console.print(f"#{self._iteration} Assistant:", style="bold green")
                 message = HumanMessage(text)
                 self._messages.append(message)
                 self._streamed_reasoning_index = None
@@ -397,12 +397,12 @@ class ChatSession:
             
             if isinstance(message, HumanMessage):
                 current_iteration += 1
-                markdown_lines.append(f"# Human input #{current_iteration}\n")
+                markdown_lines.append(f"# User #{current_iteration}\n")
                 markdown_lines.append(f"{message.content}\n")
                 
             elif isinstance(message, AIMessage):
                 if current_iteration != last_ai_iteration:
-                    markdown_lines.append(f"# AI Assistant #{current_iteration}\n")
+                    markdown_lines.append(f"# Assistant #{current_iteration}\n")
                     last_ai_iteration = current_iteration
                 
                 # Add message text content
