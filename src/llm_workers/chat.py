@@ -12,7 +12,6 @@ from prompt_toolkit.history import InMemoryHistory
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.syntax import Syntax
-from rich.text import Text
 
 from llm_workers.api import ConfirmationRequest, CONFIDENTIAL, UserContext
 from llm_workers.chat_completer import ChatCompleter
@@ -148,7 +147,7 @@ class ChatSession:
                 if self._iteration > 1 and self._user_context.user_config.display_settings.show_token_usage:  # Only show after first response and if enabled
                     usage_display = self._token_tracker.format_current_usage()
                     if usage_display is not None:
-                        self._console.print(f"{usage_display}", style="dim cyan")
+                        self._console.print(usage_display, style="dim cyan")
 
                 self._console.print(f"#{self._iteration} Your input:", style="bold green", end="")
                 self._console.print(f" (Model: {self._chat_context.worker.model_ref}, Meta+Enter or Escape,Enter to submit, /help for commands list)", style="grey69 italic")
@@ -260,10 +259,6 @@ class ChatSession:
                     self._messages = self._messages[:i]
                     self._iteration = target_iteration
                     self._pre_input = str(message.content)
-
-                    # Reset and recalculate tokens for remaining messages
-                    current_model = self._chat_context.worker.model_ref
-                    self._token_tracker.reset_current_usage(self._messages, current_model)
                     return
                 iteration = iteration + 1
             i = i + 1
@@ -473,12 +468,13 @@ class ChatSession:
 
     def process_model_message(self, message: BaseMessage):
         self._messages.append(message)
+
+        # Update token tracking with automatic model detection
+        default_model = self._chat_context.worker.model_ref
+        self._token_tracker.update_from_message(message, default_model)
+
         if not isinstance(message, AIMessage):
             return
-
-        # Update token tracking from response metadata with current model
-        current_model = self._chat_context.worker.model_ref
-        self._token_tracker.update_from_message(message, current_model)
         self.clear_thinking_message()
         if self._has_unfinished_output or self._streamed_reasoning_index is not None:
             print()
@@ -590,7 +586,6 @@ class ChatSession:
     def show_thinking(self):
         """Display 'Thinking...' message using Rich Live display."""
         if not self._thinking_live:
-            thinking_text = Text("Thinking...", style="dim cyan")
             self._thinking_live = self._console.status("[dim cyan]Thinking...", spinner="dots")
             self._thinking_live.start()
 

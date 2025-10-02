@@ -188,22 +188,34 @@ class Worker(Runnable[List[BaseMessage], List[BaseMessage]]):
             except ToolException as e:
                 logger.warning("Failed to call tool %s", tool.name, exc_info=True)
                 tool_output = f"Tool Error: {e}"
-            content = tool_output if isinstance(tool_output, str) else json.dumps(tool_output)
+
+            tool_message: ToolMessage
+            content: str
+            if isinstance(tool_output, ToolMessage):
+                tool_message = tool_output
+                tool_message.tool_call_id = tool_call['id']
+                tool_message.name = tool.name
+                content = tool_message.content
+            else:
+                content = tool_output if isinstance(tool_output, str) else json.dumps(tool_output)
+                tool_message = ToolMessage(content = content, tool_call_id = tool_call['id'], name = tool.name)
+
             if tool.return_direct:
-                tool_results.append(ToolMessage(
+                tool_message = ToolMessage(
                     content = "Tool call result shown directly to user, no need for further actions",
                     tool_call_id = tool_call['id'],
                     name = tool.name
-                ))
+                )
+                tool_results.append(tool_message)
+
                 response = AIMessage(content = content.strip())
                 if self._is_confidential(tool, tool_definition):
                     response = response.model_copy(update={CONFIDENTIAL: True}, deep=False)
                 self._log_llm_message(response, "direct tool message")
                 direct_results.append(response)
             else:
-                response = ToolMessage(content = content, tool_call_id = tool_call['id'], name = tool.name)
-                self._log_llm_message(response, "tool call message")
-                tool_results.append(response)
+                self._log_llm_message(tool_message, "tool call message")
+                tool_results.append(tool_message)
         return tool_results, direct_results
 
     @staticmethod

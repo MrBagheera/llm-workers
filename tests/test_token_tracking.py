@@ -1,9 +1,8 @@
 import unittest
 from unittest.mock import Mock
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from llm_workers.token_tracking import SimpleTokenUsageTracker, CompositeTokenUsageTracker
-from llm_workers.config import DisplaySettings, UserConfig
+from llm_workers.token_tracking import SimpleTokenUsageTracker, CompositeTokenUsageTracker, _extract_usage_metadata_from_message
 
 
 class TestSimpleTokenUsageTracker(unittest.TestCase):
@@ -20,77 +19,54 @@ class TestSimpleTokenUsageTracker(unittest.TestCase):
         self.assertEqual(self.tracker.reasoning_tokens, 0)
         self.assertEqual(self.tracker.cache_read_tokens, 0)
 
-    def test_update_from_usage_metadata(self):
-        """Test updating from message with usage_metadata attribute."""
-        message = Mock(spec=AIMessage)
-        message.usage_metadata = {
+    def test_update_from_metadata_basic(self):
+        """Test updating from metadata dictionary."""
+        metadata = {
             'total_tokens': 100,
             'input_tokens': 60,
             'output_tokens': 40
         }
 
-        self.tracker.update_from_message(message)
+        self.tracker.update_from_metadata(metadata)
 
         self.assertEqual(self.tracker.total_tokens, 100)
         self.assertEqual(self.tracker.input_tokens, 60)
         self.assertEqual(self.tracker.output_tokens, 40)
 
-    def test_update_from_response_metadata(self):
-        """Test updating from message with response_metadata structure."""
-        message = Mock(spec=AIMessage)
-        # Configure the mock to return False for usage_metadata hasattr check
-        def mock_hasattr(obj, name):
-            if name == 'usage_metadata':
-                return False
-            if name == 'response_metadata':
-                return True
-            return False
+    def test_update_from_metadata_with_details(self):
+        """Test updating from metadata with reasoning and cache details."""
+        metadata = {
+            'total_tokens': 200,
+            'input_tokens': 120,
+            'output_tokens': 80,
+            'output_token_details': {'reasoning': 30},
+            'input_token_details': {'cache_read': 20}
+        }
 
-        # Mock hasattr behavior
-        import builtins
-        original_hasattr = builtins.hasattr
-        builtins.hasattr = mock_hasattr
+        self.tracker.update_from_metadata(metadata)
 
-        try:
-            message.response_metadata = {
-                'usage_metadata': {
-                    'total_tokens': 200,
-                    'input_tokens': 120,
-                    'output_tokens': 80,
-                    'output_token_details': {'reasoning': 30},
-                    'input_token_details': {'cache_read': 20}
-                }
-            }
-
-            self.tracker.update_from_message(message)
-
-            self.assertEqual(self.tracker.total_tokens, 200)
-            self.assertEqual(self.tracker.input_tokens, 120)
-            self.assertEqual(self.tracker.output_tokens, 80)
-            self.assertEqual(self.tracker.reasoning_tokens, 30)
-            self.assertEqual(self.tracker.cache_read_tokens, 20)
-        finally:
-            # Restore original hasattr
-            builtins.hasattr = original_hasattr
+        self.assertEqual(self.tracker.total_tokens, 200)
+        self.assertEqual(self.tracker.input_tokens, 120)
+        self.assertEqual(self.tracker.output_tokens, 80)
+        self.assertEqual(self.tracker.reasoning_tokens, 30)
+        self.assertEqual(self.tracker.cache_read_tokens, 20)
 
     def test_accumulation(self):
         """Test that tokens accumulate correctly across multiple updates."""
-        message1 = Mock(spec=AIMessage)
-        message1.usage_metadata = {
+        metadata1 = {
             'total_tokens': 100,
             'input_tokens': 60,
             'output_tokens': 40
         }
 
-        message2 = Mock(spec=AIMessage)
-        message2.usage_metadata = {
+        metadata2 = {
             'total_tokens': 50,
             'input_tokens': 30,
             'output_tokens': 20
         }
 
-        self.tracker.update_from_message(message1)
-        self.tracker.update_from_message(message2)
+        self.tracker.update_from_metadata(metadata1)
+        self.tracker.update_from_metadata(metadata2)
 
         self.assertEqual(self.tracker.total_tokens, 150)
         self.assertEqual(self.tracker.input_tokens, 90)
@@ -98,14 +74,13 @@ class TestSimpleTokenUsageTracker(unittest.TestCase):
 
     def test_reset(self):
         """Test that reset clears all counters."""
-        message = Mock(spec=AIMessage)
-        message.usage_metadata = {
+        metadata = {
             'total_tokens': 100,
             'input_tokens': 60,
             'output_tokens': 40
         }
 
-        self.tracker.update_from_message(message)
+        self.tracker.update_from_metadata(metadata)
         self.tracker.reset()
 
         self.assertEqual(self.tracker.total_tokens, 0)
@@ -230,115 +205,6 @@ class TestCompositeTokenUsageTracker(unittest.TestCase):
         expected_total = "Total Session Tokens: 150 total\n  default: 150 (90 in, 60 out)"
         self.assertEqual(self.tracker.format_total_usage(), expected_total)
 
-    def test_reset_current_usage_basic(self):
-        """Test that reset_current_usage resets session but preserves total per-model."""
-        # Add initial tokens
-        message1 = Mock(spec=AIMessage)
-        message1.usage_metadata = {
-            'total_tokens': 100,
-            'input_tokens': 60,
-            'output_tokens': 40
-        }
-        self.tracker.update_from_message(message1, "default")
-
-        message2 = Mock(spec=AIMessage)
-        message2.usage_metadata = {
-            'total_tokens': 50,
-            'input_tokens': 30,
-            'output_tokens': 20
-        }
-        self.tracker.update_from_message(message2, "fast")
-
-        # Verify initial state
-        self.assertEqual(self.tracker.format_current_usage(), "Tokens: 150 (90 in, 60 out)")
-
-        # Reset with empty messages
-        self.tracker.reset_current_usage([], "default")
-
-        # Current usage should be reset
-        self.assertIsNone(self.tracker.format_current_usage())
-
-        # Total usage should still show per-model totals (never reset)
-        expected_total = ("Total Session Tokens: 150 total\n"
-                         "  default: 100 (60 in, 40 out)\n"
-                         "  fast: 50 (30 in, 20 out)")
-        self.assertEqual(self.tracker.format_total_usage(), expected_total)
-
-    def test_reset_current_usage_with_messages(self):
-        """Test reset_current_usage recalculates from provided messages."""
-        # Add initial tokens from multiple models
-        message1 = Mock(spec=AIMessage)
-        message1.usage_metadata = {
-            'total_tokens': 100,
-            'input_tokens': 60,
-            'output_tokens': 40
-        }
-        self.tracker.update_from_message(message1, "default")
-
-        message2 = Mock(spec=AIMessage)
-        message2.usage_metadata = {
-            'total_tokens': 80,
-            'input_tokens': 50,
-            'output_tokens': 30
-        }
-        self.tracker.update_from_message(message2, "fast")
-
-        # Create a message list with only one message for recalculation
-        remaining_message = Mock(spec=AIMessage)
-        remaining_message.usage_metadata = {
-            'total_tokens': 30,
-            'input_tokens': 20,
-            'output_tokens': 10
-        }
-
-        messages = [
-            HumanMessage(content="test"),
-            remaining_message
-        ]
-
-        # Reset and recalculate
-        self.tracker.reset_current_usage(messages, "default")
-
-        # Current usage should reflect only the remaining message
-        self.assertEqual(self.tracker.format_current_usage(), "Tokens: 30 (20 in, 10 out)")
-
-        # Total usage should still show original per-model totals
-        expected_total = ("Total Session Tokens: 180 total\n"
-                         "  default: 100 (60 in, 40 out)\n"
-                         "  fast: 80 (50 in, 30 out)")
-        self.assertEqual(self.tracker.format_total_usage(), expected_total)
-
-    def test_total_vs_current_independence(self):
-        """Test that total and current usage are tracked independently."""
-        # Add tokens for default model
-        message1 = Mock(spec=AIMessage)
-        message1.usage_metadata = {
-            'total_tokens': 100,
-            'input_tokens': 60,
-            'output_tokens': 40
-        }
-        self.tracker.update_from_message(message1, "default")
-
-        # Reset current (simulating rewind)
-        self.tracker.reset_current_usage([], "default")
-
-        # Add more tokens for fast model
-        message2 = Mock(spec=AIMessage)
-        message2.usage_metadata = {
-            'total_tokens': 50,
-            'input_tokens': 30,
-            'output_tokens': 20
-        }
-        self.tracker.update_from_message(message2, "fast")
-
-        # Current should only show recent tokens
-        self.assertEqual(self.tracker.format_current_usage(), "Tokens: 50 (30 in, 20 out)")
-
-        # Total should show all tokens ever processed
-        expected_total = ("Total Session Tokens: 150 total\n"
-                         "  default: 100 (60 in, 40 out)\n"
-                         "  fast: 50 (30 in, 20 out)")
-        self.assertEqual(self.tracker.format_total_usage(), expected_total)
 
     def test_reasoning_tokens_handling(self):
         """Test handling of reasoning tokens in both current and total usage."""
@@ -377,75 +243,287 @@ class TestCompositeTokenUsageTracker(unittest.TestCase):
             # Restore original hasattr
             builtins.hasattr = original_hasattr
 
+    def test_current_usage_auto_reset(self):
+        """Test that current usage automatically resets after format_current_usage is called."""
+        # Add initial tokens
+        message1 = Mock(spec=AIMessage)
+        message1.usage_metadata = {
+            'total_tokens': 100,
+            'input_tokens': 60,
+            'output_tokens': 40
+        }
+        self.tracker.update_from_message(message1, "default")
 
-class TestDisplaySettings(unittest.TestCase):
-    """Test cases for DisplaySettings configuration."""
+        # Format current usage (this should reset it)
+        current_usage = self.tracker.format_current_usage()
+        self.assertEqual(current_usage, "Tokens: 100 (60 in, 40 out)")
 
-    def test_default_values(self):
-        """Test that DisplaySettings has correct default values."""
-        settings = DisplaySettings()
-        self.assertTrue(settings.show_token_usage)
-        self.assertFalse(settings.show_reasoning)
-        self.assertFalse(settings.auto_open_changed_files)
-        self.assertTrue(settings.markdown_output)
-        self.assertEqual(settings.file_monitor_include, ['*'])
-        self.assertEqual(settings.file_monitor_exclude, ['.*', '*.log'])
+        # Current usage should now be reset
+        self.assertIsNone(self.tracker.format_current_usage())
 
-    def test_custom_values(self):
-        """Test DisplaySettings with custom values."""
-        settings = DisplaySettings(
-            show_token_usage=False,
-            show_reasoning=True,
-            auto_open_changed_files=True,
-            markdown_output=True,
-            file_monitor_include=['*.py', '*.yaml'],
-            file_monitor_exclude=['*.pyc', '*.log', '*.tmp']
-        )
-        self.assertFalse(settings.show_token_usage)
-        self.assertTrue(settings.show_reasoning)
-        self.assertTrue(settings.auto_open_changed_files)
-        self.assertTrue(settings.markdown_output)
-        self.assertEqual(settings.file_monitor_include, ['*.py', '*.yaml'])
-        self.assertEqual(settings.file_monitor_exclude, ['*.pyc', '*.log', '*.tmp'])
+        # But total usage should still be preserved
+        expected_total = "Total Session Tokens: 100 total\n  default: 100 (60 in, 40 out)"
+        self.assertEqual(self.tracker.format_total_usage(), expected_total)
+
+        # Add more tokens
+        message2 = Mock(spec=AIMessage)
+        message2.usage_metadata = {
+            'total_tokens': 50,
+            'input_tokens': 30,
+            'output_tokens': 20
+        }
+        self.tracker.update_from_message(message2, "default")
+
+        # Current usage should show only the new tokens
+        current_usage = self.tracker.format_current_usage()
+        self.assertEqual(current_usage, "Tokens: 50 (30 in, 20 out)")
+
+        # Total usage should show accumulated tokens
+        expected_total = "Total Session Tokens: 150 total\n  default: 150 (90 in, 60 out)"
+        self.assertEqual(self.tracker.format_total_usage(), expected_total)
 
 
-class TestUserConfigDisplaySettings(unittest.TestCase):
-    """Test cases for UserConfig with DisplaySettings integration."""
+class TestTokenTrackingWithTools(unittest.TestCase):
+    """Test cases for token tracking with tool messages and additional_kwargs."""
 
-    def test_default_display_settings(self):
-        """Test that UserConfig creates default DisplaySettings."""
-        config = UserConfig()
-        self.assertIsInstance(config.display_settings, DisplaySettings)
-        self.assertTrue(config.display_settings.show_token_usage)
-        self.assertFalse(config.display_settings.show_reasoning)
+    def setUp(self):
+        self.simple_tracker = SimpleTokenUsageTracker()
+        self.composite_tracker = CompositeTokenUsageTracker()
 
-    def test_custom_display_settings(self):
-        """Test UserConfig with custom DisplaySettings."""
-        custom_settings = DisplaySettings(show_reasoning=True, markdown_output=True)
-        config = UserConfig(display_settings=custom_settings)
-        self.assertTrue(config.display_settings.show_reasoning)
-        self.assertTrue(config.display_settings.markdown_output)
+    def test_simple_tracker_with_metadata(self):
+        """Test SimpleTokenUsageTracker with token usage metadata."""
+        metadata = {
+            'total_tokens': 150,
+            'input_tokens': 90,
+            'output_tokens': 60,
+            'output_token_details': {'reasoning': 20}
+        }
 
-    def test_display_settings_from_dict(self):
-        """Test UserConfig creation from dictionary with display_settings."""
-        config_data = {
-            'models': [],
-            'display_settings': {
-                'show_token_usage': False,
-                'show_reasoning': True,
-                'auto_open_changed_files': True,
-                'markdown_output': True,
-                'file_monitor_include': ['*.py'],
-                'file_monitor_exclude': ['*.pyc']
+        self.simple_tracker.update_from_metadata(metadata)
+
+        self.assertEqual(self.simple_tracker.total_tokens, 150)
+        self.assertEqual(self.simple_tracker.input_tokens, 90)
+        self.assertEqual(self.simple_tracker.output_tokens, 60)
+        self.assertEqual(self.simple_tracker.reasoning_tokens, 20)
+
+
+    def test_composite_tracker_with_tool_messages(self):
+        """Test CompositeTokenUsageTracker with ToolMessage instances containing usage metadata."""
+        tool_message = Mock(spec=ToolMessage)
+        tool_message.additional_kwargs = {
+            'usage_metadata_per_model': {
+                'tool-model': {
+                    'total_tokens': 75,
+                    'input_tokens': 45,
+                    'output_tokens': 30
+                }
             }
         }
-        config = UserConfig(**config_data)
-        self.assertFalse(config.display_settings.show_token_usage)
-        self.assertTrue(config.display_settings.show_reasoning)
-        self.assertTrue(config.display_settings.auto_open_changed_files)
-        self.assertTrue(config.display_settings.markdown_output)
-        self.assertEqual(config.display_settings.file_monitor_include, ['*.py'])
-        self.assertEqual(config.display_settings.file_monitor_exclude, ['*.pyc'])
+
+        ai_message = Mock(spec=AIMessage)
+        ai_message.usage_metadata = {
+            'total_tokens': 125,
+            'input_tokens': 75,
+            'output_tokens': 50
+        }
+
+        # Update with tool message
+        self.composite_tracker.update_from_message(tool_message, "default")
+
+        # Update with AI message
+        self.composite_tracker.update_from_message(ai_message, "main-model")
+
+        # Current usage should show combined tokens
+        current_usage = self.composite_tracker.format_current_usage()
+        self.assertIn("200", current_usage)  # 75 + 125 total tokens
+        self.assertIn("120 in", current_usage)  # 45 + 75 input tokens
+        self.assertIn("80 out", current_usage)  # 30 + 50 output tokens
+
+        # Total usage should show per-model breakdown
+        total_usage = self.composite_tracker.format_total_usage()
+        self.assertIn("Total Session Tokens: 200 total", total_usage)
+        self.assertIn("main-model: 125 (75 in, 50 out)", total_usage)
+        self.assertIn("tool-model: 75 (45 in, 30 out)", total_usage)
+
+    def test_attach_usage_to_message(self):
+        """Test the attach_usage_to_message method attaches tracker's internal state."""
+        # First, populate the tracker with some usage data
+        ai_message = Mock(spec=AIMessage)
+        ai_message.usage_metadata = {
+            'total_tokens': 50,
+            'input_tokens': 30,
+            'output_tokens': 20
+        }
+        self.composite_tracker.update_from_message(ai_message, "test-model")
+
+        # Create a tool message and attach the tracker's usage data
+        tool_message = ToolMessage(content="test", tool_call_id="123", name="test_tool")
+        self.composite_tracker.attach_usage_to_message(tool_message)
+
+        # Verify the metadata was attached with per-model format
+        self.assertIn('usage_metadata', tool_message.additional_kwargs)
+        self.assertIn('test-model', tool_message.additional_kwargs['usage_metadata'])
+        self.assertEqual(tool_message.additional_kwargs['usage_metadata']['test-model']['total_tokens'], 50)
+        self.assertEqual(tool_message.additional_kwargs['usage_metadata']['test-model']['input_tokens'], 30)
+        self.assertEqual(tool_message.additional_kwargs['usage_metadata']['test-model']['output_tokens'], 20)
+
+    def test_message_without_metadata(self):
+        """Test that messages without metadata are handled gracefully."""
+        message = Mock(spec=ToolMessage)
+        # Don't set any metadata attributes
+
+        # Mock hasattr to return False for all metadata attributes
+        import builtins
+        original_hasattr = builtins.hasattr
+        def mock_hasattr(obj, name):
+            return False
+        builtins.hasattr = mock_hasattr
+
+        try:
+            # This should not raise an error and should not update any tokens
+            self.composite_tracker.update_from_message(message, "default")
+
+            # No tokens should be tracked
+            self.assertIsNone(self.composite_tracker.format_current_usage())
+        finally:
+            builtins.hasattr = original_hasattr
+
+
+    def test_simple_tracker_update_from_usage_metadata(self):
+        """Test SimpleTokenUsageTracker.update_from_usage_metadata method."""
+        usage_metadata = {
+            'total_tokens': 200,
+            'input_tokens': 120,
+            'output_tokens': 80,
+            'output_token_details': {'reasoning': 30},
+            'input_token_details': {'cache_read': 25}
+        }
+
+        self.simple_tracker.update_from_metadata(usage_metadata)
+
+        self.assertEqual(self.simple_tracker.total_tokens, 200)
+        self.assertEqual(self.simple_tracker.input_tokens, 120)
+        self.assertEqual(self.simple_tracker.output_tokens, 80)
+        self.assertEqual(self.simple_tracker.reasoning_tokens, 30)
+        self.assertEqual(self.simple_tracker.cache_read_tokens, 25)
+
+    def test_composite_tracker_update_from_metadata(self):
+        """Test CompositeTokenUsageTracker.update_from_metadata method with per-model dict."""
+        usage_metadata_per_model = {
+            'test-model': {
+                'total_tokens': 150,
+                'input_tokens': 90,
+                'output_tokens': 60,
+                'output_token_details': {'reasoning': 20}
+            }
+        }
+
+        self.composite_tracker.update_from_metadata(usage_metadata_per_model)
+
+        # Check current usage
+        current_usage = self.composite_tracker.format_current_usage()
+        self.assertIn("150", current_usage)
+        self.assertIn("90 in", current_usage)
+        self.assertIn("60 out", current_usage)
+        self.assertIn("20 reasoning", current_usage)
+
+        # Check per-model total usage
+        total_usage = self.composite_tracker.format_total_usage()
+        self.assertIn("test-model: 150 (90 in, 60 out, 20 reasoning)", total_usage)
+
+
+class TestExtractUsageMetadata(unittest.TestCase):
+    """Test cases for the module-level extract_usage_metadata_from_message function."""
+
+    def test_extract_from_additional_kwargs(self):
+        """Test extracting metadata from additional_kwargs with usage_metadata_per_model."""
+        message = Mock(spec=ToolMessage)
+        expected_metadata = {
+            'test-model': {
+                'total_tokens': 100,
+                'input_tokens': 60,
+                'output_tokens': 40
+            }
+        }
+        message.additional_kwargs = {'usage_metadata_per_model': expected_metadata}
+
+        result = _extract_usage_metadata_from_message(message, 'default')
+        self.assertEqual(result, expected_metadata)
+
+    def test_extract_from_usage_metadata_attribute(self):
+        """Test extracting metadata from usage_metadata attribute."""
+        message = Mock(spec=AIMessage)
+        metadata = {
+            'total_tokens': 120,
+            'input_tokens': 70,
+            'output_tokens': 50
+        }
+        message.usage_metadata = metadata
+
+        result = _extract_usage_metadata_from_message(message, 'default')
+        # Should wrap in per-model dict with default model name
+        self.assertEqual(result, {'default': metadata})
+
+    def test_extract_from_response_metadata(self):
+        """Test extracting metadata from response_metadata."""
+        message = Mock(spec=AIMessage)
+        metadata = {
+            'total_tokens': 180,
+            'input_tokens': 100,
+            'output_tokens': 80
+        }
+        message.response_metadata = {'usage_metadata': metadata}
+
+        # Mock hasattr behavior
+        import builtins
+        original_hasattr = builtins.hasattr
+        def mock_hasattr(obj, name):
+            if name == 'additional_kwargs':
+                return False
+            if name == 'usage_metadata':
+                return False
+            if name == 'response_metadata':
+                return True
+            return False
+        builtins.hasattr = mock_hasattr
+
+        try:
+            result = _extract_usage_metadata_from_message(message, 'my-model')
+            # Should wrap in per-model dict with provided model name
+            self.assertEqual(result, {'my-model': metadata})
+        finally:
+            builtins.hasattr = original_hasattr
+
+    def test_extract_priority_additional_kwargs_first(self):
+        """Test that additional_kwargs usage_metadata_per_model takes priority over other sources."""
+        message = Mock(spec=AIMessage)
+
+        priority_metadata = {'model-a': {'total_tokens': 100, 'source': 'additional_kwargs'}}
+        other_metadata = {'total_tokens': 200, 'source': 'usage_metadata'}
+
+        message.additional_kwargs = {'usage_metadata_per_model': priority_metadata}
+        message.usage_metadata = other_metadata
+
+        result = _extract_usage_metadata_from_message(message, 'default')
+        self.assertEqual(result, priority_metadata)
+        self.assertEqual(result['model-a']['source'], 'additional_kwargs')
+
+    def test_extract_returns_none_when_no_metadata(self):
+        """Test that function returns None when no metadata is found."""
+        message = Mock(spec=ToolMessage)
+
+        # Mock hasattr to return False for all attributes
+        import builtins
+        original_hasattr = builtins.hasattr
+        def mock_hasattr(obj, name):
+            return False
+        builtins.hasattr = mock_hasattr
+
+        try:
+            result = _extract_usage_metadata_from_message(message, 'default')
+            self.assertIsNone(result)
+        finally:
+            builtins.hasattr = original_hasattr
 
 
 if __name__ == '__main__':

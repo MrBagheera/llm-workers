@@ -4,15 +4,17 @@ import logging
 import re
 from typing import Dict, Any, List, Union
 
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool, StructuredTool
 
 from llm_workers.api import WorkersContext
 from llm_workers.config import ToolLLMConfig, Json
+from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.utils import LazyFormatter
 from llm_workers.worker import Worker
 
 _logger = logging.getLogger(__name__)
+
 
 def extract_json_blocks(text: str, extract_json: Union[bool, str]) -> str:
     """
@@ -65,9 +67,18 @@ def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> Base
     config = ToolLLMConfig(**tool_config)
     agent = Worker(config, context)
 
-    def extract_result(result: List[BaseMessage]) -> Json:
+    def extract_result(result: List[BaseMessage]) -> ToolMessage:
+        """Extract text result and capture token usage from LLM response."""
         if len(result) == 0:
-            return ""
+            return ToolMessage(content = "")
+
+        # Capture token usage from AI messages
+        token_tracker = CompositeTokenUsageTracker()
+        model_name = config.model_ref
+        for message in result:
+            token_tracker.update_from_message(message, model_name)
+
+        # Extract text content
         if len(result) == 1:
             text = str(result[0].text())
         elif len(result) > 1:
@@ -75,8 +86,9 @@ def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> Base
             text = "\n".join([message.text() for message in result if isinstance(message, AIMessage)])
         else:
             text = ""
-        
+
         # Apply JSON filtering if configured
+        content: Union[str, list[Union[str, dict]]] = ""
         if config.extract_json and config.extract_json != "none" and config.extract_json is not False:
             _logger.debug("Extracting JSON from LLM output (mode=%s):\n%s", config.extract_json, LazyFormatter(text))
             json_text = extract_json_blocks(text, config.extract_json)
@@ -84,11 +96,18 @@ def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> Base
                 # TODO this is a hack, but until we fix templating input JSON will arrive to LLM as single-quoted
                 # so it may also produce single-quoted JSON outputs
                 # return json.loads(json_text)
-                return ast.literal_eval(json_text.replace("true", "True").replace("false", "False"))
+                content = ast.literal_eval(json_text.replace("true", "True").replace("false", "False"))
             except (json.JSONDecodeError, ValueError) as e:
                 _logger.warning("Failed to parse JSON from LLM output, returning as plain text:\n%s", json_text, exc_info=e)
-                return json_text
-        return text
+                content = json_text
+        else:
+            content = text
+
+        message = ToolMessage(content = content)
+        token_tracker.attach_usage_to_message(message)
+        return message
+
+
 
     def tool_logic(prompt: str, system_message: str = None) -> Json:
         """

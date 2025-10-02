@@ -1,6 +1,32 @@
 from dataclasses import dataclass
-from typing import Dict, List
-from langchain_core.messages import AIMessage, BaseMessage
+from typing import Dict, Any
+
+from langchain_core.messages import BaseMessage
+
+
+def _extract_usage_metadata_from_message(message: BaseMessage, default_model_name: str) -> Dict[str, Dict[str, Any]] | None:
+    """Extract usage metadata dictionary from a message."""
+    # Check additional_kwargs first (for tool-passed usage metadata)
+    if hasattr(message, 'additional_kwargs') and 'usage_metadata_per_model' in message.additional_kwargs:
+        return message.additional_kwargs['usage_metadata_per_model']
+
+    elif hasattr(message, 'usage_metadata'):
+        return {default_model_name: message.usage_metadata}
+
+    elif hasattr(message, 'response_metadata'):
+        response_metadata = message.response_metadata
+
+        # Modern LangChain format (Anthropic, OpenAI v2)
+        if 'usage_metadata' in response_metadata:
+            return {default_model_name: response_metadata['usage_metadata']}
+        # Older format (OpenAI v1)
+        elif 'token_usage' in response_metadata:
+            return {default_model_name: response_metadata['token_usage']}
+        # Direct usage in response metadata
+        elif any(key in response_metadata for key in ['total_tokens', 'input_tokens', 'output_tokens']):
+            return {default_model_name: response_metadata}
+
+    return None
 
 
 @dataclass
@@ -12,47 +38,28 @@ class SimpleTokenUsageTracker:
     reasoning_tokens: int = 0
     cache_read_tokens: int = 0
 
-    def update_from_message(self, message: AIMessage) -> None:
-        """Extract and accumulate token usage from AIMessage response metadata."""
-        # Try different metadata structures for provider compatibility
-        usage = None
-
-        if hasattr(message, 'usage_metadata'):
-            usage = message.usage_metadata
-
-        elif hasattr(message, 'response_metadata'):
-            response_metadata = message.response_metadata
-
-            # Modern LangChain format (Anthropic, OpenAI v2)
-            if 'usage_metadata' in response_metadata:
-                usage = response_metadata['usage_metadata']
-            # Older format (OpenAI v1)
-            elif 'token_usage' in response_metadata:
-                usage = response_metadata['token_usage']
-            # Direct usage in response metadata
-            elif any(key in response_metadata for key in ['total_tokens', 'input_tokens', 'output_tokens']):
-                usage = response_metadata
-
-        if not usage:
+    def update_from_metadata(self, usage_metadata: Dict[str, Any]) -> None:
+        """Update token counts from usage metadata dictionary."""
+        if not usage_metadata:
             return
 
         # Accumulate tokens
-        if 'total_tokens' in usage:
-            self.total_tokens += usage['total_tokens']
-        if 'input_tokens' in usage:
-            self.input_tokens += usage['input_tokens']
-        if 'output_tokens' in usage:
-            self.output_tokens += usage['output_tokens']
+        if 'total_tokens' in usage_metadata:
+            self.total_tokens += usage_metadata['total_tokens']
+        if 'input_tokens' in usage_metadata:
+            self.input_tokens += usage_metadata['input_tokens']
+        if 'output_tokens' in usage_metadata:
+            self.output_tokens += usage_metadata['output_tokens']
 
         # Handle reasoning tokens (for models that support it)
-        if 'output_token_details' in usage:
-            details = usage['output_token_details']
+        if 'output_token_details' in usage_metadata:
+            details = usage_metadata['output_token_details']
             if 'reasoning' in details:
                 self.reasoning_tokens += details['reasoning']
 
         # Handle cache tokens
-        if 'input_token_details' in usage:
-            details = usage['input_token_details']
+        if 'input_token_details' in usage_metadata:
+            details = usage_metadata['input_token_details']
             if 'cache_read' in details:
                 self.cache_read_tokens += details['cache_read']
 
@@ -88,7 +95,7 @@ class CompositeTokenUsageTracker:
 
     Tracks both:
     - Total usage (lifetime, per-model) - never reset, accumulates forever
-    - Current usage (session, all models combined) - reset by /rewind
+    - Current usage (all models combined) - reset by each call to format_current_usage
     """
 
     def __init__(self):
@@ -96,26 +103,53 @@ class CompositeTokenUsageTracker:
         self._total_per_model: Dict[str, SimpleTokenUsageTracker] = {}
 
         # Current usage (session): all models combined, reset by rewind
-        self._current_session = SimpleTokenUsageTracker()
+        self._current = SimpleTokenUsageTracker()
 
-    def update_from_message(self, message: AIMessage, model_name: str) -> None:
-        """Update both total (per-model) and current (session) usage from AIMessage response metadata."""
-        # Initialize model tracker if needed
-        if model_name not in self._total_per_model:
-            self._total_per_model[model_name] = SimpleTokenUsageTracker()
+    def update_from_message(self, message: BaseMessage, model_name: str) -> None:
+        """Update both total (per-model) and current (session) usage from BaseMessage metadata."""
 
-        # Update total usage for this specific model (never reset)
-        self._total_per_model[model_name].update_from_message(message)
+        usage_metadata_per_model = _extract_usage_metadata_from_message(message, model_name)
+        if not usage_metadata_per_model:
+            return
 
-        # Update current session usage (all models combined, reset by rewind)
-        self._current_session.update_from_message(message)
+        self.update_from_metadata(usage_metadata_per_model)
+
+    def update_from_metadata(self, usage_metadata_per_model: Dict[str, Dict[str, Any]], update_only_current: bool = False) -> None:
+        """Update both total (per-model) and current (session) usage from usage metadata."""
+        for model_name, usage_metadata in usage_metadata_per_model.items():
+            if not update_only_current:
+                if model_name not in self._total_per_model:
+                    self._total_per_model[model_name] = SimpleTokenUsageTracker()
+                self._total_per_model[model_name].update_from_metadata(usage_metadata)
+
+            self._current.update_from_metadata(usage_metadata)
+
+    def attach_usage_to_message(self, message: BaseMessage) -> None:
+        """Attach token usage metadata to a message via additional_kwargs."""
+        usage_metadata = {}
+        for model_name, tracker in self._total_per_model.items():
+            if tracker.total_tokens > 0:
+                usage_metadata[model_name] = {
+                    'total_tokens': tracker.total_tokens,
+                    'input_tokens': tracker.input_tokens,
+                    'output_tokens': tracker.output_tokens
+                }
+                if tracker.reasoning_tokens > 0:
+                    usage_metadata[model_name]['output_token_details'] = {'reasoning': tracker.reasoning_tokens}
+                if tracker.cache_read_tokens > 0:
+                    usage_metadata[model_name]['input_token_details'] = {'cache_read': tracker.cache_read_tokens}
+
+        if not hasattr(message, 'additional_kwargs'):
+            message.additional_kwargs = {}
+        message.additional_kwargs['usage_metadata'] = usage_metadata
 
     def format_current_usage(self) -> str | None:
         """Format current session usage for display during conversation. Returns None if no tokens."""
-        usage = self._current_session.format_usage()
+        usage = self._current.format_usage()
         if usage is None:
             return None
 
+        self._current.reset()
         return f"Tokens: {usage}"
 
     def format_total_usage(self) -> str | None:
@@ -141,18 +175,3 @@ class CompositeTokenUsageTracker:
                 lines.append(model_line)
 
         return '\n'.join(lines)
-
-    def reset_current_usage(self, messages: List[BaseMessage], current_model: str) -> None:
-        """Reset current session usage and recalculate from remaining messages.
-
-        Note: Total (lifetime) usage per model is never reset.
-        """
-        # Reset only current session usage (not total per-model usage)
-        self._current_session.reset()
-
-        # Recalculate current session from remaining messages
-        # Note: We assume current model for all messages since we don't store model info with messages
-        # This is a reasonable limitation for rewind functionality
-        for message in messages:
-            if isinstance(message, AIMessage):
-                self._current_session.update_from_message(message)
