@@ -96,7 +96,7 @@ class RequestApprovalTool(BaseTool, ExtendedBaseTool):
     def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequest:
         prompt = input["prompt"]
         return ConfirmationRequest(
-            action='approve following actions',
+            action='get approval for following actions',
             params=[ConfirmationRequestParam(name="action", value=prompt, format="markdown")],
         )
 
