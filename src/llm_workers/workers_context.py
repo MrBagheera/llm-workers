@@ -2,7 +2,6 @@ import importlib
 import inspect
 import logging
 from copy import copy
-from typing import Dict, Any
 
 from langchain_core.tools import BaseTool
 
@@ -113,27 +112,4 @@ class StandardWorkersContext(WorkersContext):
 
     def get_llm(self, llm_name: str):
         return self._user_context.get_llm(llm_name)
-
-    def get_start_tool_message(self, tool_name: str, tool_meta: Dict[str, Any], inputs: Dict[str, Any]) -> str | None:
-        try:
-            # check if ui_hint is defined in tool definition
-            tool_def = tool_meta['tool_definition']
-            if tool_def.ui_hint_template is not None:
-                hint = tool_def.ui_hint_template.format(**inputs)
-                if hint.strip():  # only return if hint is not empty
-                    return hint
-                else:
-                    return None  # empty hint means no message should be shown
-            # fallback to ExtendedBaseTool
-            if '__extension' in tool_meta:
-                extension: ExtendedBaseTool = tool_meta['__extension']
-                hint = extension.get_ui_hint(inputs)
-                if hint.strip():  # only return if hint is not empty
-                    return hint
-                else:
-                    return None  # empty hint means no message should be shown
-        except Exception as e:
-            logger.warning(f"Unexpected exception formating start message for tool {tool_name}", exc_info=True)
-        # default
-        return f"Running tool {tool_name}"
 

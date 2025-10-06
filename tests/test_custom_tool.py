@@ -1,10 +1,20 @@
 import unittest
 
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
+from llm_workers.api import WorkerNotification
+from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.tools.custom_tool import TemplateHelper, create_statement_from_model, build_custom_tool
 from llm_workers.config import CustomToolParamsDefinition, CallDefinition, ResultDefinition, \
     MatchDefinition, MatchClauseDefinition, ToolDefinition, WorkersConfig
+from llm_workers.utils import call_tool
+from tests.mocks import StubWorkersContext
+
+
+def get_stream_result(statement, input_dict):
+    """Helper to extract non-notification result from statement._stream()"""
+    return next(chunk for chunk in statement._stream(None, None, **input_dict) if not isinstance(chunk, WorkerNotification))
 
 
 class TestTemplateHelper(unittest.TestCase):
@@ -127,24 +137,6 @@ def test_tool_logic(param1: int, param2: int) -> int:
     """Sum two parameters"""
     return param1 + param2
 
-def no_tool_lookup(tool_ref, config):
-    raise ValueError(f"Unexpected tool lookup: {tool_ref}")
-
-class MockContextNoTools:
-    def __init__(self):
-        pass
-    
-    def get_tool(self, tool_name: str):
-        raise ValueError(f"Unexpected tool lookup: {tool_name}")
-
-class MockContextWithTestTool:
-    def __init__(self):
-        pass
-    
-    def get_tool(self, tool_name: str):
-        if tool_name == "some_function":
-            return test_tool_logic
-        raise ValueError(f"Unexpected tool lookup: {tool_name}")
 
 class TestStatements(unittest.TestCase):
 
@@ -152,25 +144,26 @@ class TestStatements(unittest.TestCase):
         statement = create_statement_from_model(
             valid_template_vars = ["param1"],
             model = ResultDefinition(result="{param1} is 42"),
-            context=MockContextNoTools()
+            context=StubWorkersContext()
         )
-        self.assertEqual("Meaning of life is 42", statement.invoke({"param1": "Meaning of life"}))
+        result = get_stream_result(statement, {"param1": "Meaning of life"})
+        self.assertEqual("Meaning of life is 42", result)
 
     def test_return_json(self):
         statement = create_statement_from_model(
             valid_template_vars = ["param1"],
             model = ResultDefinition(result={"inner": "{param1} is 42"}),
-            context=MockContextNoTools()
+            context=StubWorkersContext()
         )
-        self.assertEqual({"inner": "Meaning of life is 42"}, statement.invoke({"param1": "Meaning of life"}))
+        self.assertEqual({"inner": "Meaning of life is 42"}, get_stream_result(statement, {"param1": "Meaning of life"}))
 
     def test_simple_call(self):
         statement = create_statement_from_model(
             valid_template_vars = ["param1"],
             model = CallDefinition(call = "some_function", params = {"param1": "{param1}", "param2": 29}),
-            context=MockContextWithTestTool()
+            context=StubWorkersContext(tools={"some_function": test_tool_logic})
         )
-        assert 42 == statement.invoke({"param1": 13})
+        assert 42 == get_stream_result(statement, {"param1": 13})
 
     def test_simple_flow(self):
         statement = create_statement_from_model(
@@ -181,9 +174,9 @@ class TestStatements(unittest.TestCase):
                 CallDefinition(call = "some_function", params = {"param1": "{output0}", "param2": "{output1}"}),
                 ResultDefinition(result = "{param1} is {output2}")
             ],
-            context=MockContextWithTestTool()
+            context=StubWorkersContext(tools={"some_function": test_tool_logic})
         )
-        assert "Meaning of live is 42" == statement.invoke({"param1": "Meaning of live"})
+        assert "Meaning of live is 42" == get_stream_result(statement, {"param1": "Meaning of live"})
 
     def test_match(self):
         statement = create_statement_from_model(
@@ -207,23 +200,14 @@ class TestStatements(unittest.TestCase):
                 ],
                 default = ResultDefinition(result = -1)
             ),
-            context=MockContextNoTools()
+            context=StubWorkersContext()
         )
-        self.assertEqual(42, statement.invoke({"param1": "Meaning of life"}))
-        self.assertEqual("number", statement.invoke({"param1": "100"}))
-        self.assertEqual("an URL pointing to www.google.com", statement.invoke({"param1": "https://www.google.com/"}))
-        self.assertEqual(-1, statement.invoke({"param1": "Meaning of live is 42"}))
-        self.assertEqual(-1, statement.invoke({"param1": ""}))
-        self.assertEqual(-1, statement.invoke({"param1": {}}))
-
-
-# Mock context for testing
-class MockContext:
-    def __init__(self, config):
-        self.config = config
-
-    def get_tool(self, tool_name: str):
-        raise ValueError(f"Tool {tool_name} not found")
+        self.assertEqual(42, get_stream_result(statement, {"param1": "Meaning of life"}))
+        self.assertEqual("number", get_stream_result(statement, {"param1": "100"}))
+        self.assertEqual("an URL pointing to www.google.com", get_stream_result(statement, {"param1": "https://www.google.com/"}))
+        self.assertEqual(-1, get_stream_result(statement, {"param1": "Meaning of live is 42"}))
+        self.assertEqual(-1, get_stream_result(statement, {"param1": ""}))
+        self.assertEqual(-1, get_stream_result(statement, {"param1": {}}))
 
 
 class TestSharedContentIntegration(unittest.TestCase):
@@ -236,9 +220,9 @@ class TestSharedContentIntegration(unittest.TestCase):
                 }
             }
         )
-        
+
         # Create mock context
-        context = MockContext(config)
+        context = StubWorkersContext(config=config)
         
         # Define a custom tool that uses shared content
         tool_definition = ToolDefinition(
@@ -267,9 +251,9 @@ class TestDynamicKeyResolution(unittest.TestCase):
                 result={"json_schema": "schema_value", "other": "other_value"},
                 key="json_schema"
             ),
-            context=MockContextNoTools()
+            context=StubWorkersContext()
         )
-        result = statement.invoke({"param1": "test"})
+        result = get_stream_result(statement, {"param1": "test"})
         self.assertEqual(result, "schema_value")
 
     def test_dict_key_resolution_with_default(self):
@@ -281,9 +265,9 @@ class TestDynamicKeyResolution(unittest.TestCase):
                 key="missing_key",
                 default="default_value"
             ),
-            context=MockContextNoTools()
+            context=StubWorkersContext()
         )
-        result = statement.invoke({"param1": "test"})
+        result = get_stream_result(statement, {"param1": "test"})
         self.assertEqual(result, "default_value")
 
     def test_list_key_resolution(self):
@@ -294,9 +278,9 @@ class TestDynamicKeyResolution(unittest.TestCase):
                 result=["first", "second", "third"],
                 key="1"
             ),
-            context=MockContextNoTools()
+            context=StubWorkersContext()
         )
-        result = statement.invoke({"param1": "test"})
+        result = get_stream_result(statement, {"param1": "test"})
         self.assertEqual(result, "second")
 
     def test_list_key_resolution_with_default(self):
@@ -308,9 +292,9 @@ class TestDynamicKeyResolution(unittest.TestCase):
                 key="5",
                 default="default_value"
             ),
-            context=MockContextNoTools()
+            context=StubWorkersContext()
         )
-        result = statement.invoke({"param1": "test"})
+        result = get_stream_result(statement, {"param1": "test"})
         self.assertEqual(result, "default_value")
 
     def test_dynamic_key_resolution(self):
@@ -322,9 +306,9 @@ class TestDynamicKeyResolution(unittest.TestCase):
                 key="{key_name}",
                 default="not_found"
             ),
-            context=MockContextNoTools()
+            context=StubWorkersContext()
         )
-        result = statement.invoke({
+        result = get_stream_result(statement, {
             "key_name": "target_key",
             "data": {"target_key": "found_value", "other": "other_value"}
         })
@@ -337,7 +321,95 @@ class TestDynamicKeyResolution(unittest.TestCase):
             model=ResultDefinition(
                 result={"json_schema": "schema_value", "other": "other_value"}
             ),
-            context=MockContextNoTools()
+            context=StubWorkersContext()
         )
-        result = statement.invoke({"param1": "test"})
+        result = get_stream_result(statement, {"param1": "test"})
         self.assertEqual(result, {"json_schema": "schema_value", "other": "other_value"})
+
+
+class TestHierarchicalToolCalling(unittest.TestCase):
+    """Test hierarchical tool calling where CustomTool calls another tool."""
+
+    def test_hierarchical_tool_calling_notifications(self):
+        """Test that CustomTool calling another tool generates proper notifications with run_id hierarchy."""
+
+        # Create a simple tool that will be called by the CustomTool
+        @tool
+        def inner_sum_tool(a: int, b: int) -> int:
+            """Add two numbers"""
+            return a + b
+
+        # Create a CustomTool that calls inner_sum_tool
+        context = StubWorkersContext(tools={"inner_sum_tool": inner_sum_tool})
+
+        tool_definition = ToolDefinition(
+            name="outer_calculator",
+            description="Tool that calls another tool to calculate",
+            input=[
+                CustomToolParamsDefinition(name="value1", description="First value", type="int"),
+                CustomToolParamsDefinition(name="value2", description="Second value", type="int")
+            ],
+            body=CallDefinition(
+                call="inner_sum_tool",
+                params={"a": "{value1}", "b": "{value2}"}
+            )
+        )
+
+        custom_tool = build_custom_tool(tool_definition, context)
+
+        # Call the custom tool using call_tool
+        token_tracker = CompositeTokenUsageTracker()
+        config = RunnableConfig()
+
+        chunks = list(call_tool(
+            tool=custom_tool,
+            input={"value1": 13, "value2": 29},
+            token_tracker=token_tracker,
+            config=config,
+            kwargs={}
+        ))
+
+        # Separate notifications from results
+        notifications = [c for c in chunks if isinstance(c, WorkerNotification)]
+        results = [c for c in chunks if not isinstance(c, WorkerNotification)]
+
+        # Verify result
+        self.assertEqual(len(results), 1, f"Expected 1 result but got {len(results)}")
+        self.assertEqual(results[0], 42, f"Expected result 42 but got {results[0]}")
+
+        # Verify notifications structure
+        # Should have: outer_tool_start, inner_tool_start, inner_tool_end, outer_tool_end
+        self.assertEqual(len(notifications), 4, f"Expected 4 notifications but got {len(notifications)}")
+
+        outer_start = notifications[0]
+        inner_start = notifications[1]
+        inner_end = notifications[2]
+        outer_end = notifications[3]
+
+        # Verify types
+        self.assertEqual(outer_start.type, 'tool_start', "First notification should be outer tool_start")
+        self.assertEqual(inner_start.type, 'tool_start', "Second notification should be inner tool_start")
+        self.assertEqual(inner_end.type, 'tool_end', "Third notification should be inner tool_end")
+        self.assertEqual(outer_end.type, 'tool_end', "Fourth notification should be outer tool_end")
+
+        # Verify run_id hierarchy
+        self.assertIsNotNone(outer_start.run_id, "Outer tool should have a run_id")
+        self.assertIsNone(outer_start.parent_run_id, "Outer tool should have no parent (top-level call)")
+
+        self.assertIsNotNone(inner_start.run_id, "Inner tool should have a run_id")
+        self.assertEqual(inner_start.parent_run_id, outer_start.run_id,
+                        "Inner tool's parent_run_id should match outer tool's run_id")
+
+        # Verify run_ids match for tool_start and tool_end
+        self.assertEqual(inner_end.run_id, inner_start.run_id,
+                        "Inner tool_end run_id should match tool_start run_id")
+        self.assertEqual(outer_end.run_id, outer_start.run_id,
+                        "Outer tool_end run_id should match tool_start run_id")
+
+        # Verify tool names in notification text
+        self.assertIsNotNone(outer_start.text, "Outer tool_start should have text")
+        self.assertIsNotNone(inner_start.text, "Inner tool_start should have text")
+        self.assertIn("outer_calculator", outer_start.text,
+                     "Outer tool name should appear in notification text")
+        self.assertIn("inner_sum_tool", inner_start.text,
+                     "Inner tool name should appear in notification text")

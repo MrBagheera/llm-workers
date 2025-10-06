@@ -2,12 +2,14 @@ import ast
 import json
 import logging
 import re
-from typing import Dict, Any, List, Union
+from typing import Dict, Any, List, Union, Iterable, Optional
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage
-from langchain_core.tools import BaseTool, StructuredTool
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import BaseTool
+from pydantic import PrivateAttr, BaseModel, Field
 
-from llm_workers.api import WorkersContext
+from llm_workers.api import WorkersContext, WorkerNotification, ExtendedExecutionTool
 from llm_workers.config import ToolLLMConfig, Json
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.utils import LazyFormatter
@@ -63,20 +65,25 @@ def extract_json_blocks(text: str, extract_json: Union[bool, str]) -> str:
     return text
 
 
-def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> BaseTool:
-    config = ToolLLMConfig(**tool_config)
-    agent = Worker(config, context)
+class LLMToolInput(BaseModel):
+    """Input schema for LLM tool."""
+    prompt: str = Field(description="Text prompt to send to the LLM")
+    system_message: Optional[str] = Field(default=None, description="Optional system message to prepend to the conversation")
 
-    def extract_result(result: List[BaseMessage]) -> ToolMessage:
+
+class LLMTool(ExtendedExecutionTool):
+    _agent: Worker = PrivateAttr()
+    _config: ToolLLMConfig = PrivateAttr()
+
+    def __init__(self, agent: Worker, config: ToolLLMConfig, **kwargs):
+        super().__init__(**kwargs)
+        self._agent = agent
+        self._config = config
+
+    def _extract_result(self, result: List[BaseMessage]) -> Any:
         """Extract text result and capture token usage from LLM response."""
         if len(result) == 0:
-            return ToolMessage(content = "")
-
-        # Capture token usage from AI messages
-        token_tracker = CompositeTokenUsageTracker()
-        model_name = config.model_ref
-        for message in result:
-            token_tracker.update_from_message(message, model_name)
+            return ""
 
         # Extract text content
         if len(result) == 1:
@@ -89,27 +96,26 @@ def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> Base
 
         # Apply JSON filtering if configured
         content: Union[str, list[Union[str, dict]]] = ""
-        if config.extract_json and config.extract_json != "none" and config.extract_json is not False:
-            _logger.debug("Extracting JSON from LLM output (mode=%s):\n%s", config.extract_json, LazyFormatter(text))
-            json_text = extract_json_blocks(text, config.extract_json)
+        if self._config.extract_json and self._config.extract_json != "none" and self._config.extract_json is not False:
+            _logger.debug("Extracting JSON from LLM output (mode=%s):\n%s", self._config.extract_json, LazyFormatter(text))
+            json_text = extract_json_blocks(text, self._config.extract_json)
             try:
                 # TODO this is a hack, but until we fix templating input JSON will arrive to LLM as single-quoted
                 # so it may also produce single-quoted JSON outputs
                 # return json.loads(json_text)
-                content = ast.literal_eval(json_text.replace("true", "True").replace("false", "False"))
-            except (json.JSONDecodeError, ValueError) as e:
+                return ast.literal_eval(json_text.replace("true", "True").replace("false", "False"))
+            except (json.JSONDecodeError, ValueError, SyntaxError) as e:
                 _logger.warning("Failed to parse JSON from LLM output, returning as plain text:\n%s", json_text, exc_info=True)
-                content = json_text
+                return json_text
         else:
-            content = text
+            return text
 
-        message = ToolMessage(content = content, tool_call_id = "n/a")
-        token_tracker.attach_usage_to_message(message)
-        return message
-
-
-
-    def tool_logic(prompt: str, system_message: str = None) -> Json:
+    def _stream(
+            self,
+            token_tracker: Optional[CompositeTokenUsageTracker],
+            config: Optional[RunnableConfig],
+            **kwargs: Any
+    ) -> Iterable[Any]:
         """
         Calls LLM with given prompt, returns LLM output.
 
@@ -117,26 +123,38 @@ def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> Base
             prompt: text prompt
             system_message: optional system message to prepend to the conversation
         """
+        prompt = kwargs.get('prompt')
+        system_message = kwargs.get('system_message')
+
         messages = []
         if system_message:
             messages.append(SystemMessage(system_message))
         messages.append(HumanMessage(prompt))
-        result = agent.invoke(input=messages)
-        return extract_result(result)
 
-    async def async_tool_logic(prompt: str, system_message: str = None) -> Json:
-        # pass empty callbacks to prevent LLM token streaming
-        messages = []
-        if system_message:
-            messages.append(SystemMessage(system_message))
-        messages.append(HumanMessage(prompt))
-        result = await agent.ainvoke(input=messages)
-        return extract_result(result)
+        result: List[BaseMessage] = list()
+        for e in self._agent.stream_with_notifications(input=messages, config=config, stream=False):
+            if isinstance(e, WorkerNotification):
+                yield e
+            else:
+                result.append(e)
 
-    return StructuredTool.from_function(
-        func = tool_logic,
-        coroutine=async_tool_logic,
+        # Capture token usage from AI messages
+        if token_tracker:
+            model_name = self._config.model_ref
+            for message in result:
+                token_tracker.update_from_message(message, model_name)
+
+        yield self._extract_result(result)
+
+
+def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> LLMTool:
+    config = ToolLLMConfig(**tool_config)
+    agent = Worker(config, context)
+
+    return LLMTool(
+        agent=agent,
+        config=config,
         name='llm',
-        parse_docstring=True,
-        error_on_invalid_docstring=True
+        description='Calls LLM with given prompt, returns LLM output.',
+        args_schema=LLMToolInput
     )

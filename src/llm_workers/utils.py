@@ -7,13 +7,23 @@ import platform
 import subprocess
 import sys
 import time
+import uuid
 from pathlib import Path
-from typing import Callable, Any, List, Optional
+from typing import Callable, Any, List, Optional, Dict, Iterator
 
 import yaml
 from dotenv import load_dotenv, find_dotenv
 from langchain_core.messages import ToolCall
 from pydantic import BaseModel
+
+from llm_workers.api import WorkersContext, WorkerNotification, ExtendedBaseTool, ExtendedRunnable, \
+    ExtendedExecutionTool
+from langchain_core.runnables import RunnableConfig
+from langchain_core.runnables.base import Runnable
+from langchain_core.tools import BaseTool
+from langchain_core.tools.base import ToolException
+
+from llm_workers.token_tracking import CompositeTokenUsageTracker
 
 logger =  logging.getLogger(__name__)
 
@@ -651,3 +661,56 @@ def parse_standard_type(s: str):
             raise ValueError(f"Dict type must have exactly 2 parameters: {s}")
     else:
         raise ValueError(f"Unknown type: {s}")
+
+
+def get_start_tool_message(tool_name: str, tool_meta: Optional[Dict[str, Any]], inputs: Dict[str, Any]) -> str | None:
+    try:
+        # check if ui_hint is defined in tool definition
+        if tool_meta and 'tool_definition' in tool_meta:
+            tool_def = tool_meta['tool_definition']
+            if tool_def.ui_hint_template is not None:
+                hint = tool_def.ui_hint_template.format(**inputs)
+                if hint.strip():  # only return if hint is not empty
+                    return hint
+                else:
+                    return None  # empty hint means no message should be shown
+        # fallback to ExtendedBaseTool
+        if tool_meta and '__extension' in tool_meta:
+            extension: ExtendedBaseTool = tool_meta['__extension']
+            hint = extension.get_ui_hint(inputs)
+            if hint.strip():  # only return if hint is not empty
+                return hint
+            else:
+                return None  # empty hint means no message should be shown
+    except Exception as e:
+        logger.warning(f"Unexpected exception formating start message for tool {tool_name}", exc_info=True)
+    # default
+    return f"Running tool {tool_name}"
+
+def call_tool(
+        tool: BaseTool,
+        input: dict[str, Any],
+        token_tracker: CompositeTokenUsageTracker,
+        config: Optional[RunnableConfig],
+        kwargs: dict[str, Any]
+) -> Iterator[WorkerNotification | Any]:
+    parent_run_id = config.get("run_id", None) if config is not None else None
+    run_id = uuid.uuid4()
+    child_config = config.copy() if config is not None else RunnableConfig()
+    child_config['run_id'] = run_id
+
+    tool_start_text = get_start_tool_message(tool.name, tool.metadata, input)
+    if tool_start_text:
+        yield WorkerNotification.tool_start(tool_start_text, run_id, parent_run_id)
+
+    try:
+        if isinstance(tool, ExtendedExecutionTool):
+            yield from tool.stream_with_notifications(input=input, token_tracker=token_tracker, config=child_config)
+        else:
+            yield tool.invoke(input, child_config, **kwargs)
+    except ToolException as e:
+        logger.warning("Failed to call tool %s", tool.name, exc_info=True)
+        yield f"Tool Error: {e}"
+
+    if tool_start_text:
+        yield WorkerNotification.tool_end(run_id)

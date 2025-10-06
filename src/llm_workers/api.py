@@ -1,10 +1,14 @@
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Callable, List
-from langchain_core.tools import BaseTool
-from langchain_core.language_models import BaseChatModel
+from typing import Any, Dict, Optional, Callable, List, Literal, Iterable, TypeVar, Generic
+from uuid import UUID
 
-from llm_workers.config import WorkersConfig, ToolDefinition, ToolReference, ModelDefinition, UserConfig
+from langchain_core.language_models import BaseChatModel
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import BaseTool
+
+from llm_workers.config import WorkersConfig, ToolReference, ModelDefinition, UserConfig
+from llm_workers.token_tracking import CompositeTokenUsageTracker
 
 # Flag for confidential messages (not shown to LLM)
 CONFIDENTIAL: str = 'confidential'
@@ -43,10 +47,6 @@ class WorkersContext(ABC):
 
     @abstractmethod
     def get_llm(self, llm_name: str) -> BaseChatModel:
-        pass
-
-    @abstractmethod
-    def get_start_tool_message(self, tool_name: str, tool_meta: Dict[str, Any], inputs: Dict[str, Any]) -> str:
         pass
 
 
@@ -105,3 +105,95 @@ class ExtendedBaseTool(ABC):
     def get_ui_hint(self, input: dict[str, Any]) -> str:
         pass
 
+
+Input = TypeVar('Input')
+Output = TypeVar('Output')
+
+
+class ExtendedRunnable(ABC, Generic[Input, Output]):
+    """Abstract base class for Runnable with extended properties."""
+
+    @abstractmethod
+    def _stream(
+            self,
+            token_tracker: Optional[CompositeTokenUsageTracker],
+            config: Optional[RunnableConfig],
+            **kwargs: Any
+    ) -> Iterable[Any]:
+        """Internal method to run the tool and optionally yield notifications."""
+        pass
+
+
+class ExtendedExecutionTool(BaseTool, ExtendedRunnable[dict[str, Any], Any], ABC):
+    """Base class for tools that support streaming and/or internal state notifications."""
+
+    def _run(
+            self,
+            *args: Any,
+            config: Optional[RunnableConfig] = None,
+            **kwargs: Any,
+    ) -> Any:
+        for chunk in self._stream(token_tracker=None, config = config, **kwargs):
+            if isinstance(chunk, WorkerNotification):
+                continue
+            return chunk
+        return None
+
+    def stream_with_notifications(self, input: dict[str, Any], token_tracker: CompositeTokenUsageTracker, config: Optional[RunnableConfig]):
+        return self._stream(token_tracker = token_tracker, config = config, **input)
+
+
+class WorkerNotification:
+    """Notifications about worker state changes."""
+    type: Literal['thinking_start', 'thinking_end', 'tool_start', 'tool_end', 'ai_output_chunk', 'ai_reasoning_chunk']
+    message_id: Optional[str] = None
+    index: int = 0
+    text: Optional[str] = None
+    run_id: Optional[UUID] = None
+    parent_run_id: Optional[UUID] = None
+
+    @staticmethod
+    def thinking_start() -> 'WorkerNotification':
+        n = WorkerNotification()
+        n.type='thinking_start'
+        return n
+
+    @staticmethod
+    def thinking_end() -> 'WorkerNotification':
+        n = WorkerNotification()
+        n.type='thinking_end'
+        return n
+
+    @staticmethod
+    def tool_start(text: str, run_id: UUID, parent_run_id: Optional[UUID] = None) -> 'WorkerNotification':
+        n = WorkerNotification()
+        n.type='tool_start'
+        n.text=text
+        n.run_id=run_id
+        n.parent_run_id=parent_run_id
+        return n
+
+    @staticmethod
+    def tool_end(run_id: UUID) -> 'WorkerNotification':
+        n = WorkerNotification()
+        n.type='tool_end'
+        n.run_id=run_id
+        return n
+
+    @staticmethod
+    def ai_output_chunk(message_id: Optional[str], index: int, text: str) -> 'WorkerNotification':
+        n = WorkerNotification()
+        n.type='ai_output_chunk'
+        n.message_id = message_id
+        n.index=index
+        n.text=text
+        return n
+
+    @staticmethod
+    def ai_reasoning_chunk(message_id: Optional[str], index: int, text: str) -> 'WorkerNotification':
+        n = WorkerNotification()
+        n.type='ai_reasoning_chunk'
+        n.message_id = message_id
+        n.index=index
+        n.text=text
+        return n

@@ -10,7 +10,7 @@ def _extract_usage_metadata_from_message(message: BaseMessage, default_model_nam
     if hasattr(message, 'additional_kwargs') and 'usage_metadata_per_model' in message.additional_kwargs:
         return message.additional_kwargs['usage_metadata_per_model']
 
-    elif hasattr(message, 'usage_metadata'):
+    elif hasattr(message, 'usage_metadata') and message.usage_metadata is not None:
         return {default_model_name: message.usage_metadata}
 
     elif hasattr(message, 'response_metadata'):
@@ -175,3 +175,8 @@ class CompositeTokenUsageTracker:
                 lines.append(model_line)
 
         return '\n'.join(lines)
+
+    @property
+    def is_empty(self) -> bool:
+        """Check if any tokens have been tracked."""
+        return all(tracker.total_tokens == 0 for tracker in self._total_per_model.values())

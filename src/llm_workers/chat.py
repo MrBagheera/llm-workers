@@ -1,19 +1,18 @@
 import argparse
 import sys
 from logging import getLogger
-from typing import Optional, Union, Any, Dict, List, Tuple, Callable
+from typing import Optional, Any, Dict, Callable
 from uuid import UUID
 
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
-from langchain_core.outputs import GenerationChunk, ChatGenerationChunk
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 
-from llm_workers.api import ConfirmationRequest, CONFIDENTIAL, UserContext
+from llm_workers.api import ConfirmationRequest, CONFIDENTIAL, UserContext, WorkerNotification
 from llm_workers.chat_completer import ChatCompleter
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.user_context import StandardUserContext
@@ -115,10 +114,9 @@ class ChatSession:
         self._pre_input = ""
         self._callbacks = [ChatSessionCallbackDelegate(self)]
         self._token_tracker = CompositeTokenUsageTracker()
-        self._streamed_message_id = None
+        self._streamed_message_id: Optional[str] = None
         self._streamed_reasoning_index: Optional[int] = None
-        self._has_unfinished_output = False
-        self._running_tools_depths = {}
+        self._running_tools_depths: Dict[UUID, int] = {}
         self._available_models = [model.name for model in self._user_context.models]
         self._thinking_live = None
 
@@ -159,19 +157,23 @@ class ChatSession:
                 self._console.print(f"#{self._iteration} Assistant:", style="bold green")
                 message = HumanMessage(text)
                 self._messages.append(message)
-                self._streamed_reasoning_index = None
-                self._has_unfinished_output = False
                 self._streamed_message_id = None
+                self._streamed_reasoning_index = None
                 self._running_tools_depths.clear()
                 self._chat_context.file_monitor.check_changes() # reset
                 logger.debug("Running new prompt for #%s:\n%r", self._iteration, LazyFormatter(message))
                 try:
                     for message in self._chat_context.worker.stream(self._messages, stream=True, config={"callbacks": self._callbacks}):
-                        self.process_model_message(message[0])
+                        item = message[0]
+                        if isinstance(item, WorkerNotification):
+                            self._process_notification(item)
+                        else:
+                            self._process_model_message(item)
                 except Exception as e:
                     logger.error(f"Error: {e}", exc_info=True)
                     self._console.print(f"Unexpected error in worker: {e}", style="bold red")
                     self._console.print(f"If subsequent conversation fails, try rewinding to previous message", style="bold red")
+                    self.clear_thinking_message()
                 self._handle_changed_files()
                 self._iteration = self._iteration + 1
         except KeyboardInterrupt:
@@ -441,32 +443,69 @@ class ChatSession:
 
         return "\n".join(markdown_lines)
 
-    def process_model_chunk(self, token: str, message: Optional[BaseMessage]):
-        self._streamed_message_id = message.id if message is not None else None
-        if message is not None and isinstance(message, AIMessage) and self._user_context.user_config.display_settings.show_reasoning:
+    def _process_notification(self, notification: WorkerNotification):
+        """Process a WorkerNotification based on its type."""
+        if notification.type == 'thinking_start':
+            self.show_thinking()
+        elif notification.type == 'thinking_end':
             self.clear_thinking_message()
-            reasoning = self._extract_reasoning(message)
-            if len(reasoning) > 0:
-                if self._has_unfinished_output:
-                    print()
-                    self._has_unfinished_output = False
-                if self._streamed_reasoning_index is None:
-                    self._console.print("Reasoning:")
-                    self._streamed_reasoning_index = reasoning[0][0]
-                for (index, text) in reasoning:
-                    if index != self._streamed_reasoning_index:
-                        print()
-                    self._streamed_reasoning_index = index
-                    self._console.print(text, end = "")
-        if len(token) > 0:
-            self.clear_thinking_message()
-            if self._streamed_reasoning_index is not None:
-                print()
-                self._streamed_reasoning_index = None
-            self._has_unfinished_output = True
-            print(token, end="", flush=True)
+        elif notification.type == 'ai_output_chunk':
+            if notification.text:
+                self._process_output_chunk(message_id=notification.message_id, text=notification.text)
+        elif notification.type == 'ai_reasoning_chunk':
+            if notification.text:
+                self._process_reasoning_chunk(message_id=notification.message_id, text=notification.text, index=notification.index)
+        elif notification.type == 'tool_start':
+            if notification.text and notification.run_id:
+                self._process_tool_start_notification(notification.text, notification.run_id, notification.parent_run_id)
+        elif notification.type == 'tool_end':
+            # No action needed for tool_end currently
+            pass
 
-    def process_model_message(self, message: BaseMessage):
+    def _process_output_chunk(self, message_id: Optional[str], text: str):
+        self.clear_thinking_message()
+        if self._streamed_message_id is not None and self._streamed_message_id != message_id:
+            print()
+        self._streamed_message_id = message_id
+        self._streamed_reasoning_index = None
+        print(text, end="", flush=True)
+
+    def _process_reasoning_chunk(self, message_id: Optional[str], text: str, index: int):
+        if not self._user_context.user_config.display_settings.show_reasoning:
+            return
+        self.clear_thinking_message()
+        if self._streamed_message_id != message_id:
+            if self._streamed_message_id:
+                print()
+            self._streamed_message_id = message_id
+            self._streamed_reasoning_index = None
+        if self._streamed_reasoning_index is None:
+            self._console.print("Reasoning:")
+            self._streamed_reasoning_index = index
+        elif index != self._streamed_reasoning_index:
+            print()
+            self._streamed_reasoning_index = index
+        print(text, end="", flush=True)
+
+    def _process_tool_start_notification(self, message: str, run_id: UUID, parent_run_id: Optional[UUID]):
+        """Process tool_start notification."""
+        self.clear_thinking_message()
+        if self._streamed_message_id:
+            print()
+            self._streamed_message_id = None
+            self._streamed_reasoning_index = None
+
+        if parent_run_id is not None and parent_run_id in self._running_tools_depths:
+            # increase depth of running tool
+            depth = self._running_tools_depths[parent_run_id] + 1
+            self._running_tools_depths[run_id] = depth
+            ident = "  " * depth
+            self._console.print(f"{ident}└ {message}...")
+        else:
+            self._running_tools_depths[run_id] = 0
+            self._console.print(f"⏺ {message}...")
+
+    def _process_model_message(self, message: BaseMessage):
         self._messages.append(message)
 
         # Update token tracking with automatic model detection
@@ -476,20 +515,23 @@ class ChatSession:
         if not isinstance(message, AIMessage):
             return
         self.clear_thinking_message()
-        if self._has_unfinished_output or self._streamed_reasoning_index is not None:
+        last_streamed_message_id = self._streamed_message_id
+        if self._streamed_message_id:
             print()
-            self._has_unfinished_output = False
+            self._streamed_message_id = None
             self._streamed_reasoning_index = None
-        if self._streamed_message_id is not None and self._streamed_message_id == message.id:
-            if isinstance(message, AIMessage):
-                self._streamed_message_id = None
-                return
+        if last_streamed_message_id is not None and last_streamed_message_id == message.id:
+            return
         if self._user_context.user_config.display_settings.show_reasoning:
-            reasoning = self._extract_reasoning(message)
+            reasoning: list[WorkerNotification] = [
+                notification
+                for notification in Worker.extract_notifications(message_id=message.id, index=0, content=message.content)
+                if notification.type == 'ai_reasoning_chunk'
+            ]
             if len(reasoning) > 0:
                 self._console.print("Reasoning:")
-                for (index, text) in reasoning:
-                    self._console.print(text)
+                for notification in reasoning:
+                    self._console.print(notification.text)
         # text
         confidential = getattr(message, CONFIDENTIAL, False)
         if confidential:
@@ -500,52 +542,6 @@ class ChatSession:
             self._console.print(message.text())
         if confidential:
             self._console.print("[Message above is confidential, not shown to AI Assistant]", style="bold red")
-
-    @staticmethod
-    def _extract_reasoning(message: AIMessage) -> List[Tuple[int, str]]:
-        reasoning: List[Tuple[int, str]] = []
-        if isinstance(message.content, list):
-            i = 0
-            for block in message.content:
-                if isinstance(block, dict):
-                    # noinspection PyShadowingBuiltins
-                    type = block.get('type', None)
-                    text = None
-                    if type == 'reasoning_content':
-                        reasoning_content = block.get("reasoning_content", {})
-                        text = reasoning_content.get("text", None)
-                    elif type == 'reasoning':
-                        if 'summary' in block: # OpenAI GPT-5
-                            block = block.get("summary")
-                            if isinstance(block, list) and len(block) > 0:
-                                block = block[0]
-                        if 'text' in block:
-                            text = block.get("text")
-                    if text is not None:
-                        index = block.get('index', i)
-                        reasoning.append((index, str(text)))
-                i = i + 1
-        return reasoning
-
-    def process_tool_start(self, name: str, tool_meta: Dict[str, Any], inputs: dict[str, Any], run_id: UUID, parent_run_id: Optional[UUID]):
-        self.clear_thinking_message()
-        if self._has_unfinished_output or self._streamed_reasoning_index is not None:
-            print()
-            self._has_unfinished_output = False
-            self._streamed_reasoning_index = None
-        message = self._chat_context.context.get_start_tool_message(name, tool_meta, inputs)
-        if parent_run_id is not None and parent_run_id in self._running_tools_depths:
-            # increase depth of running tool
-            depth = self._running_tools_depths[parent_run_id] + (1 if message is not None else 0)
-            self._running_tools_depths[run_id] = depth
-            if message is not None:
-                ident = "  " * depth
-                self._console.print(f"{ident}└ {message}...")
-        else:
-            if message is None:
-                return  # do not store depth to avoid showing nesting for sub-tools
-            self._running_tools_depths[run_id] = 0
-            self._console.print(f"⏺ {message}...")
 
     def process_confirmation_request(self, request: ConfirmationRequest):
         self.clear_thinking_message()
@@ -622,25 +618,6 @@ class ChatSessionCallbackDelegate(BaseCallbackHandler):
 
     def __init__(self, chat_session: ChatSession):
         self._chat_session = chat_session
-
-    def on_llm_start(self, serialized: dict[str, Any], prompts: list[str], *, run_id: UUID,
-                      parent_run_id: Optional[UUID] = None, tags: Optional[list[str]] = None,
-                      metadata: Optional[dict[str, Any]] = None, **kwargs: Any) -> Any:
-        self._chat_session.show_thinking()
-
-    def on_llm_new_token(self, token: str, *, chunk: Optional[Union[GenerationChunk, ChatGenerationChunk]] = None,
-                         run_id: UUID, parent_run_id: Optional[UUID] = None, **kwargs: Any) -> Any:
-        # prefer chunk.text as token is broken for AWS Bedrock
-        if chunk is not None:
-            self._chat_session.process_model_chunk(chunk.text, chunk.message)
-        else:
-            self._chat_session.process_model_chunk(token, message=None)
-
-    def on_tool_start(self, serialized: dict[str, Any], input_str: str, *, run_id: UUID,
-                      parent_run_id: Optional[UUID] = None, tags: Optional[list[str]] = None,
-                      metadata: Optional[dict[str, Any]] = None, inputs: Optional[dict[str, Any]] = None,
-                      **kwargs: Any) -> Any:
-        self._chat_session.process_tool_start(serialized['name'], metadata, inputs, run_id, parent_run_id)
 
     def on_custom_event(self, name: str, data: Any, *, run_id: UUID, tags: Optional[list[str]] = None,
                         metadata: Optional[dict[str, Any]] = None, **kwargs: Any) -> Any:
