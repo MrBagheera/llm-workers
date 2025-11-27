@@ -1,10 +1,10 @@
 import argparse
 import sys
 from logging import getLogger
+from operator import truediv
 from typing import Optional, Any, Dict, Callable
 from uuid import UUID
 
-from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
@@ -12,7 +12,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 
-from llm_workers.api import ConfirmationRequest, CONFIDENTIAL, UserContext, WorkerNotification
+from llm_workers.api import ConfirmationRequest, ConfirmationResponse, CONFIDENTIAL, UserContext, WorkerNotification
 from llm_workers.chat_completer import ChatCompleter
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.user_context import StandardUserContext
@@ -112,7 +112,6 @@ class ChatSession:
         self._completer = ChatCompleter(self.commands_config)
         self._finished = False
         self._pre_input = ""
-        self._callbacks = [ChatSessionCallbackDelegate(self)]
         self._token_tracker = CompositeTokenUsageTracker()
         self._streamed_message_id: Optional[str] = None
         self._streamed_reasoning_index: Optional[int] = None
@@ -163,12 +162,21 @@ class ChatSession:
                 self._chat_context.file_monitor.check_changes() # reset
                 logger.debug("Running new prompt for #%s:\n%r", self._iteration, LazyFormatter(message))
                 try:
-                    for message in self._chat_context.worker.stream(self._messages, stream=True, config={"callbacks": self._callbacks}):
-                        item = message[0]
-                        if isinstance(item, WorkerNotification):
-                            self._process_notification(item)
-                        else:
-                            self._process_model_message(item)
+                    confirmation_response: Optional[ConfirmationResponse] = None
+                    while True:
+                        messages: list[BaseMessage | ConfirmationResponse] = self._messages if not confirmation_response \
+                            else self._messages + [confirmation_response]
+                        confirmation_response = None
+                        for message in self._chat_context.worker.stream(messages, stream=True):
+                            item = message[0]
+                            if isinstance(item, WorkerNotification):
+                                self._process_notification(item)
+                            elif isinstance(item, ConfirmationRequest):
+                                confirmation_response = self.process_confirmation_request(item)
+                            else:
+                                self._process_model_message(item)
+                        if confirmation_response is None:
+                            break
                 except Exception as e:
                     logger.error(f"Error: {e}", exc_info=True)
                     self._console.print(f"Unexpected error in worker: {e}", style="bold red")
@@ -543,33 +551,40 @@ class ChatSession:
         if confidential:
             self._console.print("[Message above is confidential, not shown to AI Assistant]", style="bold red")
 
-    def process_confirmation_request(self, request: ConfirmationRequest):
+    def process_confirmation_request(self, request: ConfirmationRequest) -> ConfirmationResponse:
         self.clear_thinking_message()
-        self._console.print("\n\n")
-        self._console.print(f"AI assistant wants to {request.action}:", style="bold green")
-        if len(request.args) == 1:
-            arg = request.args[0]
-            if arg.format is not None:
-                self._console.print(Syntax(arg.value, arg.format))
-            else:
-                self._console.print(arg.value)
-        else:
-            for arg in request.args:
-                self._console.print(f"{arg.name}:")
+        approved_tool_calls: list[str] = []
+
+        # Iterate through all tool calls and ask for confirmation independently
+        for tool_call_id, tool_request in request.tool_calls.items():
+            self._console.print(f"\nAI assistant wants to {tool_request.action}:", style="bold green")
+
+            if len(tool_request.params) == 1:
+                arg = tool_request.params[0]
                 if arg.format is not None:
                     self._console.print(Syntax(arg.value, arg.format))
                 else:
                     self._console.print(arg.value)
-        while True:
-            response = self._console.input("[bold green]Do you approve (y/n)?[/bold green] ").strip().lower()
-            if response in ['y', 'yes']:
-                request.approved = True
-                return
-            elif response in ['n', 'no']:
-                request.approved = False
-                return
             else:
-                self._console.print("Please enter 'y' or 'n'", style="bold red")
+                for arg in tool_request.params:
+                    self._console.print(f"{arg.name}:")
+                    if arg.format is not None:
+                        self._console.print(Syntax(arg.value, arg.format))
+                    else:
+                        self._console.print(arg.value)
+
+            while True:
+                response = self._console.input("[bold green]Do you approve (y/n)?[/bold green] ").strip().lower()
+                if response in ['y', 'yes']:
+                    approved_tool_calls.append(tool_call_id)
+                    break
+                elif response in ['n', 'no']:
+                    break
+                else:
+                    self._console.print("Please enter 'y' or 'n'", style="bold red")
+
+        return ConfirmationResponse(approved_tool_calls=approved_tool_calls)
+
 
     def get_token_usage_summary(self) -> str | None:
         """Get formatted token usage summary."""
@@ -611,18 +626,6 @@ class ChatSession:
             if not is_safe_to_open(filename):
                 continue
             open_file_in_default_app(filename)
-
-
-class ChatSessionCallbackDelegate(BaseCallbackHandler):
-    """Delegates selected callbacks to ChatSession"""
-
-    def __init__(self, chat_session: ChatSession):
-        self._chat_session = chat_session
-
-    def on_custom_event(self, name: str, data: Any, *, run_id: UUID, tags: Optional[list[str]] = None,
-                        metadata: Optional[dict[str, Any]] = None, **kwargs: Any) -> Any:
-        if name == "request_confirmation":
-            self._chat_session.process_confirmation_request(data)
 
 
 def chat_with_llm_script(script_name: str, user_context: Optional[UserContext] = None):

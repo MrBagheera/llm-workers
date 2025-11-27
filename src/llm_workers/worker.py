@@ -2,16 +2,12 @@ import json
 import logging
 from typing import Optional, Any, List, Iterator
 
-from langchain_core.callbacks import CallbackManager
 from langchain_core.messages import BaseMessage, SystemMessage, AIMessage, ToolMessage, ToolCall
 from langchain_core.runnables import Runnable, RunnableConfig
-from langchain_core.runnables.config import (
-    ensure_config,
-    get_callback_manager_for_config,
-)
 from langchain_core.tools import BaseTool
 
-from llm_workers.api import WorkersContext, ConfirmationRequest, ConfirmationRequestParam, \
+from llm_workers.api import WorkersContext, ConfirmationRequest, ConfirmationResponse, \
+    ConfirmationRequestToolCallDescription, ConfirmationRequestParam, \
     ExtendedBaseTool, CONFIDENTIAL, WorkerNotification, WorkerException
 from llm_workers.config import BaseLLMConfig, ToolDefinition, ToolReference
 from llm_workers.token_tracking import CompositeTokenUsageTracker
@@ -21,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 llm_calls_logger = logging.getLogger("llm_workers.llm_calls")
 
-In = List[BaseMessage | WorkerNotification]
-Out = List[BaseMessage | WorkerNotification]
+In = List[BaseMessage | WorkerNotification | ConfirmationRequest | ConfirmationResponse]
+Out = List[BaseMessage | WorkerNotification | ConfirmationRequest]
 
 class Worker(Runnable[In, Out]):
 
@@ -81,16 +77,78 @@ class Worker(Runnable[In, Out]):
         for message in self.stream_with_notifications(input, config, stream, **kwargs):
             yield [ message ]
 
-    def stream_with_notifications(self, input: In, config: Optional[RunnableConfig], stream: bool, **kwargs: Any) -> Iterator[BaseMessage | WorkerNotification]:
-        # leaving only BaseMessage-s items in input
-        input = [message for message in input if isinstance(message, BaseMessage)]
-        # prepend system message
-        if self._system_message is not None:
-            input = [self._system_message] + input
-        # filter out confidential messages
-        self._filter_outgoing_messages(input, 0)
+    def stream_with_notifications(self, input: In, config: Optional[RunnableConfig], stream: bool, **kwargs: Any) -> Iterator[BaseMessage | WorkerNotification | ConfirmationRequest]:
+        # Check if we're resuming from a confirmation response
+        if input and isinstance(input[-1], ConfirmationResponse):
+            confirmation_response = input[-1]
+            # Find the AIMessage with tool_calls before the confirmation response
+            ai_message_with_calls = None
+            for i in range(len(input) - 2, -1, -1):
+                msg = input[i]
+                if isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and msg.tool_calls:
+                    ai_message_with_calls = msg
+                    break
 
-        callback_manager: CallbackManager = get_callback_manager_for_config(ensure_config(config))
+            if ai_message_with_calls is None:
+                raise WorkerException("ConfirmationResponse found but no preceding AIMessage with tool_calls")
+
+            # Remove ConfirmationResponse from input
+            input = input[:-1]
+
+            # Filter to BaseMessages and prepare
+            input = [message for message in input if isinstance(message, BaseMessage)]
+            if self._system_message is not None:
+                input = [self._system_message] + input
+            self._filter_outgoing_messages(input, 0)
+
+            # Create set of approved tool call ids for fast lookup
+            approved_ids = set(confirmation_response.approved_tool_calls)
+
+            # Process tool calls - execute approved ones, cancel rejected ones
+            tool_results = []
+            approved_tool_calls = []
+            for tool_call in ai_message_with_calls.tool_calls:
+                if tool_call['id'] in approved_ids:
+                    # Approved - will execute
+                    approved_tool_calls.append(tool_call)
+                else:
+                    # Rejected - yield cancellation message
+                    cancel_message = ToolMessage(
+                        content = "Tool error: execution canceled by user",
+                        tool_call_id = tool_call['id'],
+                        name = tool_call['name']
+                    )
+                    self._log_llm_message(cancel_message, "canceled tool call")
+                    tool_results.append(cancel_message)
+                    yield cancel_message
+
+            # Execute approved tool calls
+            if approved_tool_calls:
+                for tool_result in self._handle_tool_calls(approved_tool_calls, config, kwargs):
+                    if isinstance(tool_result, ToolMessage):
+                        tool_results.append(tool_result)
+                        yield tool_result
+                    elif isinstance(tool_result, AIMessage):
+                        # Direct tool - we're done
+                        yield tool_result
+                        return
+                    else:
+                        yield tool_result  # WorkerNotification
+
+                # Add tool results to input and continue with LLM call
+                input.extend(tool_results)
+            else:
+                # All tools were rejected - return without continuing
+                return
+        else:
+            # Normal startup: filter input
+            # leaving only BaseMessage-s items in input
+            input = [message for message in input if isinstance(message, BaseMessage)]
+            # prepend system message
+            if self._system_message is not None:
+                input = [self._system_message] + input
+            # filter out confidential messages
+            self._filter_outgoing_messages(input, 0)
 
         while True:
             yield WorkerNotification.thinking_start()
@@ -108,15 +166,11 @@ class Worker(Runnable[In, Out]):
             yield llm_response # return LLM message (possibly with calls)
 
             if isinstance(llm_response, AIMessage) and len(llm_response.tool_calls) > 0:
-                if self._check_if_user_cancels_execution(callback_manager, llm_response.tool_calls):
-                    for tool_call in llm_response.tool_calls:
-                        cancel_message = ToolMessage(
-                            content = "Tool error: execution canceled by user",
-                            tool_call_id = tool_call['id'],
-                            name = tool_call['name']
-                        )
-                        self._log_llm_message(cancel_message, "canceled tool call")
-                        yield cancel_message # return canceled tool call
+                # Check if any tools need confirmation
+                confirmation_request = self._get_confirmation_request(llm_response.tool_calls)
+                if confirmation_request:
+                    # Yield the confirmation request and stop processing
+                    yield confirmation_request
                     return
 
                 tool_results = []
@@ -287,7 +341,10 @@ class Worker(Runnable[In, Out]):
             return tool.confidential
         return False
 
-    def _check_if_user_cancels_execution(self, callback_manager: CallbackManager, tool_calls: list[ToolCall]) -> bool:
+    def _get_confirmation_request(self, tool_calls: list[ToolCall]) -> Optional[ConfirmationRequest]:
+        """Check if any tool calls need confirmation and return a ConfirmationRequest if so."""
+        tool_calls_needing_confirmation: dict[str, ConfirmationRequestToolCallDescription] = {}
+
         for tool_call in tool_calls:
             tool_name = tool_call['name']
             if tool_name not in self._tools:
@@ -305,21 +362,21 @@ class Worker(Runnable[In, Out]):
             else:
                 continue
 
-            request: Optional[ConfirmationRequest] = None
+            # This tool needs confirmation
+            request: Optional[ConfirmationRequestToolCallDescription] = None
             if isinstance(tool, ExtendedBaseTool):
                 request = tool.make_confirmation_request(args)
             if request is None:
-                request = ConfirmationRequest(
+                request = ConfirmationRequestToolCallDescription(
                     action = f"run the tool {tool.name} with following input",
                     params = [ConfirmationRequestParam(name=key, value=value) for key, value in args.items()]
                 )
 
-            callback_manager.on_custom_event(
-                name = 'request_confirmation',
-                data = request
-            )
+            # Add to dict keyed by tool call id
+            tool_calls_needing_confirmation[tool_call['id']] = request
 
-            if not request.approved:
-                return True
+        # Return ConfirmationRequest if any tools need confirmation
+        if tool_calls_needing_confirmation:
+            return ConfirmationRequest(tool_calls=tool_calls_needing_confirmation)
 
-        return False
+        return None

@@ -773,3 +773,242 @@ class TestWorker(unittest.TestCase):
         mock_handler.on_tool_start.assert_called_once()
         _, kwargs = mock_handler.on_tool_start.call_args
         self.assertEqual(kwargs.get("ui_hint"), "Calling test tool")
+
+    def test_confirmation_request_yielded(self):
+        """Test that a ConfirmationRequest is yielded when a tool needs confirmation."""
+        # Create a tool that requires confirmation
+        class ConfirmationTool(BaseTool):
+            name: str = "confirmation_tool"
+            description: str = "A tool requiring confirmation"
+
+            def _run(self, input_str: str, **kwargs) -> str:
+                return f"Executed: {input_str}"
+
+        tool = ConfirmationTool()
+        tool.metadata = {'tool_definition': Mock(
+            name='confirmation_tool',
+            confidential=False,
+            require_confirmation=True,  # Requires confirmation
+            ui_hint_template=None
+        )}
+
+        # Setup messages
+        input_message = HumanMessage(content="Use the tool")
+
+        # LLM response with tool call
+        tool_call_response = AIMessage(
+            content='',
+            tool_calls=[{
+                'name': 'confirmation_tool',
+                'args': {'input_str': 'test'},
+                'id': 'call_123'
+            }]
+        )
+
+        # Setup fake LLM
+        fake_llm = MockInvokeLLM()
+        fake_llm.expect_invoke(
+            input=[input_message],
+            output=tool_call_response
+        )
+
+        # Create context and worker
+        context = StubWorkersContext(fake_llm, tools={'confirmation_tool': tool})
+        llm_config = BaseLLMConfig(model_ref="default", tools=['confirmation_tool'])
+        worker = Worker(llm_config, context)
+
+        # Execute: Stream worker
+        result = []
+        for chunk in worker.stream([input_message], stream=False):
+            result.extend(chunk)
+
+        # Verify: ConfirmationRequest is yielded
+        from llm_workers.api import WorkerNotification, ConfirmationRequest
+
+        # Expected: thinking_start, thinking_end, AIMessage, ConfirmationRequest
+        self.assertEqual(len(result), 4)
+
+        self.assertIsInstance(result[0], WorkerNotification)
+        self.assertEqual(result[0].type, 'thinking_start')
+
+        self.assertIsInstance(result[1], WorkerNotification)
+        self.assertEqual(result[1].type, 'thinking_end')
+
+        self.assertIsInstance(result[2], AIMessage)
+        self.assertEqual(len(result[2].tool_calls), 1)
+
+        # The key assertion: ConfirmationRequest is yielded
+        self.assertIsInstance(result[3], ConfirmationRequest)
+        self.assertEqual(len(result[3].tool_calls), 1)
+        self.assertIn('call_123', result[3].tool_calls)
+        self.assertIn('confirmation_tool', result[3].tool_calls['call_123'].action)
+
+        fake_llm.verify_all_called()
+
+    def test_confirmation_approved_executes_tool(self):
+        """Test that resuming with approved=True executes the tool."""
+        # Create a tool that requires confirmation
+        class ConfirmationTool(BaseTool):
+            name: str = "confirmation_tool"
+            description: str = "A tool requiring confirmation"
+
+            def _run(self, input_str: str, **kwargs) -> str:
+                return f"Executed: {input_str}"
+
+        tool = ConfirmationTool()
+        tool.metadata = {'tool_definition': Mock(
+            name='confirmation_tool',
+            confidential=False,
+            require_confirmation=True,
+            ui_hint_template=None
+        )}
+
+        # Setup messages
+        input_message = HumanMessage(content="Use the tool")
+
+        # LLM responses
+        tool_call_response = AIMessage(
+            content='',
+            tool_calls=[{
+                'name': 'confirmation_tool',
+                'args': {'input_str': 'test'},
+                'id': 'call_123'
+            }]
+        )
+
+        final_response = AIMessage(content="Tool executed successfully")
+
+        # Setup fake LLM
+        fake_llm = MockInvokeLLM()
+        # First call: returns tool call
+        fake_llm.expect_invoke(
+            input=[input_message],
+            output=tool_call_response
+        )
+        # Second call: after tool execution, returns final response
+        fake_llm.expect_invoke(
+            input=[
+                input_message,
+                tool_call_response,
+                ToolMessage(content='Executed: test', tool_call_id='call_123', name='confirmation_tool')
+            ],
+            output=final_response
+        )
+
+        # Create context and worker
+        context = StubWorkersContext(fake_llm, tools={'confirmation_tool': tool})
+        llm_config = BaseLLMConfig(model_ref="default", tools=['confirmation_tool'])
+        worker = Worker(llm_config, context)
+
+        # First invocation: get ConfirmationRequest
+        result1 = []
+        for chunk in worker.stream([input_message], stream=False):
+            result1.extend(chunk)
+
+        # Find the ConfirmationRequest
+        from llm_workers.api import ConfirmationRequest, ConfirmationResponse
+        confirmation_request = None
+        for item in result1:
+            if isinstance(item, ConfirmationRequest):
+                confirmation_request = item
+                break
+
+        self.assertIsNotNone(confirmation_request)
+
+        # Create ConfirmationResponse approving the tool call
+        confirmation_response = ConfirmationResponse(approved_tool_calls=['call_123'])
+
+        # Second invocation: resume with approved confirmation
+        result2 = []
+        for chunk in worker.stream([input_message, tool_call_response, confirmation_response], stream=False):
+            result2.extend(chunk)
+
+        # Verify: tool was executed and we got ToolMessage and final AIMessage
+        tool_message_found = False
+        for item in result2:
+            if isinstance(item, ToolMessage):
+                self.assertIn('Executed: test', item.content)
+                tool_message_found = True
+
+        self.assertTrue(tool_message_found, "ToolMessage was not found in results")
+
+        fake_llm.verify_all_called()
+
+    def test_confirmation_rejected_cancels_tool(self):
+        """Test that resuming with approved=False yields cancellation messages."""
+        # Create a tool that requires confirmation
+        class ConfirmationTool(BaseTool):
+            name: str = "confirmation_tool"
+            description: str = "A tool requiring confirmation"
+
+            def _run(self, input_str: str, **kwargs) -> str:
+                return f"Executed: {input_str}"
+
+        tool = ConfirmationTool()
+        tool.metadata = {'tool_definition': Mock(
+            name='confirmation_tool',
+            confidential=False,
+            require_confirmation=True,
+            ui_hint_template=None
+        )}
+
+        # Setup messages
+        input_message = HumanMessage(content="Use the tool")
+
+        # LLM response with tool call
+        tool_call_response = AIMessage(
+            content='',
+            tool_calls=[{
+                'name': 'confirmation_tool',
+                'args': {'input_str': 'test'},
+                'id': 'call_123'
+            }]
+        )
+
+        # Setup fake LLM
+        fake_llm = MockInvokeLLM()
+        fake_llm.expect_invoke(
+            input=[input_message],
+            output=tool_call_response
+        )
+
+        # Create context and worker
+        context = StubWorkersContext(fake_llm, tools={'confirmation_tool': tool})
+        llm_config = BaseLLMConfig(model_ref="default", tools=['confirmation_tool'])
+        worker = Worker(llm_config, context)
+
+        # First invocation: get ConfirmationRequest
+        result1 = []
+        for chunk in worker.stream([input_message], stream=False):
+            result1.extend(chunk)
+
+        # Find the ConfirmationRequest
+        from llm_workers.api import ConfirmationRequest, ConfirmationResponse
+        confirmation_request = None
+        for item in result1:
+            if isinstance(item, ConfirmationRequest):
+                confirmation_request = item
+                break
+
+        self.assertIsNotNone(confirmation_request)
+
+        # Create ConfirmationResponse rejecting the tool call (empty list)
+        confirmation_response = ConfirmationResponse(approved_tool_calls=[])
+
+        # Second invocation: resume with rejected confirmation
+        result2 = []
+        for chunk in worker.stream([input_message, tool_call_response, confirmation_response], stream=False):
+            result2.extend(chunk)
+
+        # Verify: cancellation ToolMessage was yielded
+        cancellation_found = False
+        for item in result2:
+            if isinstance(item, ToolMessage):
+                self.assertIn('canceled by user', item.content)
+                self.assertEqual(item.tool_call_id, 'call_123')
+                self.assertEqual(item.name, 'confirmation_tool')
+                cancellation_found = True
+
+        self.assertTrue(cancellation_found, "Cancellation ToolMessage was not found")
+
+        fake_llm.verify_all_called()

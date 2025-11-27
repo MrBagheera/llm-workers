@@ -2,12 +2,14 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Callable, List, Literal, Iterable, TypeVar, Generic
 from uuid import UUID
+from pydantic import BaseModel
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
+from langchain_core.messages import AIMessage
 
-from llm_workers.config import WorkersConfig, ToolReference, ModelDefinition, UserConfig
+from llm_workers.config import WorkersConfig, ToolReference, ModelDefinition, UserConfig, Json
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 
 # Flag for confidential messages (not shown to LLM)
@@ -65,27 +67,27 @@ class WorkerException(Exception):
         return self.message
 
 
-class ConfirmationRequestParam:
+class ConfirmationRequestParam(BaseModel):
     """Class representing a parameter for a confirmation request."""
     name: str
-    value: Any
+    value: Json
     format: Optional[str] = None
 
-    def __init__(self, name: str, value: Any, format: Optional[str] = None):
-        self.name = name
-        self.value = value
-        self.format = format
-
-class ConfirmationRequest:
+class ConfirmationRequestToolCallDescription(BaseModel):
     """Class representing a confirmation request."""
     action: str
     params: List[ConfirmationRequestParam]
-    approved: bool = False
-    reject_reason: Optional[str] = None
 
-    def __init__(self, action: str, params: List[ConfirmationRequestParam]):
-        self.action = action
-        self.args = params
+class ConfirmationRequest(BaseModel):
+    """Class representing a confirmation request from agent to UI."""
+    # tools calls from last AIMessage that need confirmation, mapped by id
+    tool_calls: dict[str, ConfirmationRequestToolCallDescription]
+
+class ConfirmationResponse(BaseModel):
+    """Class representing a confirmation response from UI to agent."""
+    # confirmation for tools calls from last AIMessage
+    # calls that required confirmation but are not in this list are considered rejected
+    approved_tool_calls: List[str]
 
 
 class ExtendedBaseTool(ABC):
@@ -97,7 +99,7 @@ class ExtendedBaseTool(ABC):
         """Check if the tool requires confirmation for the given input."""
         return False
 
-    def make_confirmation_request(self, input: dict[str, Any]) -> Optional[ConfirmationRequest]:
+    def make_confirmation_request(self, input: dict[str, Any]) -> Optional[ConfirmationRequestToolCallDescription]:
         """Create a custom confirmation request based on the input."""
         return None
 

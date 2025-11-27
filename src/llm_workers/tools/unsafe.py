@@ -10,7 +10,7 @@ from langchain_core.tools import BaseTool
 from langchain_core.tools.base import ToolException
 from pydantic import BaseModel, Field
 
-from llm_workers.api import ConfirmationRequest, ConfirmationRequestParam
+from llm_workers.api import ConfirmationRequestToolCallDescription, ConfirmationRequestParam
 from llm_workers.api import ExtendedBaseTool
 from llm_workers.utils import LazyFormatter, open_file_in_default_app, is_safe_to_open, get_cache_filename
 
@@ -33,9 +33,9 @@ class ReadFileTool(BaseTool, ExtendedBaseTool):
     def needs_confirmation(self, input: dict[str, Any]) -> bool:
         return _not_in_working_directory(input['filename'])
 
-    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequest:
+    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequestToolCallDescription:
         filename = input['filename']
-        return ConfirmationRequest(
+        return ConfirmationRequestToolCallDescription(
             action = f"read file \"{filename}\" outside working directory" if _not_in_working_directory(filename)
             else f"read file \"{filename}\"",
             params = [ ]
@@ -73,9 +73,9 @@ class WriteFileTool(BaseTool, ExtendedBaseTool):
     def needs_confirmation(self, input: dict[str, Any]) -> bool:
         return _not_in_working_directory(input['filename'])
 
-    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequest:
+    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequestToolCallDescription:
         filename = input['filename']
-        return ConfirmationRequest(
+        return ConfirmationRequestToolCallDescription(
             action = f"write to the file \"{filename}\" outside working directory" if _not_in_working_directory(filename)
                 else f"write to the file \"{filename}\"",
             params = []
@@ -121,8 +121,8 @@ class RunPythonScriptTool(BaseTool, ExtendedBaseTool):
     def needs_confirmation(self, input: dict[str, Any]) -> bool:
         return self.require_confirmation
 
-    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequest:
-        return ConfirmationRequest(
+    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequestToolCallDescription:
+        return ConfirmationRequestToolCallDescription(
             action = "run Python script",
             params = [ ConfirmationRequestParam(name = "script", value = input["script"], format = "python" ) ]
         )
@@ -173,9 +173,9 @@ class ShowFileTool(BaseTool, ExtendedBaseTool):
     def needs_confirmation(self, input: dict[str, Any]) -> bool:
         return _not_in_working_directory(input['filename'])
 
-    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequest:
+    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequestToolCallDescription:
         filename = input['filename']
-        return ConfirmationRequest(
+        return ConfirmationRequestToolCallDescription(
             action=f"open the file \"{filename}\" outside working directory in OS-default application" if _not_in_working_directory(
                 filename)
             else f"open the file \"{filename}\" in OS-default application",
@@ -205,8 +205,8 @@ class BashTool(BaseTool, ExtendedBaseTool):
     def needs_confirmation(self, input: dict[str, Any]) -> bool:
         return self.require_confirmation
     
-    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequest:
-        return ConfirmationRequest(
+    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequestToolCallDescription:
+        return ConfirmationRequestToolCallDescription(
             action="execute bash script",
             params=[ConfirmationRequestParam(name="script", value=input["script"], format="bash")]
         )
@@ -268,9 +268,9 @@ class ListFilesTool(BaseTool, ExtendedBaseTool):
     def needs_confirmation(self, input: dict[str, Any]) -> bool:
         return _not_in_working_directory(input['path'])
 
-    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequest:
+    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequestToolCallDescription:
         path = input['path']
-        return ConfirmationRequest(
+        return ConfirmationRequestToolCallDescription(
             action = f"list files at \"{path}\" outside working directory" if _not_in_working_directory(path)
             else f"list files at \"{path}\"",
             params = []
@@ -403,11 +403,11 @@ class RunProcessTool(BaseTool, ExtendedBaseTool):
     def needs_confirmation(self, input: dict[str, Any]) -> bool:
         return self.require_confirmation
 
-    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequest:
+    def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequestToolCallDescription:
         command = input["command"]
         args = input.get("args", [])
         cmd_display = f"{command} {' '.join(args)}" if args else command
-        return ConfirmationRequest(
+        return ConfirmationRequestToolCallDescription(
             action = "run system process",
             params = [ ConfirmationRequestParam(name = "command", value = cmd_display, format = "bash" ) ]
         )
