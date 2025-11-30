@@ -714,3 +714,66 @@ def call_tool(
 
     if tool_start_text:
         yield WorkerNotification.tool_end(run_id)
+
+
+####################################################
+# MCP Utilities
+####################################################
+
+def matches_patterns(tool_name: str, patterns: List[str]) -> bool:
+    """
+    Check if tool_name matches any of the patterns.
+    Supports negation with ! prefix.
+
+    Rules:
+    - If pattern starts with !, it's a negation (exclude)
+    - Negations are processed after inclusions
+    - If no non-negation patterns exist, defaults to matching all
+
+    Examples:
+        matches_patterns("gh_read", ["gh*", "!gh_write*"]) -> True
+        matches_patterns("gh_write_file", ["gh*", "!gh_write*"]) -> False
+        matches_patterns("any_tool", []) -> True
+    """
+    if not patterns:
+        return True
+
+    inclusions = [p for p in patterns if not p.startswith("!")]
+    exclusions = [p[1:] for p in patterns if p.startswith("!")]
+
+    # If no inclusions, default to matching all
+    if not inclusions:
+        included = True
+    else:
+        included = any(fnmatch.fnmatch(tool_name, pattern) for pattern in inclusions)
+
+    # Apply exclusions
+    if included and exclusions:
+        excluded = any(fnmatch.fnmatch(tool_name, pattern) for pattern in exclusions)
+        return not excluded
+
+    return included
+
+
+def substitute_env_vars(args: List[str]) -> List[str]:
+    """
+    Substitute environment variable references in args list.
+    Format: env.VAR_NAME -> os.environ['VAR_NAME']
+
+    Examples:
+        ["--path", "env.HOME"] -> ["--path", "/Users/username"]
+        ["regular_arg"] -> ["regular_arg"]
+
+    Raises:
+        ValueError: If an environment variable is not found
+    """
+    result = []
+    for arg in args:
+        if arg.startswith("env."):
+            var_name = arg[4:]  # Strip "env." prefix
+            if var_name not in os.environ:
+                raise ValueError(f"Environment variable {var_name} not found")
+            result.append(os.environ[var_name])
+        else:
+            result.append(arg)
+    return result

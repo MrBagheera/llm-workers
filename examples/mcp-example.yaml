@@ -1,0 +1,61 @@
+# Example configuration demonstrating MCP (Model Context Protocol) servers support
+
+# MCP Servers Configuration
+mcp:
+  # Example 1: Local math server via stdio transport
+  echo:
+    "transport": "stdio"  # Local subprocess communication
+    "command": "uvx"
+    # Absolute path to your math_server.py file
+    "args": [ "echo-mcp-server-for-testing" ]
+  #    include_tools:
+  #      - "gh*"
+  #      - "!gh_write*"
+  #      - "!gh_delete*"
+  #    ui_hints_for:
+  #      - "gh*"
+  #    require_confirmation_for:
+  #      - "gh_delete*"
+
+#  # Example 2: GitHub server with filtering
+#  github:
+#    transport: "stdio"
+#    command: "npx"
+#    args: ["-y", "@modelcontextprotocol/server-github"]
+#    # Include all gh tools except write and delete operations
+#    tools:
+#      - "gh*"
+#      - "!gh_write*"
+#      - "!gh_delete*"
+#    # Show UI hints for all GitHub tools
+#    ui_hints_for: ["gh*"]
+#    # Require confirmation for delete operations (if they weren't filtered)
+#    require_confirmation_for: ["gh_delete*"]
+#
+#  # Example 3: Remote weather server via HTTP
+#  weather:
+#    transport: "streamable_http"
+#    url: "http://localhost:8000/mcp"
+#    # Include only get_* tools, exclude internal ones
+#    tools:
+#      - "get_*"
+#      - "!get_internal_*"
+#    # Show hints for all tools (default)
+#    ui_hints_for: ["*"]
+#    # Require confirmation for all weather API calls
+#    require_confirmation_for: ["*"]
+
+# Regular tools (work alongside MCP tools)
+tools:
+  - name: read_file
+    import_from: llm_workers.tools.unsafe.ReadFileTool
+  - name: list_files
+    import_from: llm_workers.tools.unsafe.ListFilesTool
+  - name: bash
+    import_from: llm_workers.tools.unsafe.BashTool
+
+# Chat configuration
+chat:
+  system_message: |-
+    You are a helpful AI assistant with access to tools.
+  default_prompt: "Please list the tools you have access to."

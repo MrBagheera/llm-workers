@@ -1,23 +1,33 @@
+import asyncio
 import importlib
 import inspect
 import logging
+from asyncio import AbstractEventLoop
 from copy import copy
+from typing import Dict, List, Optional
 
 from langchain_core.tools import BaseTool
 
 from llm_workers.api import WorkersContext, WorkerException, ExtendedBaseTool, UserContext
 from llm_workers.config import WorkersConfig, load_config, ToolDefinition, ToolReference
 from llm_workers.tools.custom_tool import build_custom_tool
+from llm_workers.utils import matches_patterns, substitute_env_vars
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_mcp_adapters.tools import load_mcp_tools
 
 logger = logging.getLogger(__name__)
 
 
 class StandardWorkersContext(WorkersContext):
 
+    _tools: Dict[str, BaseTool] = {}
+    _loop: Optional[AbstractEventLoop] = None
+    _mcp_client: Optional[MultiServerMCPClient] = None
+    _mcp_sessions: Dict[str, dict] = {}
+
     def __init__(self, config: WorkersConfig, user_context: UserContext):
         self._config = config
         self._user_context = user_context
-        self._tools = dict[str, BaseTool]()
         self._register_tools()
 
     def _register_tools(self):
@@ -92,6 +102,14 @@ class StandardWorkersContext(WorkersContext):
     def config(self) -> WorkersConfig:
         return self._config
 
+    @property
+    def get_public_tools(self) -> List[BaseTool]:
+        public_tools = []
+        for tool in self._tools.values():
+            if not tool.name.startswith("_"):
+                public_tools.append(tool)
+        return public_tools
+
     def _register_tool(self, tool: BaseTool):
         redefine = tool.name in self._tools
         self._tools[tool.name] = tool
@@ -112,4 +130,190 @@ class StandardWorkersContext(WorkersContext):
 
     def get_llm(self, llm_name: str):
         return self._user_context.get_llm(llm_name)
+
+    async def __aenter__(self):
+        """
+        Initialize MCP clients and load tools asynchronously.
+        """
+        self._loop = asyncio.get_running_loop()
+
+        if self._config.mcp is None or len(self._config.mcp) == 0:
+            return self
+
+        logger.info("Initializing MCP clients...")
+
+        # Build server configs
+        server_configs = {}
+        for server_name, server_def in self._config.mcp.items():
+            try:
+                if server_def.transport == "stdio":
+                    # Substitute environment variables in args
+                    args = substitute_env_vars(server_def.args)
+                    server_configs[server_name] = {
+                        "transport": "stdio",
+                        "command": server_def.command,
+                        "args": args,
+                    }
+                    logger.info(f"Configured MCP server '{server_name}' with stdio transport: {server_def.command} {args}")
+                elif server_def.transport == "streamable_http":
+                    server_configs[server_name] = {
+                        "transport": "streamable_http",
+                        "url": server_def.url,
+                    }
+                    logger.info(f"Configured MCP server '{server_name}' with HTTP transport: {server_def.url}")
+                else:
+                    raise RuntimeError(f"Unsupported MCP transport: {server_def.transport}")
+            except Exception as e:
+                logger.error(f"Failed to configure MCP server '{server_name}': {e}", exc_info=True)
+                # Continue with other servers
+
+        if not server_configs:
+            logger.warning("No valid MCP server configurations found")
+            return self
+
+        # Load tools from MCP servers
+        try:
+            tools_by_server = await self._load_mcp_tools_async(server_configs)
+            self._register_mcp_tools(tools_by_server)
+        except Exception as e:
+            logger.error(f"Failed to initialize MCP clients: {e}", exc_info=True)
+            # Don't raise - allow the system to continue with regular tools
+
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """
+        Close this context (including all MCP server) sessions and cleanup.
+        """
+        if not self._mcp_sessions:
+            return
+
+        logger.info(f"Closing {len(self._mcp_sessions)} MCP sessions...")
+
+        # Close each session by calling __aexit__ on stored context managers
+        for server_name, session_data in self._mcp_sessions.items():
+            try:
+                logger.debug(f"Closing MCP session for '{server_name}'")
+                context_manager = session_data['context_manager']
+                # Call __aexit__ with no exception info (None, None, None)
+                await context_manager.__aexit__(None, None, None)
+            except Exception as e:
+                logger.error(f"Failed to close MCP session for '{server_name}': {e}", exc_info=True)
+
+        self._mcp_sessions.clear()
+        logger.info("MCP sessions closed")
+
+    def _make_sync_wrapper(self, async_func):
+        """
+        Create a sync wrapper for an async function that uses the persistent event loop.
+
+        CRITICAL: Must use self._loop instead of asyncio.run() because MCP tools
+        require the same event loop and session context they were created in.
+        """
+        loop = self._loop  # Capture loop reference
+
+        def sync_wrapper(*args, **kwargs):
+            if loop is None or loop.is_closed():
+                raise RuntimeError("StandardWorkersContext has been closed")
+            future = asyncio.run_coroutine_threadsafe(async_func(*args, **kwargs), loop)
+            return future.result()
+
+        return sync_wrapper
+
+    async def _load_mcp_tools_async(self, server_configs: Dict[str, dict]) -> Dict[str, List[BaseTool]]:
+        """Load tools from MCP servers asynchronously, keeping sessions open."""
+
+        # Create and store client
+        self._mcp_client = MultiServerMCPClient(server_configs)
+        tools_by_server = {}
+
+        # Load tools from each server individually and keep sessions open
+        for server_name in server_configs.keys():
+            try:
+                logger.info(f"Connecting to MCP server '{server_name}'...")
+
+                # Enter session but don't exit - store the context manager
+                session_cm = self._mcp_client.session(server_name)
+                session = await session_cm.__aenter__()
+
+                # Store session for later cleanup
+                self._mcp_sessions[server_name] = {
+                    'session': session,
+                    'context_manager': session_cm
+                }
+
+                # Load tools from the open session
+                server_tools = await load_mcp_tools(session)
+
+                # Tag each tool with its server and add sync wrapper
+                for tool in server_tools:
+                    if tool.metadata is None:
+                        tool.metadata = {}
+                    tool.metadata['mcp_server'] = server_name
+                    tool.metadata['original_name'] = tool.name
+
+                    # Add synchronous func wrapper using persistent event loop
+                    if hasattr(tool, 'coroutine') and tool.coroutine is not None and tool.func is None:
+                        tool.func = self._make_sync_wrapper(tool.coroutine)
+                        logger.debug(f"Added sync wrapper to MCP tool '{tool.name}'")
+
+                tools_by_server[server_name] = server_tools
+                logger.info(f"Loaded {len(server_tools)} tools from MCP server '{server_name}'")
+            except Exception as e:
+                logger.error(f"Failed to load tools from MCP server '{server_name}': {e}", exc_info=True)
+                tools_by_server[server_name] = []  # Empty list for failed servers
+
+        return tools_by_server
+
+    def _register_mcp_tools(self, tools_by_server: Dict[str, List[BaseTool]]):
+        """Filter and register MCP tools based on configuration."""
+        for server_name, tools in tools_by_server.items():
+            server_def = self._config.mcp.get(server_name)
+            if server_def is None:
+                continue
+
+            for tool in tools:
+                original_name = tool.metadata.get('original_name', tool.name)
+
+                # Check if tool matches filter patterns
+                if not matches_patterns(original_name, server_def.tools):
+                    logger.debug(f"Skipping MCP tool '{original_name}' from server '{server_name}' (filtered by patterns)")
+                    continue
+
+                # Create prefixed tool name
+                prefixed_name = f"{server_name}_{original_name}"
+
+                # Check for name conflicts
+                if prefixed_name in self._tools:
+                    logger.warning(f"MCP tool name conflict: '{prefixed_name}' already exists, skipping")
+                    continue
+
+                # Determine UI hint
+                ui_hint = None
+                if matches_patterns(original_name, server_def.ui_hints_for):
+                    ui_hint = f"Calling {original_name}"
+
+                # Determine if confirmation is required
+                require_confirmation = matches_patterns(original_name, server_def.require_confirmation_for)
+
+                # Create ToolDefinition for MCP tool
+                tool_def = ToolDefinition(
+                    name=prefixed_name,
+                    description=tool.description,
+                    ui_hint=ui_hint,
+                    require_confirmation=require_confirmation,
+                )
+
+                # Update tool metadata
+                tool.metadata['tool_definition'] = tool_def
+
+                # Override tool name with prefixed version
+                tool.name = prefixed_name
+
+                # Register tool
+                self._register_tool(tool)
+
+            # Summary log for this server
+            registered_count = len([t for t in tools if t.name.startswith(f"{server_name}_")])
+            logger.info(f"Registered {registered_count}/{len(tools)} tools from MCP server '{server_name}'")
 

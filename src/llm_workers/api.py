@@ -43,6 +43,11 @@ class WorkersContext(ABC):
     def config(self) -> WorkersConfig:
         pass
 
+    @property
+    @abstractmethod
+    def get_public_tools(self) -> List[BaseTool]:
+        pass
+
     @abstractmethod
     def get_tool(self, tool_ref: ToolReference) -> BaseTool:
         pass

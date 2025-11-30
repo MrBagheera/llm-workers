@@ -30,18 +30,9 @@ class Worker(Runnable[In, Out]):
             self._system_message = SystemMessage(llm_config.system_message)
         self._llm = context.get_llm(llm_config.model_ref)
         self._tools = {}
-        tools = []
-        tool_refs: Optional[List[ToolReference]] = llm_config.tools
-        if tool_refs is None:
-            if top_level:
-                tool_refs = [tool_def.name for tool_def in context.config.tools if not tool_def.name.startswith("_")]
-            else:
-                tool_refs = []
-        tool_ref: ToolReference
-        for tool_ref in tool_refs:
-            tool = context.get_tool(tool_ref)
+        tools = context.get_public_tools
+        for tool in tools:
             self._tools[tool.name] = tool
-            tools.append(tool)
         if len(tools) > 0:
             self._llm = self._llm.bind_tools(tools)
         self._direct_tools = set([tool.name for tool in tools if tool.return_direct])

@@ -154,6 +154,15 @@ class StubWorkersContext(WorkersContext):
     def config(self) -> WorkersConfig:
         return self._config
 
+    @property
+    def get_public_tools(self) -> List[BaseTool]:
+        """Return all tools that don't start with underscore."""
+        public_tools = []
+        for tool in self._tools.values():
+            if not tool.name.startswith("_"):
+                public_tools.append(tool)
+        return public_tools
+
     def get_tool(self, tool_ref):
         if tool_ref in self._tools:
             return self._tools[tool_ref]

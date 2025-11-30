@@ -162,6 +162,35 @@ class ToolDefinition(BaseModel):
         return self._ui_hint_template
 
 
+class MCPServerDefinition(BaseModel):
+    """Definition for an MCP server connection."""
+    transport: str  # "stdio" or "streamable_http"
+
+    # For stdio transport
+    command: Optional[str] = None
+    args: Optional[List[str]] = None
+
+    # For streamable_http transport
+    url: Optional[str] = None
+
+    # Tool filtering and configuration
+    tools: List[str] = ["*"]  # Patterns for including tools
+    ui_hints_for: List[str] = []  # Patterns for tools that need UI hints
+    require_confirmation_for: List[str] = []  # Patterns for tools requiring confirmation
+
+    @model_validator(mode='after')
+    def validate_transport(cls, value: Any) -> Self:
+        if value.transport == "stdio":
+            _ensure_set(value, ["command", "args"], "stdio transport")
+            _ensure_not_set(value, ["url"], "stdio transport")
+        elif value.transport == "streamable_http":
+            _ensure_set(value, ["url"], "streamable_http transport")
+            _ensure_not_set(value, ["command", "args"], "streamable_http transport")
+        else:
+            raise ValueError(f"Invalid transport: {value.transport}")
+        return value
+
+
 ToolReference = TypeAliasType(
     'ToolReference',
     Union[str, ToolDefinition],
@@ -185,6 +214,7 @@ class ChatConfig(BaseLLMConfig):
 
 class WorkersConfig(BaseModel):
     tools: list[ToolDefinition] = ()
+    mcp: Optional[Dict[str, MCPServerDefinition]] = None
     shared: Dict[str, Json] = {}
     chat: Optional[ChatConfig] = None
     cli: Optional[BodyDefinition] = None

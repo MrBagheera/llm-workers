@@ -1,8 +1,8 @@
 import argparse
+import asyncio
 import sys
 from logging import getLogger
-from operator import truediv
-from typing import Optional, Any, Dict, Callable
+from typing import Optional, Dict, Callable
 from uuid import UUID
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
@@ -30,10 +30,10 @@ class _ChatSessionContext:
     context: StandardWorkersContext
     script_name: str
 
-    def __init__(self, script_file: str, user_context: UserContext):
+    def __init__(self, script_file: str, user_context: UserContext, context: StandardWorkersContext):
         self.script_name = script_file
         self.user_context = user_context
-        self.context = StandardWorkersContext.load(script_file, user_context)
+        self.context = context
         if not self.context.config.chat:
             raise ValueError(f"'chat' section is missing from '{self.script_name}'")
         self.worker = Worker(self.context.config.chat, self.context, top_level=True)
@@ -47,12 +47,10 @@ class ChatSession:
     commands: dict[str, Callable[[list[str]], None]]
     commands_config: dict[str, dict]
     alias_to_command: dict[str, str]
+    _chat_context: Optional[_ChatSessionContext] = None
 
-    def __init__(self, console: Console, script_name: str, user_context: UserContext):
+    def __init__(self, console: Console):
         self._console = console
-        self._user_context = user_context
-        self._chat_context = _ChatSessionContext(script_name, user_context)
-        self._file_monitor: Optional[FileChangeDetector] = None
         self._iteration = 1
         self._messages = list[BaseMessage]()
         self._history = InMemoryHistory()
@@ -62,11 +60,6 @@ class ChatSession:
             "help": {
                 "function": self._print_help,
                 "description": "Shows this message"
-            },
-            "reload": {
-                "function": self._reload,
-                "description": "Reloads given LLM script (defaults to current)",
-                "params": "[<script.yaml>]"
             },
             "rewind": {
                 "function": self._rewind,
@@ -116,14 +109,33 @@ class ChatSession:
         self._streamed_message_id: Optional[str] = None
         self._streamed_reasoning_index: Optional[int] = None
         self._running_tools_depths: Dict[UUID, int] = {}
-        self._available_models = [model.name for model in self._user_context.models]
         self._thinking_live = None
 
-    @property
-    def _chat_config(self):
-        return self._chat_context.context.config.chat
+    @staticmethod
+    def run(console: Console, script_file: str, user_context: UserContext) -> CompositeTokenUsageTracker:
+        """Runs chat session in async loop."""
+        # Changing from sync to async API is WIP - it is forced on us because of MCP server.
+        # So we start async loop here using calling thread,
+        # and then run actual chat session synchronously using separate thread.
+        chat_session = ChatSession(console)
 
-    def run(self):
+        loop = asyncio.new_event_loop()
+        try:
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(chat_session._run(script_file, user_context))
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
+
+        return chat_session._token_tracker
+
+    async def _run(self, script_file: str, user_context: UserContext):
+        async with StandardWorkersContext.load(script_file, user_context) as workers_context:
+            self._chat_context = _ChatSessionContext(script_file, user_context, workers_context)
+            # running in a separate thread because it is blocking
+            await asyncio.to_thread(self._run_chat_loop)
+
+    def _run_chat_loop(self):
         # Display user banner if configured
         if self._chat_config.user_banner is not None:
             self._console.print(Markdown(self._chat_config.user_banner))
@@ -172,7 +184,7 @@ class ChatSession:
                             if isinstance(item, WorkerNotification):
                                 self._process_notification(item)
                             elif isinstance(item, ConfirmationRequest):
-                                confirmation_response = self.process_confirmation_request(item)
+                                confirmation_response = self._process_confirmation_request(item)
                             else:
                                 self._process_model_message(item)
                         if confirmation_response is None:
@@ -181,13 +193,25 @@ class ChatSession:
                     logger.error(f"Error: {e}", exc_info=True)
                     self._console.print(f"Unexpected error in worker: {e}", style="bold red")
                     self._console.print(f"If subsequent conversation fails, try rewinding to previous message", style="bold red")
-                    self.clear_thinking_message()
+                    self._clear_thinking_message()
                 self._handle_changed_files()
                 self._iteration = self._iteration + 1
         except KeyboardInterrupt:
             self._finished = True
         except EOFError:
             self._finished = True
+
+    @property
+    def _user_context(self) -> UserContext:
+        return self._chat_context.user_context
+
+    @property
+    def _chat_config(self):
+        return self._chat_context.context.config.chat
+
+    @property
+    def _available_models(self):
+        return [model.name for model in self._user_context.models]
 
     def _parse_and_run_command(self, message: str) -> bool:
         message = message.strip()
@@ -217,24 +241,6 @@ class ChatSession:
         for cmd, config in self.commands_config.items():
             _, aligned_display = self._completer._format_command_display(cmd, config)
             print(aligned_display)
-
-    def _reload(self, params: list[str]):
-        """[<script.yaml>] - Reloads given LLM script (defaults to current)"""
-        if len(params) == 0:
-            script_file = self._chat_context.script_name
-        elif len(params) == 1:
-            script_file = params[0]
-        else:
-            self._print_help(params)
-            return
-
-        self._console.print(f"(Re)loading LLM script from {script_file}")
-        logger.debug(f"Reloading LLM script from {script_file}")
-        try:
-            self._chat_context = _ChatSessionContext(script_file, self._user_context)
-        except Exception as e:
-            self._console.print(f"Failed to load LLM script from {script_file}: {e}", style="bold red")
-            logger.warning(f"Failed to load LLM script from {script_file}", exc_info=True)
 
     def _rewind(self, params: list[str]):
         """[N] - Rewinds chat session to input N (default to previous)"""
@@ -454,9 +460,9 @@ class ChatSession:
     def _process_notification(self, notification: WorkerNotification):
         """Process a WorkerNotification based on its type."""
         if notification.type == 'thinking_start':
-            self.show_thinking()
+            self._show_thinking()
         elif notification.type == 'thinking_end':
-            self.clear_thinking_message()
+            self._clear_thinking_message()
         elif notification.type == 'ai_output_chunk':
             if notification.text:
                 self._process_output_chunk(message_id=notification.message_id, text=notification.text)
@@ -471,7 +477,7 @@ class ChatSession:
             pass
 
     def _process_output_chunk(self, message_id: Optional[str], text: str):
-        self.clear_thinking_message()
+        self._clear_thinking_message()
         if self._streamed_message_id is not None and self._streamed_message_id != message_id:
             print()
         self._streamed_message_id = message_id
@@ -481,7 +487,7 @@ class ChatSession:
     def _process_reasoning_chunk(self, message_id: Optional[str], text: str, index: int):
         if not self._user_context.user_config.display_settings.show_reasoning:
             return
-        self.clear_thinking_message()
+        self._clear_thinking_message()
         if self._streamed_message_id != message_id:
             if self._streamed_message_id:
                 print()
@@ -497,7 +503,7 @@ class ChatSession:
 
     def _process_tool_start_notification(self, message: str, run_id: UUID, parent_run_id: Optional[UUID]):
         """Process tool_start notification."""
-        self.clear_thinking_message()
+        self._clear_thinking_message()
         if self._streamed_message_id:
             print()
             self._streamed_message_id = None
@@ -522,7 +528,7 @@ class ChatSession:
 
         if not isinstance(message, AIMessage):
             return
-        self.clear_thinking_message()
+        self._clear_thinking_message()
         last_streamed_message_id = self._streamed_message_id
         if self._streamed_message_id:
             print()
@@ -551,8 +557,8 @@ class ChatSession:
         if confidential:
             self._console.print("[Message above is confidential, not shown to AI Assistant]", style="bold red")
 
-    def process_confirmation_request(self, request: ConfirmationRequest) -> ConfirmationResponse:
-        self.clear_thinking_message()
+    def _process_confirmation_request(self, request: ConfirmationRequest) -> ConfirmationResponse:
+        self._clear_thinking_message()
         approved_tool_calls: list[str] = []
 
         # Iterate through all tool calls and ask for confirmation independently
@@ -590,17 +596,14 @@ class ChatSession:
         """Get formatted token usage summary."""
         return self._token_tracker.format_current_usage()
 
-    def get_session_token_summary(self) -> str | None:
-        """Get detailed per-model session token summary for exit display."""
-        return self._token_tracker.format_total_usage()
 
-    def show_thinking(self):
+    def _show_thinking(self):
         """Display 'Thinking...' message using Rich Live display."""
         if not self._thinking_live:
             self._thinking_live = self._console.status("Thinking...", spinner="dots")
             self._thinking_live.start()
 
-    def clear_thinking_message(self):
+    def _clear_thinking_message(self):
         """Clear the 'Thinking...' message."""
         if self._thinking_live:
             self._thinking_live.stop()
@@ -643,12 +646,11 @@ def chat_with_llm_script(script_name: str, user_context: Optional[UserContext] =
 
     console = Console()
 
-    chat_session = ChatSession(console, script_name, user_context)
-    chat_session.run()
+    tokens_counts = ChatSession.run(console, script_name, user_context)
 
     # Print detailed per-model session token summary
     if user_context.user_config.display_settings.show_token_usage:
-        session_summary = chat_session.get_session_token_summary()
+        session_summary = tokens_counts.format_total_usage()
         if session_summary is not None:
             print(f"{session_summary}", file=sys.stderr)
 
