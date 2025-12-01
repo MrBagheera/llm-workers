@@ -172,6 +172,7 @@ class MCPServerDefinition(BaseModel):
 
     # For streamable_http transport
     url: Optional[str] = None
+    headers: Optional[Dict[str, str]] = None
 
     # Tool filtering and configuration
     tools: List[str] = ["*"]  # Patterns for including tools

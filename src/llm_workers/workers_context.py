@@ -159,6 +159,7 @@ class StandardWorkersContext(WorkersContext):
                     server_configs[server_name] = {
                         "transport": "streamable_http",
                         "url": server_def.url,
+                        "headers": server_def.headers,
                     }
                     logger.info(f"Configured MCP server '{server_name}' with HTTP transport: {server_def.url}")
                 else:

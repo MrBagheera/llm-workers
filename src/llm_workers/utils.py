@@ -386,7 +386,7 @@ def setup_logging(
             logging.getLogger(logger_name).setLevel(logging.DEBUG)
 
     # console logging
-    console_level: int = logging.FATAL
+    console_level: int = logging.ERROR
     if verbosity == 1:
         console_level = logging.INFO
     elif verbosity >= 2:
@@ -728,15 +728,15 @@ def matches_patterns(tool_name: str, patterns: List[str]) -> bool:
     Rules:
     - If pattern starts with !, it's a negation (exclude)
     - Negations are processed after inclusions
-    - If no non-negation patterns exist, defaults to matching all
+    - If no non-negation patterns exist, defaults to matching none
 
     Examples:
         matches_patterns("gh_read", ["gh*", "!gh_write*"]) -> True
         matches_patterns("gh_write_file", ["gh*", "!gh_write*"]) -> False
-        matches_patterns("any_tool", []) -> True
+        matches_patterns("any_tool", []) -> False
     """
     if not patterns:
-        return True
+        return False
 
     inclusions = [p for p in patterns if not p.startswith("!")]
     exclusions = [p[1:] for p in patterns if p.startswith("!")]
