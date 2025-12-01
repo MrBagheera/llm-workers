@@ -11,6 +11,8 @@ Table of Contents
 =================
 <!--ts-->
 * [Basic Structure](#basic-structure)
+   * [Environment Variables Section](#environment-variables-section)
+   * [MCP Servers Section](#mcp-servers-section)
    * [Tools Section](#tools-section)
       * [Common Tool Parameters](#common-tool-parameters)
    * [Shared Section](#shared-section)
@@ -55,6 +57,28 @@ Table of Contents
 # Basic Structure
 
 ```yaml
+# Environment variables configuration (optional)
+env:
+  <var_name>:
+    description: <description> # Optional
+    persistent: <boolean> # Optional, default: false
+
+# MCP Servers configuration (optional)
+mcp:
+  <server_name>:
+    transport: "stdio" | "streamable_http"
+    command: <command> # For stdio
+    args: [<arg1>, <arg2>] # For stdio
+    env: # Optional, environment variables for the server process
+      <key>: <value>
+    url: <url> # For streamable_http
+    headers: # Optional, for streamable_http
+      <key>: <value>
+    tools: [<pattern>] # Optional, default: ["*"]
+    ui_hints_for: [<pattern>] # Optional
+    require_confirmation_for: [<pattern>] # Optional
+
+# Built-in tools configuration
 tools:
   - name: <tool_name>
     import_from: <import_path> # Required for importing tools
@@ -84,10 +108,217 @@ chat: # For interactive chat mode
     <system prompt>
   default_prompt: | # Optional
     <default prompt>
-  
+
 cli: # For command-line interface
   <statement(s)> # List of statements for more complex flows
 ```
+
+## Environment Variables Section
+
+The `env` section allows you to declare environment variables required by your script. Variables can be marked as persistent (saved to `.env` file) or transient (prompted each time the script loads).
+
+**Structure:**
+```yaml
+env:
+  VAR_NAME:
+    description: "Description of what this variable is used for"
+    persistent: true  # or false (default)
+```
+
+**Parameters:**
+- `description`: (Optional) Human-readable description shown when prompting the user
+- `persistent`: (Optional, default: `false`)
+  - `true`: Value is saved to `.env` file and persists across sessions
+  - `false`: Value is prompted each time the script is loaded (transient)
+
+**Behavior:**
+- Environment variables are inherited from parent process and loaded from `.env` in current directory
+(if exists) or `~/.config/llm-workers/.env` (default) 
+- Variable statements are processed at startup
+- If a variable is already set in the environment, no prompting occurs
+- Persistent variables are saved back to `.env` file used at startup
+
+**Example:**
+```yaml
+env:
+  SESSION_TOKEN:
+    description: "Temporary session token for this run"
+    persistent: false
+
+  DATABASE_URL:
+    description: "PostgreSQL connection string"
+    persistent: true
+```
+
+## MCP Servers Section
+
+The `mcp` section allows you to connect to external MCP (Model Context Protocol) servers and use their tools alongside built-in tools. Tools from MCP servers are automatically prefixed with the server name to avoid conflicts.
+
+**Structure:**
+```yaml
+mcp:
+  server_name:  # Used as prefix for tools
+    transport: "stdio" | "streamable_http"
+
+    # For stdio transport (local subprocess)
+    command: "command_to_run"
+    args: ["arg1", "arg2"]
+    env:  # Optional, environment variables for server process
+      KEY: "${env.VAR_NAME}"  # Can reference env variables
+
+    # For streamable_http transport (remote server)
+    url: "http://localhost:8000/mcp"
+    headers:  # Optional
+      X-API-KEY: "${env.API_KEY}"
+
+    # Tool filtering (optional, default: ["*"])
+    tools:
+      - "pattern*"      # Include tools matching pattern
+      - "!exclude*"     # Exclude tools matching pattern
+
+    # UI hints (optional, default: [])
+    ui_hints_for:
+      - "pattern*"      # Show UI hints for matching tools
+
+    # Confirmation (optional, default: [])
+    require_confirmation_for:
+      - "pattern*"      # Require confirmation for matching tools
+```
+
+### Transport Types
+
+**Stdio Transport** - For local MCP servers running as subprocesses:
+```yaml
+mcp:
+  math:
+    transport: "stdio"
+    command: "uvx"
+    args: ["mcp-server-math"]
+```
+
+**HTTP Transport** - For remote MCP servers accessible via HTTP:
+```yaml
+mcp:
+  weather:
+    transport: "streamable_http"
+    url: "http://localhost:8000/mcp"
+    headers:
+      X-API-KEY: "${env.WEATHER_API_KEY}"
+```
+
+### Environment Variable Substitution
+
+MCP server configurations support environment variable substitution using the `${env.VAR_NAME}` syntax in both `args` and `env` fields:
+
+```yaml
+mcp:
+  github:
+    transport: "stdio"
+    command: "npx"
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-github"
+      - "--config"
+      - "${env.CONFIG_PATH}/github.json"  # In args
+    env:
+      GITHUB_TOKEN: "${env.GITHUB_TOKEN}"  # In env
+      LOG_PATH: "/var/log/${env.USER}.log"  # Embedded substitution
+```
+
+**Key Features:**
+- The `${env.VAR_NAME}` references are replaced with actual environment variable values at runtime
+- Works in both `args` (list of arguments) and `env` (environment variables for the server process)
+- Supports embedded substitutions: `"prefix_${env.VAR}_suffix"` → `"prefix_value_suffix"`
+- Can use multiple variables in one string: `"${env.VAR1}_and_${env.VAR2}"`
+
+### Tool Filtering
+
+Use glob patterns to include or exclude specific tools:
+
+```yaml
+mcp:
+  github:
+    transport: "stdio"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    tools:
+      - "gh*"           # Include all gh tools
+      - "!gh_write*"    # Exclude write operations
+      - "!gh_delete*"   # Exclude delete operations
+```
+
+**Pattern matching** uses Unix shell-style wildcards:
+- `*` - matches everything
+- `?` - matches any single character
+- `[seq]` - matches any character in seq
+- `[!seq]` - matches any character not in seq
+- `!pattern` - negation (exclude matching tools)
+
+### Tool Naming
+
+Tools from MCP servers are prefixed with the server name:
+- Original tool: `add` → Registered as: `math_add` (from server named "math")
+- Original tool: `gh_read_file` → Registered as: `github_gh_read_file` (from server named "github")
+
+### Complete MCP Example
+
+```yaml
+env:
+  GITHUB_TOKEN:
+    description: "GitHub personal access token"
+    persistent: true
+  WEATHER_API_KEY:
+    description: "API key for weather service"
+    persistent: true
+
+mcp:
+  # Local math server
+  math:
+    transport: "stdio"
+    command: "uvx"
+    args: ["mcp-server-math"]
+    tools: ["*"]
+    ui_hints_for: ["*"]
+
+  # GitHub server with filtering
+  github:
+    transport: "stdio"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: "${env.GITHUB_TOKEN}"
+    tools:
+      - "gh*"
+      - "!gh_write*"
+      - "!gh_delete*"
+    ui_hints_for: ["gh*"]
+    require_confirmation_for: ["gh_delete*"]
+
+  # Remote weather API
+  weather:
+    transport: "streamable_http"
+    url: "http://localhost:8000/mcp"
+    headers:
+      X-API-KEY: "${env.WEATHER_API_KEY}"
+    tools:
+      - "get_*"
+      - "!get_internal_*"
+    require_confirmation_for: ["*"]
+
+# Regular tools work alongside MCP tools
+tools:
+  - name: read_file
+    import_from: llm_workers.tools.unsafe.ReadFileTool
+
+chat:
+  system_message: "You are a helpful assistant with access to MCP tools."
+```
+
+### Error Handling
+
+- If an MCP server fails to connect, the error is logged and the system continues with other servers
+- If a tool name conflicts with an existing tool, the MCP tool is skipped with a warning
+- Environment variables that don't exist will raise an error during initialization
 
 ## Tools Section
 

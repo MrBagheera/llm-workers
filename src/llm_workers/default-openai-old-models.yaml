@@ -1,3 +1,8 @@
+env:
+  OPENAI_API_KEY:
+    description: "API key for OpenAI models. Visit https://platform.openai.com/api-keys to get one."
+    persistent: true
+
 models:
   - name: fast
     provider: openai

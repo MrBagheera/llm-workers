@@ -6,14 +6,15 @@ from asyncio import AbstractEventLoop
 from copy import copy
 from typing import Dict, List, Optional
 
+import yaml
 from langchain_core.tools import BaseTool
-
-from llm_workers.api import WorkersContext, WorkerException, ExtendedBaseTool, UserContext
-from llm_workers.config import WorkersConfig, load_config, ToolDefinition, ToolReference
-from llm_workers.tools.custom_tool import build_custom_tool
-from llm_workers.utils import matches_patterns, substitute_env_vars
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
+
+from llm_workers.api import WorkersContext, WorkerException, ExtendedBaseTool, UserContext
+from llm_workers.config import WorkersConfig, ToolDefinition, ToolReference
+from llm_workers.tools.custom_tool import build_custom_tool
+from llm_workers.utils import matches_patterns, substitute_env_vars_in_list, substitute_env_vars_in_dict
 
 logger = logging.getLogger(__name__)
 
@@ -94,9 +95,19 @@ class StandardWorkersContext(WorkersContext):
         return tool
 
     @classmethod
-    def load(cls, script_name: str, user_context: UserContext):
-        logger.info(f"Loading {script_name}")
-        return cls(load_config(script_name), user_context)
+    def load_script(cls, name: str) -> WorkersConfig:
+        logger.info(f"Loading {name}")
+        # if name has module:resource format, load it as a module
+        if ':' in name:
+            module, resource = name.split(':', 1)
+            if len(module) > 1: # ignore volume names on windows
+                with importlib.resources.files(module).joinpath(resource).open("r") as file:
+                    config_data = yaml.safe_load(file)
+                return WorkersConfig(**config_data)
+        # try loading as file
+        with open(name, 'r') as file:
+            config_data = yaml.safe_load(file)
+        return WorkersConfig(**config_data)
 
     @property
     def config(self) -> WorkersConfig:
@@ -147,19 +158,18 @@ class StandardWorkersContext(WorkersContext):
         for server_name, server_def in self._config.mcp.items():
             try:
                 if server_def.transport == "stdio":
-                    # Substitute environment variables in args
-                    args = substitute_env_vars(server_def.args)
                     server_configs[server_name] = {
                         "transport": "stdio",
                         "command": server_def.command,
-                        "args": args,
+                        "args": substitute_env_vars_in_list(server_def.args),
+                        "env": substitute_env_vars_in_dict(server_def.env),
                     }
                     logger.info(f"Configured MCP server '{server_name}' with stdio transport: {server_def.command} {args}")
                 elif server_def.transport == "streamable_http":
                     server_configs[server_name] = {
                         "transport": "streamable_http",
                         "url": server_def.url,
-                        "headers": server_def.headers,
+                        "headers": substitute_env_vars_in_dict(server_def.headers),
                     }
                     logger.info(f"Configured MCP server '{server_name}' with HTTP transport: {server_def.url}")
                 else:

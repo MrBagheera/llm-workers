@@ -282,13 +282,14 @@ def get_env_var_or_fail(name: str) -> str:
         raise OSError(f"Environment variable {name} not set")
     return var
 
-def ensure_environment_variable(var_name: str, description: str = None) -> str:
+def ensure_environment_variable(var_name: str, description: str = None, is_persistent: bool = True) -> str:
     """
     Ensure an environment variable is set, prompting the user if it's missing.
 
     Args:
         var_name: Name of the environment variable
         description: Optional description to show to the user
+        is_persistent: If True, save to .env file; if False, only set for current session
 
     Returns:
         The value of the environment variable
@@ -307,16 +308,21 @@ def ensure_environment_variable(var_name: str, description: str = None) -> str:
         return value
 
     # Variable is not set, prompt the user
-    print(f"\nEnvironment variable '{var_name}' is not set.")
     if description:
-        print(f"This is: {description}")
-    print(f"\nThe value will be saved to: {_env_file_path}")
-    print("If you don't want this, exit with Ctrl-C and run the program with:")
-    print(f"  {var_name}=your_token {Path(sys.argv[0]).name}\n")
+        print(f"\nPlease provide value for '{var_name}': {description}")
+    else:
+        print(f"\nPlease provide value for '{var_name}'.")
+    if is_persistent:
+        print(f"The value will be saved to: {_env_file_path}")
+        print("If you don't want this, exit with Ctrl-C and run the program with:")
+        print(f"  {var_name}=your_token {Path(sys.argv[0]).name}")
+    else:
+        print("This variable is transient and will not be saved to .env file.")
+        print("You will be prompted for it each time this script is loaded.")
 
     # Get input from user
     try:
-        value = input(f"Enter value for {var_name}: ").strip()
+        value = input(f"Value: ").strip()
     except KeyboardInterrupt:
         print("\nExiting...")
         exit(1)
@@ -326,25 +332,46 @@ def ensure_environment_variable(var_name: str, description: str = None) -> str:
         print(f"Error: {var_name} cannot be empty")
         exit(1)
 
-    # Try to save to .env file
-    try:
-        env_path = Path(_env_file_path)
-        # Ensure the directory exists
-        env_path.parent.mkdir(parents=True, exist_ok=True)
+    # Try to save to .env file if persistent
+    if is_persistent:
+        try:
+            env_path = Path(_env_file_path)
+            # Ensure the directory exists
+            env_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Append to the .env file
-        with open(env_path, 'a', encoding='utf-8') as f:
-            f.write(f"{var_name}={value}\n")
+            # Append to the .env file
+            with open(env_path, 'a', encoding='utf-8') as f:
+                f.write(f"{var_name}={value}\n")
 
-        print(f"Successfully saved {var_name} to {env_path}")
-    except Exception as e:
-        logger.warning(f"Failed to save {var_name} to {_env_file_path}: {e}")
-        print(f"Warning: Could not save to {_env_file_path}, but continuing with entered value")
+            print(f"Successfully saved {var_name} to {env_path}")
+        except Exception as e:
+            logger.warning(f"Failed to save {var_name} to {_env_file_path}: {e}")
+            print(f"Warning: Could not save to {_env_file_path}, but continuing with entered value")
 
     # Set the environment variable for this session
     os.environ[var_name] = value
 
     return value
+
+
+def ensure_env_vars_defined(env_definitions: Dict[str, 'EnvVarDefinition']) -> None:
+    """
+    Process environment variable definitions, prompting user for missing values.
+
+    Args:
+        env_definitions: Dictionary mapping var names to EnvVarDefinition objects
+
+    Note:
+        - For persistent=True vars: uses ensure_environment_variable() to prompt and save
+        - For persistent=False vars: only prompts if not already set, doesn't save to .env
+        - If env var is already set in os.environ, skips prompting
+    """
+    if not env_definitions:
+        return
+
+    for var_name, env_def in env_definitions.items():
+        # ensure_environment_variable will check if already set and skip if so
+        ensure_environment_variable(var_name, env_def.description, is_persistent=env_def.persistent)
 
 
 ####################################################
@@ -755,25 +782,99 @@ def matches_patterns(tool_name: str, patterns: List[str]) -> bool:
     return included
 
 
-def substitute_env_vars(args: List[str]) -> List[str]:
+def substitute_env_vars_in_list(args: List[str]) -> List[str]:
     """
-    Substitute environment variable references in args list.
-    Format: env.VAR_NAME -> os.environ['VAR_NAME']
+    Replace ${env.VAR_NAME} references in args list with actual env var values.
 
-    Examples:
-        ["--path", "env.HOME"] -> ["--path", "/Users/username"]
-        ["regular_arg"] -> ["regular_arg"]
+    Args:
+        args: List of arguments that may contain ${env.VAR_NAME} references
+
+    Returns:
+        New list with substituted values
 
     Raises:
-        ValueError: If an environment variable is not found
+        ValueError: If an environment variable is not defined
+
+    Examples:
+        ["--path", "${env.HOME}"] -> ["--path", "/Users/username"]
+        ["prefix_${env.VAR}_suffix"] -> ["prefix_value_suffix"]
+        ["regular_arg"] -> ["regular_arg"]
     """
+    import re
+
+    if not args:
+        return args
+
     result = []
+    # Pattern matches ${env.VAR_NAME}
+    pattern = re.compile(r'\$\{env\.([A-Za-z_][A-Za-z0-9_]*)\}')
+
     for arg in args:
-        if arg.startswith("env."):
-            var_name = arg[4:]  # Strip "env." prefix
-            if var_name not in os.environ:
-                raise ValueError(f"Environment variable {var_name} not found")
-            result.append(os.environ[var_name])
-        else:
+        if not isinstance(arg, str):
             result.append(arg)
+            continue
+
+        # Find all ${env.VAR} references
+        matches = pattern.findall(arg)
+        substituted_arg = arg
+
+        for var_name in matches:
+            env_value = os.environ.get(var_name)
+            if env_value is None:
+                raise ValueError(f"Environment variable '{var_name}' referenced in args is not defined")
+
+            # Replace ${env.VAR_NAME} with actual value
+            substituted_arg = substituted_arg.replace(f'${{env.{var_name}}}', env_value)
+
+        result.append(substituted_arg)
+
     return result
+
+
+def substitute_env_vars_in_dict(env_dict: Dict[str, str]) -> Dict[str, str]:
+    """
+    Replace ${env.VAR_NAME} references in dictionary values with actual env var values.
+
+    Args:
+        env_dict: Dictionary with string values that may contain ${env.VAR_NAME} references
+
+    Returns:
+        New dictionary with substituted values
+
+    Raises:
+        ValueError: If an environment variable is not defined
+
+    Examples:
+        {"KEY": "${env.API_TOKEN}"} -> {"KEY": "actual_token_value"}
+        {"KEY": "prefix_${env.VAR}_suffix"} -> {"KEY": "prefix_value_suffix"}
+    """
+    import re
+
+    if not env_dict:
+        return env_dict
+
+    result = {}
+    # Pattern matches ${env.VAR_NAME}
+    pattern = re.compile(r'\$\{env\.([A-Za-z_][A-Za-z0-9_]*)\}')
+
+    for key, value in env_dict.items():
+        if not isinstance(value, str):
+            result[key] = value
+            continue
+
+        # Find all ${env.VAR} references
+        matches = pattern.findall(value)
+        substituted_value = value
+
+        for var_name in matches:
+            env_value = os.environ.get(var_name)
+            if env_value is None:
+                raise ValueError(f"Environment variable '{var_name}' referenced in MCP server config is not defined")
+
+            # Replace ${env.VAR_NAME} with actual value
+            substituted_value = substituted_value.replace(f'${{env.{var_name}}}', env_value)
+
+        result[key] = substituted_value
+
+    return result
+

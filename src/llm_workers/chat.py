@@ -17,7 +17,7 @@ from llm_workers.chat_completer import ChatCompleter
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.user_context import StandardUserContext
 from llm_workers.utils import setup_logging, LazyFormatter, FileChangeDetector, \
-    open_file_in_default_app, is_safe_to_open, prepare_cache
+    open_file_in_default_app, is_safe_to_open, prepare_cache, ensure_env_vars_defined
 from llm_workers.worker import Worker
 from llm_workers.workers_context import StandardWorkersContext
 
@@ -118,19 +118,22 @@ class ChatSession:
         # So we start async loop here using calling thread,
         # and then run actual chat session synchronously using separate thread.
         chat_session = ChatSession(console)
+        script = StandardWorkersContext.load_script(script_file)
+        ensure_env_vars_defined(script.env)
+        workers_context = StandardWorkersContext(script, user_context)
 
         loop = asyncio.new_event_loop()
         try:
             asyncio.set_event_loop(loop)
-            loop.run_until_complete(chat_session._run(script_file, user_context))
+            loop.run_until_complete(chat_session._run(script_file, user_context, workers_context))
         finally:
             loop.close()
             asyncio.set_event_loop(None)
 
         return chat_session._token_tracker
 
-    async def _run(self, script_file: str, user_context: UserContext):
-        async with StandardWorkersContext.load(script_file, user_context) as workers_context:
+    async def _run(self, script_file: str, user_context: UserContext, workers_context: StandardWorkersContext):
+        async with workers_context: # this opens/closes sessions with MCP servers
             self._chat_context = _ChatSessionContext(script_file, user_context, workers_context)
             # running in a separate thread because it is blocking
             await asyncio.to_thread(self._run_chat_loop)
@@ -640,7 +643,9 @@ def chat_with_llm_script(script_name: str, user_context: Optional[UserContext] =
         :param user_context: custom implementation of UserContext if needed, defaults to StandardUserContext
     """
     if user_context is None:
-        user_context = StandardUserContext.load()
+        user_config = StandardUserContext.load_config()
+        ensure_env_vars_defined(user_config.env)
+        user_context = StandardUserContext(user_config)
 
     prepare_cache()
 

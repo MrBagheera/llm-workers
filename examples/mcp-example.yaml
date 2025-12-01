@@ -1,21 +1,26 @@
 # Example configuration demonstrating MCP (Model Context Protocol) servers support
 
+# Environment variables configuration
+env:
+  ECHO_SECRET_KEY:
+    description: "An example environment variable for the 'echo' MCP example."
+    # persistent=false (default) will be asked at the beginning of each session
+    persistent: false
+  WEATHER_API_KEY:
+    description: "API key for the weather MCP server."
+    # persistent=true will be saved in user-specific .env file
+    persistent: true
+
 # MCP Servers Configuration
 mcp:
   # Example 1: Local math server via stdio transport
   echo:
     "transport": "stdio"  # Local subprocess communication
     "command": "uvx"
-    # Absolute path to your math_server.py file
     "args": [ "echo-mcp-server-for-testing" ]
-  #    include_tools:
-  #      - "gh*"
-  #      - "!gh_write*"
-  #      - "!gh_delete*"
-  #    ui_hints_for:
-  #      - "gh*"
-  #    require_confirmation_for:
-  #      - "gh_delete*"
+    "env": {
+      "SECRET_KEY": "${env.ECHO_SECRET_KEY}"
+    }
 
 #  # Example 2: GitHub server with filtering
 #  github:
@@ -36,14 +41,8 @@ mcp:
 #  weather:
 #    transport: "streamable_http"
 #    url: "http://localhost:8000/mcp"
-#    # Include only get_* tools, exclude internal ones
-#    tools:
-#      - "get_*"
-#      - "!get_internal_*"
-#    # Show hints for all tools (default)
-#    ui_hints_for: ["*"]
-#    # Require confirmation for all weather API calls
-#    require_confirmation_for: ["*"]
+#    headers:
+#        X-API-KEY: "${env.WEATHER_API_KEY}"
 
 # Regular tools (work alongside MCP tools)
 tools:

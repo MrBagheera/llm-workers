@@ -67,7 +67,14 @@ class DisplaySettings(BaseModel):
     file_monitor_exclude: list[str] = ['.*', '*.log']
 
 
+class EnvVarDefinition(BaseModel):
+    """Definition for an environment variable."""
+    description: Optional[str] = None
+    persistent: bool = False  # If false, prompted each script load
+
+
 class UserConfig(BaseModel):
+    env: Optional[Dict[str, EnvVarDefinition]] = None
     models: list[StandardModelDefinition | ImportModelDefinition] = ()
     display_settings: DisplaySettings = DisplaySettings()
 
@@ -169,6 +176,7 @@ class MCPServerDefinition(BaseModel):
     # For stdio transport
     command: Optional[str] = None
     args: Optional[List[str]] = None
+    env: Optional[Dict[str, str]] = None  # Environment variables for the server process
 
     # For streamable_http transport
     url: Optional[str] = None
@@ -214,22 +222,9 @@ class ChatConfig(BaseLLMConfig):
 
 
 class WorkersConfig(BaseModel):
+    env: Optional[Dict[str, EnvVarDefinition]] = None
     tools: list[ToolDefinition] = ()
     mcp: Optional[Dict[str, MCPServerDefinition]] = None
     shared: Dict[str, Json] = {}
     chat: Optional[ChatConfig] = None
     cli: Optional[BodyDefinition] = None
-
-
-def load_config(name: str) -> WorkersConfig:
-    # if name has module:resource format, load it as a module
-    if ':' in name:
-        module, resource = name.split(':', 1)
-        if len(module) > 1: # ignore volume names on windows
-            with importlib.resources.files(module).joinpath(resource).open("r") as file:
-                config_data = yaml.safe_load(file)
-            return WorkersConfig(**config_data)
-    # try loading as file
-    with open(name, 'r') as file:
-        config_data = yaml.safe_load(file)
-    return WorkersConfig(**config_data)

@@ -1,7 +1,6 @@
 import importlib
 import inspect
 import logging
-import os
 import sys
 from copy import copy
 from pathlib import Path
@@ -13,7 +12,7 @@ from langchain_core.rate_limiters import InMemoryRateLimiter
 
 from llm_workers.api import WorkerException, UserContext
 from llm_workers.config import UserConfig, StandardModelDefinition, ImportModelDefinition, ModelDefinition
-from llm_workers.utils import find_and_load_dotenv, ensure_environment_variable
+from llm_workers.utils import find_and_load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +82,7 @@ class StandardUserContext(UserContext):
         raise WorkerException(f"LLM {llm_name} not found")
 
     @classmethod
-    def load(cls, config_dir_path: Path = CONFIG_DIR_PATH):
+    def load_config(cls, config_dir_path: Path = CONFIG_DIR_PATH) -> UserConfig:
         config_env_path = config_dir_path / ".env"
         config_path = config_dir_path / "config.yaml"
         find_and_load_dotenv(config_env_path)
@@ -97,7 +96,7 @@ class StandardUserContext(UserContext):
                 config_data = yaml.safe_load(file) or {}
             user_config = UserConfig(**config_data)
             logger.info(f"Loaded user config from {config_path}")
-            return cls(user_config)
+            return user_config
         except Exception as e:
             raise WorkerException(f"Failed to load user config from {config_path}: {e}", e)
 
@@ -117,15 +116,12 @@ class StandardUserContext(UserContext):
 
             if choice == "1":
                 cls._copy_default_models(config_path, "openai")
-                cls._setup_api_key(config_env_path, "openai")
                 break
             elif choice == "2":
                 cls._copy_default_models(config_path, "openai-old")
-                cls._setup_api_key(config_env_path, "openai")
                 break
             elif choice == "3":
                 cls._copy_default_models(config_path, "anthropic")
-                cls._setup_api_key(config_env_path, "anthropic")
                 break
             elif choice == "4":
                 cls._show_custom_example(config_path)
@@ -160,19 +156,3 @@ class StandardUserContext(UserContext):
         print(example_content)
 
         print("-" * 50)
-
-    @classmethod
-    def _setup_api_key(cls, config_env_path: Path, provider: str):
-        """Setup API key for the specified provider"""
-        env_var_name = f"{provider.upper()}_API_KEY"
-
-        # Check if API key is already set in environment
-        if os.environ.get(env_var_name):
-            print(f"{env_var_name} already configured in environment variables.")
-            return
-
-        # Use the new ensure_environment_variable function
-        provider_name = "OpenAI" if provider == "openai" else "Anthropic"
-        description = f"Your {provider_name} API key for accessing {provider_name} models"
-        ensure_environment_variable(env_var_name, description)
-
