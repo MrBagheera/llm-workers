@@ -282,7 +282,7 @@ def get_env_var_or_fail(name: str) -> str:
         raise OSError(f"Environment variable {name} not set")
     return var
 
-def ensure_environment_variable(var_name: str, description: str = None, is_persistent: bool = True) -> str:
+def ensure_environment_variable(var_name: str, description: str = None, is_persistent: bool = True, is_secret: bool = False) -> str:
     """
     Ensure an environment variable is set, prompting the user if it's missing.
 
@@ -290,6 +290,7 @@ def ensure_environment_variable(var_name: str, description: str = None, is_persi
         var_name: Name of the environment variable
         description: Optional description to show to the user
         is_persistent: If True, save to .env file; if False, only set for current session
+        is_secret: Should input be replaced by asterisks (if possible)
 
     Returns:
         The value of the environment variable
@@ -322,7 +323,11 @@ def ensure_environment_variable(var_name: str, description: str = None, is_persi
 
     # Get input from user
     try:
-        value = input(f"Value: ").strip()
+        if is_secret and sys.stdin.isatty():
+            from prompt_toolkit import prompt
+            prompt('Value (input hidden): ', is_password=True)
+        else:
+            value = input(f"Value: ").strip()
     except KeyboardInterrupt:
         print("\nExiting...")
         exit(1)
@@ -364,6 +369,7 @@ def ensure_env_vars_defined(env_definitions: Dict[str, 'EnvVarDefinition']) -> N
     Note:
         - For persistent=True vars: uses ensure_environment_variable() to prompt and save
         - For persistent=False vars: only prompts if not already set, doesn't save to .env
+        - For is_secret=True vars: hides input using prompt_toolkit (if available and TTY)
         - If env var is already set in os.environ, skips prompting
     """
     if not env_definitions:
@@ -371,7 +377,12 @@ def ensure_env_vars_defined(env_definitions: Dict[str, 'EnvVarDefinition']) -> N
 
     for var_name, env_def in env_definitions.items():
         # ensure_environment_variable will check if already set and skip if so
-        ensure_environment_variable(var_name, env_def.description, is_persistent=env_def.persistent)
+        ensure_environment_variable(
+            var_name,
+            env_def.description,
+            is_persistent=env_def.persistent,
+            is_secret=env_def.is_secret
+        )
 
 
 ####################################################

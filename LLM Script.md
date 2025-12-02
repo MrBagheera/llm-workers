@@ -62,6 +62,7 @@ env:
   <var_name>:
     description: <description> # Optional
     persistent: <boolean> # Optional, default: false
+    is_secret: <boolean> # Optional, default: false
 
 # MCP Servers configuration (optional)
 mcp:
@@ -123,6 +124,7 @@ env:
   VAR_NAME:
     description: "Description of what this variable is used for"
     persistent: true  # or false (default)
+    is_secret: true   # or false (default)
 ```
 
 **Parameters:**
@@ -130,6 +132,10 @@ env:
 - `persistent`: (Optional, default: `false`)
   - `true`: Value is saved to `.env` file and persists across sessions
   - `false`: Value is prompted each time the script is loaded (transient)
+- `is_secret`: (Optional, default: `false`)
+  - `true`: Input is hidden with asterisks when prompting (requires `prompt_toolkit` and TTY)
+  - `false`: Input is shown normally
+  - Use for passwords, API keys, tokens, and other sensitive values
 
 **Behavior:**
 - Environment variables are inherited from parent process and loaded from `.env` in current directory
@@ -141,14 +147,27 @@ env:
 **Example:**
 ```yaml
 env:
+  API_KEY:
+    description: "API key for external service"
+    persistent: true
+    is_secret: true  # Input will be hidden
+
   SESSION_TOKEN:
     description: "Temporary session token for this run"
     persistent: false
+    is_secret: true  # Hidden but not saved
 
   DATABASE_URL:
     description: "PostgreSQL connection string"
     persistent: true
+    is_secret: false  # Not sensitive, can be shown
 ```
+
+**When to use `is_secret`:**
+- ✓ API keys, authentication tokens
+- ✓ Passwords, private keys
+- ✓ OAuth secrets, session tokens
+- ✗ Non-sensitive config like URLs, paths, usernames
 
 ## MCP Servers Section
 
