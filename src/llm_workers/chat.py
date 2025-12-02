@@ -2,8 +2,7 @@ import argparse
 import asyncio
 import sys
 from logging import getLogger
-from typing import Optional, Dict, Callable
-from uuid import UUID
+from typing import Optional, Callable
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
 from prompt_toolkit import PromptSession
@@ -12,8 +11,9 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 
-from llm_workers.api import ConfirmationRequest, ConfirmationResponse, CONFIDENTIAL, UserContext, WorkerNotification
+from llm_workers.api import ConfirmationRequest, ConfirmationResponse, UserContext, WorkerNotification
 from llm_workers.chat_completer import ChatCompleter
+from llm_workers.console_stream import ConsoleStream
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.user_context import StandardUserContext
 from llm_workers.utils import setup_logging, LazyFormatter, FileChangeDetector, \
@@ -47,7 +47,6 @@ class ChatSession:
     commands: dict[str, Callable[[list[str]], None]]
     commands_config: dict[str, dict]
     alias_to_command: dict[str, str]
-    _chat_context: Optional[_ChatSessionContext] = None
 
     def __init__(self, console: Console):
         self._console = console
@@ -111,10 +110,6 @@ class ChatSession:
         self._finished = False
         self._pre_input = ""
         self._token_tracker = CompositeTokenUsageTracker()
-        self._streamed_message_id: Optional[str] = None
-        self._streamed_reasoning_index: Optional[int] = None
-        self._running_tools_depths: Dict[UUID, int] = {}
-        self._thinking_live = None
 
     @staticmethod
     def run(console: Console, script_file: str, user_context: UserContext) -> CompositeTokenUsageTracker:
@@ -140,6 +135,7 @@ class ChatSession:
     async def _run(self, script_file: str, user_context: UserContext, workers_context: StandardWorkersContext):
         async with workers_context: # this opens/closes sessions with MCP servers
             self._chat_context = _ChatSessionContext(script_file, user_context, workers_context)
+            self._console_stream = ConsoleStream(self._console, self._display_settings)
             # running in a separate thread because it is blocking
             await asyncio.to_thread(self._run_chat_loop)
 
@@ -161,7 +157,7 @@ class ChatSession:
                     print()
 
                 # Display token usage before prompting for input
-                if self._iteration > 1 and self._user_context.user_config.display_settings.show_token_usage:  # Only show after first response and if enabled
+                if self._iteration > 1 and self._display_settings.show_token_usage:  # Only show after first response and if enabled
                     usage_display = self._token_tracker.format_current_usage()
                     if usage_display is not None:
                         self._console.print(usage_display)
@@ -176,9 +172,7 @@ class ChatSession:
                 self._console.print(f"#{self._iteration} Assistant:", style="bold green")
                 message = HumanMessage(text)
                 self._messages.append(message)
-                self._streamed_message_id = None
-                self._streamed_reasoning_index = None
-                self._running_tools_depths.clear()
+                self._console_stream.clear()
                 self._chat_context.file_monitor.check_changes() # reset
                 logger.debug("Running new prompt for #%s:\n%r", self._iteration, LazyFormatter(message))
                 try:
@@ -187,7 +181,7 @@ class ChatSession:
                         messages: list[BaseMessage | ConfirmationResponse] = self._messages if not confirmation_response \
                             else self._messages + [confirmation_response]
                         confirmation_response = None
-                        for message in self._chat_context.worker.stream(messages, stream=True):
+                        for message in self._chat_context.worker.stream(messages, stream = True):
                             item = message[0]
                             if isinstance(item, WorkerNotification):
                                 self._process_notification(item)
@@ -198,16 +192,20 @@ class ChatSession:
                         if confirmation_response is None:
                             break
                 except Exception as e:
+                    self._console_stream.clear()
                     logger.error(f"Error: {e}", exc_info=True)
                     self._console.print(f"Unexpected error in worker: {e}", style="bold red")
                     self._console.print(f"If subsequent conversation fails, try rewinding to previous message", style="bold red")
-                    self._clear_thinking_message()
                 self._handle_changed_files()
                 self._iteration = self._iteration + 1
         except KeyboardInterrupt:
             self._finished = True
         except EOFError:
             self._finished = True
+
+    @property
+    def _display_settings(self):
+        return self._chat_context.user_context.user_config.display_settings
 
     @property
     def _user_context(self) -> UserContext:
@@ -334,7 +332,7 @@ class ChatSession:
 
     def _get_boolean_settings(self) -> dict[str, bool]:
         """Get all boolean display settings as a dictionary."""
-        settings = self._user_context.user_config.display_settings
+        settings = self._display_settings
         return {
             "show_token_usage": settings.show_token_usage,
             "show_reasoning": settings.show_reasoning,
@@ -387,7 +385,7 @@ class ChatSession:
                 return
 
             # Set the value
-            display_settings = self._user_context.user_config.display_settings
+            display_settings = self._display_settings
             setattr(display_settings, setting_name, new_value)
 
             status = "enabled" if new_value else "disabled"
@@ -483,64 +481,21 @@ class ChatSession:
     def _process_notification(self, notification: WorkerNotification):
         """Process a WorkerNotification based on its type."""
         if notification.type == 'thinking_start':
-            self._show_thinking()
+            self._console_stream.show_thinking()
         elif notification.type == 'thinking_end':
-            self._clear_thinking_message()
+            self._console_stream.clear_thinking_message()
         elif notification.type == 'ai_output_chunk':
             if notification.text:
-                self._process_output_chunk(message_id=notification.message_id, text=notification.text)
+                self._console_stream.process_output_chunk(message_id=notification.message_id, text=notification.text)
         elif notification.type == 'ai_reasoning_chunk':
             if notification.text:
-                self._process_reasoning_chunk(message_id=notification.message_id, text=notification.text, index=notification.index)
+                self._console_stream.process_reasoning_chunk(message_id=notification.message_id, text=notification.text, index=notification.index)
         elif notification.type == 'tool_start':
             if notification.text and notification.run_id:
-                self._process_tool_start_notification(notification.text, notification.run_id, notification.parent_run_id)
+                self._console_stream.process_tool_start_notification(notification.text, notification.run_id, notification.parent_run_id)
         elif notification.type == 'tool_end':
             # No action needed for tool_end currently
             pass
-
-    def _process_output_chunk(self, message_id: Optional[str], text: str):
-        self._clear_thinking_message()
-        if self._streamed_message_id is not None and self._streamed_message_id != message_id:
-            print()
-        self._streamed_message_id = message_id
-        self._streamed_reasoning_index = None
-        print(text, end="", flush=True)
-
-    def _process_reasoning_chunk(self, message_id: Optional[str], text: str, index: int):
-        if not self._user_context.user_config.display_settings.show_reasoning:
-            return
-        self._clear_thinking_message()
-        if self._streamed_message_id != message_id:
-            if self._streamed_message_id:
-                print()
-            self._streamed_message_id = message_id
-            self._streamed_reasoning_index = None
-        if self._streamed_reasoning_index is None:
-            self._console.print("Reasoning:")
-            self._streamed_reasoning_index = index
-        elif index != self._streamed_reasoning_index:
-            print()
-            self._streamed_reasoning_index = index
-        print(text, end="", flush=True)
-
-    def _process_tool_start_notification(self, message: str, run_id: UUID, parent_run_id: Optional[UUID]):
-        """Process tool_start notification."""
-        self._clear_thinking_message()
-        if self._streamed_message_id:
-            print()
-            self._streamed_message_id = None
-            self._streamed_reasoning_index = None
-
-        if parent_run_id is not None and parent_run_id in self._running_tools_depths:
-            # increase depth of running tool
-            depth = self._running_tools_depths[parent_run_id] + 1
-            self._running_tools_depths[run_id] = depth
-            ident = "  " * depth
-            self._console.print(f"{ident}└ {message}...")
-        else:
-            self._running_tools_depths[run_id] = 0
-            self._console.print(f"⏺ {message}...")
 
     def _process_model_message(self, message: BaseMessage):
         self._messages.append(message)
@@ -551,37 +506,10 @@ class ChatSession:
 
         if not isinstance(message, AIMessage):
             return
-        self._clear_thinking_message()
-        last_streamed_message_id = self._streamed_message_id
-        if self._streamed_message_id:
-            print()
-            self._streamed_message_id = None
-            self._streamed_reasoning_index = None
-        if last_streamed_message_id is not None and last_streamed_message_id == message.id:
-            return
-        if self._user_context.user_config.display_settings.show_reasoning:
-            reasoning: list[WorkerNotification] = [
-                notification
-                for notification in Worker.extract_notifications(message_id=message.id, index=0, content=message.content)
-                if notification.type == 'ai_reasoning_chunk'
-            ]
-            if len(reasoning) > 0:
-                self._console.print("Reasoning:")
-                for notification in reasoning:
-                    self._console.print(notification.text)
-        # text
-        confidential = getattr(message, CONFIDENTIAL, False)
-        if confidential:
-            self._console.print("[Message below is confidential, not shown to AI Assistant]", style="bold red")
-        if self._user_context.user_config.display_settings.markdown_output:
-            self._console.print(Markdown(message.text()))
-        else:
-            self._console.print(message.text())
-        if confidential:
-            self._console.print("[Message above is confidential, not shown to AI Assistant]", style="bold red")
+        self._console_stream.process_model_message(message)
 
     def _process_confirmation_request(self, request: ConfirmationRequest) -> ConfirmationResponse:
-        self._clear_thinking_message()
+        self._console_stream.clear()
         approved_tool_calls: list[str] = []
 
         # Iterate through all tool calls and ask for confirmation independently
@@ -614,23 +542,9 @@ class ChatSession:
 
         return ConfirmationResponse(approved_tool_calls=approved_tool_calls)
 
-
     def get_token_usage_summary(self) -> str | None:
         """Get formatted token usage summary."""
         return self._token_tracker.format_current_usage()
-
-
-    def _show_thinking(self):
-        """Display 'Thinking...' message using Rich Live display."""
-        if not self._thinking_live:
-            self._thinking_live = self._console.status("Thinking...", spinner="dots")
-            self._thinking_live.start()
-
-    def _clear_thinking_message(self):
-        """Clear the 'Thinking...' message."""
-        if self._thinking_live:
-            self._thinking_live.stop()
-            self._thinking_live = None
 
     def _handle_changed_files(self):
         changes = self._chat_context.file_monitor.check_changes()
@@ -646,7 +560,7 @@ class ChatSession:
         deleted = changes.get('deleted', [])
         if len(deleted) > 0:
             self._console.print(f"Files deleted: {', '.join(deleted)}")
-        if not self._user_context.user_config.display_settings.auto_open_changed_files:
+        if not self._display_settings.auto_open_changed_files:
             return
         for filename in to_open:
             if not is_safe_to_open(filename):

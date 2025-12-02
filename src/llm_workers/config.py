@@ -60,8 +60,8 @@ class ImportModelDefinition(ModelDefinition):
 class DisplaySettings(BaseModel):
     """Display configuration settings."""
     show_token_usage: bool = True
-    show_reasoning: bool = False
-    auto_open_changed_files: bool = False
+    show_reasoning: bool = True
+    auto_open_changed_files: bool = True
     markdown_output: bool = True
     file_monitor_include: list[str] = [ '*.jpg', '*.jpeg', '*.png', '*.gif', '*.tiff', '*.svg', '*.wbp' ]
     file_monitor_exclude: list[str] = ['.*', '*.log']
