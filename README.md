@@ -250,24 +250,23 @@ debug whole `llm_workers` package / debug all)
 - [0.1.0-rc10](https://github.com/MrBagheera/llm-workers/milestone/13)
 - [0.1.0-rc11](https://github.com/MrBagheera/llm-workers/milestone/14?closed=1)
 - [0.1.0-rc12](https://github.com/MrBagheera/llm-workers/milestone/15?closed=1)
+- [0.1.0-rc13](https://github.com/MrBagheera/llm-workers/milestone/16?closed=1)
+- [1.0.0-rc1](https://github.com/MrBagheera/llm-workers/milestone/17?closed=1)
 
-## Next
+## Version 1.0.0
 
 - [0.1.0](https://github.com/MrBagheera/llm-workers/milestone/7)
 
-## Version 0.1.0
+## Further Ideas
+
+https://github.com/MrBagheera/llm-workers/milestone/17
 
 - basic assistant functionality
-
-## Version 0.1.1
-
 - simplify result referencing in chains - `{last_result}` and `store_as`
 - `prompts` section
 - `for_each` statement
+- run as MCP client
 - support accessing nested JSON elements in templates
-
-## Further Ideas
-
 - structured output
 - async versions for all built-in tools
 - "safe" versions of "unsafe" tools
