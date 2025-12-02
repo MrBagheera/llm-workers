@@ -86,6 +86,11 @@ class ChatSession:
                 "description": "Export chat history as <name>.md markdown file",
                 "params": "<name>"
             },
+            "clear": {
+                "aliases": ["new", "reset"],
+                "function": self._clear_command,
+                "description": "Reset chat session and clear screen"
+            },
         }
 
         # Build commands dict for backward compatibility
@@ -286,6 +291,21 @@ class ChatSession:
     def _bye(self, params: list[str]):
         """- Ends chat session"""
         self._finished = True
+
+    # noinspection PyUnusedLocal
+    def _clear_command(self, params: list[str]):
+        """- Reset chat session and clear screen"""
+        # Clear the console screen
+        self._console.clear()
+
+        # Reset message history
+        self._messages.clear()
+
+        # Reset iteration counter
+        self._iteration = 1
+
+        # Clear any pre-populated input
+        self._pre_input = ""
 
     def _model(self, params: list[str]):
         """<model> - Switch to specified model (fast, default, thinking)"""
