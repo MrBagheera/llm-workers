@@ -325,7 +325,7 @@ def ensure_environment_variable(var_name: str, description: str = None, is_persi
     try:
         if is_secret and sys.stdin.isatty():
             from prompt_toolkit import prompt
-            prompt('Value (input hidden): ', is_password=True)
+            value = prompt('Value (input hidden): ', is_password=True)
         else:
             value = input(f"Value: ").strip()
     except KeyboardInterrupt:
@@ -381,7 +381,7 @@ def ensure_env_vars_defined(env_definitions: Dict[str, 'EnvVarDefinition']) -> N
             var_name,
             env_def.description,
             is_persistent=env_def.persistent,
-            is_secret=env_def.is_secret
+            is_secret=env_def.secret
         )
 
 

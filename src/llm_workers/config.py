@@ -71,7 +71,7 @@ class EnvVarDefinition(BaseModel):
     """Definition for an environment variable."""
     description: Optional[str] = None
     persistent: bool = False  # If false, prompted each script load
-    is_secret: bool = False  # If true, input is hidden (requires prompt_toolkit)
+    secret: bool = False  # If true, input is hidden (requires prompt_toolkit)
 
 
 class UserConfig(BaseModel):

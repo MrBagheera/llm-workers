@@ -2,6 +2,7 @@ env:
   ANTHROPIC_API_KEY:
     description: "API key for Anthropic LLMs. Visit https://console.anthropic.com/settings/keys to get one."
     persistent: true
+    secret: true
 
 models:
   - name: fast
