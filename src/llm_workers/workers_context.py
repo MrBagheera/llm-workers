@@ -164,16 +164,15 @@ class StandardWorkersContext(WorkersContext):
                         "args": substitute_env_vars_in_list(server_def.args),
                         "env": substitute_env_vars_in_dict(server_def.env),
                     }
-                    logger.info(f"Configured MCP server '{server_name}' with stdio transport: {server_def.command} {args}")
                 elif server_def.transport == "streamable_http":
                     server_configs[server_name] = {
                         "transport": "streamable_http",
                         "url": server_def.url,
                         "headers": substitute_env_vars_in_dict(server_def.headers),
                     }
-                    logger.info(f"Configured MCP server '{server_name}' with HTTP transport: {server_def.url}")
                 else:
                     raise RuntimeError(f"Unsupported MCP transport: {server_def.transport}")
+                logger.info(f"Configured MCP server '{server_name}'")
             except Exception as e:
                 logger.error(f"Failed to configure MCP server '{server_name}': {e}", exc_info=True)
                 # Continue with other servers
@@ -299,10 +298,12 @@ class StandardWorkersContext(WorkersContext):
                     logger.warning(f"MCP tool name conflict: '{prefixed_name}' already exists, skipping")
                     continue
 
-                # Determine UI hint
+                # Determine UI hint and arguments display
                 ui_hint = None
+                ui_hint_args = None
                 if matches_patterns(original_name, server_def.ui_hints_for):
-                    ui_hint = f"Calling {original_name}"
+                    ui_hint = True
+                    ui_hint_args = server_def.ui_hints_args
 
                 # Determine if confirmation is required
                 require_confirmation = matches_patterns(original_name, server_def.require_confirmation_for)
@@ -312,6 +313,7 @@ class StandardWorkersContext(WorkersContext):
                     name=prefixed_name,
                     description=tool.description,
                     ui_hint=ui_hint,
+                    ui_hint_args=ui_hint_args,
                     require_confirmation=require_confirmation,
                 )
 

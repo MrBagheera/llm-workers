@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import importlib.resources
 from abc import ABC
 from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict
 
-import yaml
 from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel, model_validator, PrivateAttr, ConfigDict
 from pydantic import ValidationError, WrapValidator
@@ -156,13 +154,14 @@ class ToolDefinition(BaseModel):
     return_direct: Optional[bool] = None
     confidential: Optional[bool] = None
     require_confirmation: Optional[bool] = None
-    ui_hint: Optional[str] = None
+    ui_hint: Optional[str | bool] = None
+    ui_hint_args: List[str] = []
     _ui_hint_template: Optional[PromptTemplate] = PrivateAttr(default=None)  # private field
     import_from: Optional[str] = None  # for imported tools, the symbol to import from
 
     def __init__(self, **data):
         super().__init__(**data)
-        if self.ui_hint is not None:
+        if isinstance(self.ui_hint, str):
             self._ui_hint_template = PromptTemplate.from_template(self.ui_hint)
 
     @property
@@ -186,6 +185,7 @@ class MCPServerDefinition(BaseModel):
     # Tool filtering and configuration
     tools: List[str] = ["*"]  # Patterns for including tools
     ui_hints_for: List[str] = []  # Patterns for tools that need UI hints
+    ui_hints_args: List[str] = []  # Patterns for filtering tool arguments in UI hints
     require_confirmation_for: List[str] = []  # Patterns for tools requiring confirmation
 
     @model_validator(mode='after')

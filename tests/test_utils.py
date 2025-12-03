@@ -2,7 +2,7 @@ import unittest
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from llm_workers.utils import format_as_yaml, parse_standard_type, _split_type_parameters
+from llm_workers.utils import format_as_yaml, parse_standard_type, _split_type_parameters, format_tool_args
 
 
 class TestFormatMessageAsYaml(unittest.TestCase):
@@ -140,6 +140,64 @@ class TestTypeParsing(unittest.TestCase):
         
         with self.assertRaises(ValueError):
             parse_standard_type("dict[str, int, float]")  # Too many parameters
+
+
+class TestFormatToolArgs(unittest.TestCase):
+    def test_basic_formatting(self):
+        """Test basic argument formatting with simple types."""
+        result = format_tool_args(
+            {'message': 'Hello', 'mode': 0, 'payload': [0, 0, 1]},
+            ['*'],
+            max_length=60)
+        self.assertEqual("'message': 'Hello', 'mode': 0, 'payload': [0, 0, 1]", result)
+
+    def test_filtering_secrets(self):
+        """Test that secret patterns are filtered out."""
+        result = format_tool_args(
+            {'username': 'alice', 'password': 'secret123'},
+            ['*', '!*password*'],
+            max_length=60
+        )
+        self.assertEqual("'username': 'alice'", result)
+
+    def test_multiple_secret_patterns(self):
+        """Test filtering with multiple secret patterns."""
+        result = format_tool_args(
+            {
+                'username': 'bob',
+                'api_key': 'sk-123',
+                'auth_token': 'tok-456',
+                'SECRET_VALUE': 'hidden',
+                'message': 'Hello World'
+            },
+            ['!*password*', '!*secret*', '!*SECRET*', '!*_key', '!*token*'],
+            max_length=60
+        )
+        self.assertEqual("'username': 'bob', 'message': 'Hello World'", result)
+
+    def test_truncation(self):
+        """Test that long argument strings are truncated."""
+        result = format_tool_args(
+            {'a': 'very-very-very-very-long-message-here', 'b': 'another-long-value'},
+            ['*'],
+            max_length=30
+        )
+        self.assertEqual("'b': 'another-long-value', [...]", result)
+
+    def test_empty_inputs(self):
+        """Test with empty input dictionary."""
+        result = format_tool_args({}, ['*'], max_length=60)
+        self.assertEqual(result, '')
+
+    def test_no_matching_patterns(self):
+        """Test when no arguments match the patterns."""
+        result = format_tool_args(
+            {'foo': 'bar', 'baz': 'qux'},
+            ['nonexistent*'],
+            max_length=60
+        )
+        self.assertEqual(result, '')
+
 
 if __name__ == "__main__":
     unittest.main()

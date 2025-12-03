@@ -2,12 +2,11 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Callable, List, Literal, Iterable, TypeVar, Generic
 from uuid import UUID
-from pydantic import BaseModel
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
-from langchain_core.messages import AIMessage
+from pydantic import BaseModel
 
 from llm_workers.config import WorkersConfig, ToolReference, ModelDefinition, UserConfig, Json
 from llm_workers.token_tracking import CompositeTokenUsageTracker

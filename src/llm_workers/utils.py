@@ -23,6 +23,7 @@ from langchain_core.runnables.base import Runnable
 from langchain_core.tools import BaseTool
 from langchain_core.tools.base import ToolException
 
+from llm_workers.config import ToolDefinition
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 
 logger =  logging.getLogger(__name__)
@@ -701,17 +702,35 @@ def parse_standard_type(s: str):
         raise ValueError(f"Unknown type: {s}")
 
 
+MAX_START_TOOL_MSG_LENGTH = 80
+
+def set_max_start_tool_msg_length(length: int) -> None:
+    """
+    Set the global maximum length for start tool notification.
+
+    Args:
+        length: Maximum length in characters
+    """
+    global MAX_START_TOOL_MSG_LENGTH
+    MAX_START_TOOL_MSG_LENGTH = length
+
 def get_start_tool_message(tool_name: str, tool_meta: Optional[Dict[str, Any]], inputs: Dict[str, Any]) -> str | None:
     try:
         # check if ui_hint is defined in tool definition
         if tool_meta and 'tool_definition' in tool_meta:
-            tool_def = tool_meta['tool_definition']
+            tool_def: ToolDefinition = tool_meta['tool_definition']
             if tool_def.ui_hint_template is not None:
                 hint = tool_def.ui_hint_template.format(**inputs)
                 if hint.strip():  # only return if hint is not empty
                     return hint
                 else:
                     return None  # empty hint means no message should be shown
+            # Check if ui_hints_args is configured for this tool
+            if tool_def.ui_hint:
+                prefix = f"Calling {tool_name}"
+                max_args_length = MAX_START_TOOL_MSG_LENGTH - len(prefix) - 2  # account for parentheses
+                args_str = format_tool_args(inputs, tool_def.ui_hint_args, max_args_length)
+                return f"{prefix}({args_str})" if args_str else prefix
         # fallback to ExtendedBaseTool
         if tool_meta and '__extension' in tool_meta:
             extension: ExtendedBaseTool = tool_meta['__extension']
@@ -792,6 +811,47 @@ def matches_patterns(tool_name: str, patterns: List[str]) -> bool:
 
     return included
 
+
+def format_tool_args(inputs: Dict[str, Any], arg_patterns: List[str], max_length: int) -> str:
+    """
+    Format tool arguments for UI display, filtering by patterns.
+
+    Args:
+        inputs: Dictionary of tool input arguments
+        arg_patterns: List of patterns to match argument names (supports negation with !)
+        max_length: Maximum length of the formatted string before truncation
+
+    Returns:
+        Formatted argument string truncated to max_length with [...] if needed
+    """
+    if not inputs or not arg_patterns:
+        return ""
+
+    result = ""
+    result_len = 0
+    result_truncated = False
+    for key, value in inputs.items():
+        if not matches_patterns(key, arg_patterns):
+            continue
+
+        key_str = str(key)
+        value_str = repr(value)
+        # [, ]'key': value
+        arg_len = len(key_str) + 4 + len(repr(value)) + (0 if result_len == 0 else 2)
+        if result_len + arg_len > max_length:
+            result_truncated = True
+            # we can't fit this argument, but continue for other args
+        else:
+            if result_len > 0:
+                result += ", "
+            result += f"'{key_str}': {value_str}"
+            result_len += arg_len
+    if result_truncated:
+        if result_len > 0:
+            result += ", "
+        result += "[...]"
+
+    return result
 
 def substitute_env_vars_in_list(args: List[str]) -> List[str]:
     """

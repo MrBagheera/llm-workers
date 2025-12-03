@@ -13,7 +13,7 @@ env:
 
 # MCP Servers Configuration
 mcp:
-  # Example 1: Local math server via stdio transport
+  # Example 1: Local echo server via stdio transport
   echo:
     "transport": "stdio"  # Local subprocess communication
     "command": "uvx"
@@ -21,6 +21,11 @@ mcp:
     "env": {
       "SECRET_KEY": "${env.ECHO_SECRET_KEY}"
     }
+    # Show UI hints for all echo tools
+    ui_hints_for: ["*"]
+    # Filter which arguments to show in UI hints (default pattern shown below)
+    # Supports wildcards (*) and negation (!)
+    ui_hints_args: ["*"]
 
 #  # Example 2: GitHub server with filtering
 #  github:

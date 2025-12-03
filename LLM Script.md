@@ -77,6 +77,7 @@ mcp:
       <key>: <value>
     tools: [<pattern>] # Optional, default: ["*"]
     ui_hints_for: [<pattern>] # Optional
+    ui_hints_args: [<pattern>] # Optional, filters which arguments to show in UI hints
     require_confirmation_for: [<pattern>] # Optional
 
 # Built-in tools configuration
@@ -199,6 +200,13 @@ mcp:
     ui_hints_for:
       - "pattern*"      # Show UI hints for matching tools
 
+    # Argument filtering for UI hints (optional, default: [])
+    ui_hints_args:
+      - "!*password*"   # Exclude arguments with "password" in name
+      - "!*secret*"     # Exclude arguments with "secret" in name
+      - "!*_key"        # Exclude arguments ending with "_key"
+      - "!*token*"      # Exclude arguments with "token" in name
+
     # Confirmation (optional, default: [])
     require_confirmation_for:
       - "pattern*"      # Require confirmation for matching tools
@@ -273,6 +281,43 @@ mcp:
 - `[!seq]` - matches any character not in seq
 - `!pattern` - negation (exclude matching tools)
 
+### UI Hints and Argument Filtering
+
+MCP tools can display UI hints when they are called, showing the tool name and its arguments. Use `ui_hints_for` to enable UI hints for specific tools, and `ui_hints_args` to control which arguments are displayed.
+
+**Enabling UI hints:**
+```yaml
+mcp:
+  echo:
+    transport: "stdio"
+    command: "uvx"
+    args: ["echo-mcp-server-for-testing"]
+    ui_hints_for: ["*"]  # Show UI hints for all tools from this server
+```
+
+**Filtering arguments in UI hints:**
+
+The `ui_hints_args` field controls which tool arguments are shown in UI hints. 
+Remember to exclude sensitive information like passwords, API keys, or tokens.
+
+```yaml
+mcp:
+  echo:
+    transport: "stdio"
+    command: "uvx"
+    args: ["echo-mcp-server-for-testing"]
+    ui_hints_for: ["*"]
+    ui_hints_args:
+      - "!*password*"   # Exclude arguments with "password" in name
+      - "!*secret*"     # Exclude arguments with "secret" in name
+      - "!*_key"        # Exclude arguments ending with "_key"
+      - "!*token*"      # Exclude arguments with "token" in name
+```
+
+**Default behavior:**
+
+If `ui_hints_args` is not specified, only tool name is printed.
+
 ### Tool Naming
 
 Tools from MCP servers are prefixed with the server name:
@@ -311,6 +356,8 @@ mcp:
       - "!gh_write*"
       - "!gh_delete*"
     ui_hints_for: ["gh*"]
+    ui_hints_args:
+      - "!*token*"
     require_confirmation_for: ["gh_delete*"]
 
   # Remote weather API

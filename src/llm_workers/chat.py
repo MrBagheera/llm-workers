@@ -17,7 +17,7 @@ from llm_workers.console_stream import ConsoleStream
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.user_context import StandardUserContext
 from llm_workers.utils import setup_logging, LazyFormatter, FileChangeDetector, \
-    open_file_in_default_app, is_safe_to_open, prepare_cache, ensure_env_vars_defined
+    open_file_in_default_app, is_safe_to_open, prepare_cache, ensure_env_vars_defined, set_max_start_tool_msg_length
 from llm_workers.worker import Worker
 from llm_workers.workers_context import StandardWorkersContext
 
@@ -174,6 +174,7 @@ class ChatSession:
                 self._messages.append(message)
                 self._console_stream.clear()
                 self._chat_context.file_monitor.check_changes() # reset
+                set_max_start_tool_msg_length(self._console.width - 20)
                 logger.debug("Running new prompt for #%s:\n%r", self._iteration, LazyFormatter(message))
                 try:
                     confirmation_response: Optional[ConfirmationResponse] = None
