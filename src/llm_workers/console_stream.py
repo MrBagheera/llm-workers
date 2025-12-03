@@ -28,7 +28,6 @@ class ConsoleStream:
 
     def show_thinking(self):
         """Display 'Thinking...' message using Rich Live display."""
-        self._clear(clear_thinking=False)
         if not self._thinking_live:
             self._thinking_live = self._console.status("Thinking...", spinner="dots")
             self._thinking_live.start()
