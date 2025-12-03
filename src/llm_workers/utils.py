@@ -726,11 +726,15 @@ def get_start_tool_message(tool_name: str, tool_meta: Optional[Dict[str, Any]], 
                 else:
                     return None  # empty hint means no message should be shown
             # Check if ui_hints_args is configured for this tool
-            if tool_def.ui_hint:
-                prefix = f"Calling {tool_name}"
-                max_args_length = MAX_START_TOOL_MSG_LENGTH - len(prefix) - 2  # account for parentheses
-                args_str = format_tool_args(inputs, tool_def.ui_hint_args, max_args_length)
-                return f"{prefix}({args_str})" if args_str else prefix
+            if tool_def.ui_hint is not None:
+                if tool_def.ui_hint:
+                    prefix = f"Calling {tool_name}"
+                    max_args_length = MAX_START_TOOL_MSG_LENGTH - len(prefix) - 2  # account for parentheses
+                    args_str = format_tool_args(inputs, tool_def.ui_hint_args, max_args_length)
+                    return f"{prefix}({args_str})" if args_str else prefix
+                else:
+                    return None  # ui_hint is False means no message should be shown
+
         # fallback to ExtendedBaseTool
         if tool_meta and '__extension' in tool_meta:
             extension: ExtendedBaseTool = tool_meta['__extension']
@@ -751,13 +755,15 @@ def call_tool(
         config: Optional[RunnableConfig],
         kwargs: dict[str, Any]
 ) -> Iterator[WorkerNotification | Any]:
-    parent_run_id = config.get("run_id", None) if config is not None else None
-    run_id = uuid.uuid4()
-    child_config = config.copy() if config is not None else RunnableConfig()
-    child_config['run_id'] = run_id
+    run_id = config.get("run_id", None) if config is not None else None
+    child_config = config
 
     tool_start_text = get_start_tool_message(tool.name, tool.metadata, input)
     if tool_start_text:
+        parent_run_id = run_id
+        run_id = uuid.uuid4()
+        child_config = config.copy() if config is not None else RunnableConfig()
+        child_config['run_id'] = run_id
         yield WorkerNotification.tool_start(tool_start_text, run_id, parent_run_id)
 
     try:
