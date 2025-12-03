@@ -154,7 +154,7 @@ class Worker(Runnable[In, Out]):
             if not llm_response:
                 raise WorkerException(f"Invoking LLM resulted no message")
             self._log_llm_message(llm_response, "LLM message")
-            yield llm_response # return LLM message (possibly with calls)
+            yield llm_response # yield LLM message (possibly with calls)
 
             if isinstance(llm_response, AIMessage) and len(llm_response.tool_calls) > 0:
                 # Check if any tools need confirmation
@@ -168,14 +168,14 @@ class Worker(Runnable[In, Out]):
                 for tool_result in self._handle_tool_calls(llm_response.tool_calls, config, kwargs):
                     if isinstance(tool_result, ToolMessage):
                         tool_results.append(tool_result)
-                        yield tool_result
-                    elif isinstance(tool_result, AIMessage):
+                        yield tool_result # either real tool result or tool result stub for direct tool calls
+                    elif isinstance(tool_result, AIMessage): # yield direct tool result (must be last anyway)
                         yield tool_result
                         return
                     else:
-                        yield tool_result # return WorkerNotification-s immediately
+                        yield tool_result # yield WorkerNotification-s immediately
 
-                # Continue LLM conversation with tool results
+                # Continue LLM conversation with tool call results
                 input.append(llm_response)
                 input.extend(tool_results)
             else:
