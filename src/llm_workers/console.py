@@ -51,20 +51,22 @@ class ConsoleController:
 
     def process_output_chunk(self, message_id: Optional[str], text: str):
         self.clear_thinking_message()
-        if self._streamed_message_id is not None and self._streamed_message_id != message_id:
+        if self._streamed_message_id != message_id or self._streamed_reasoning_index is not None:
             self.clear()
         self._streamed_message_id = message_id
-        self._streamed_reasoning_index = None
         if self._display_settings.markdown_output:
             if self._markdown_live is None:
                 self._markdown_text = text
-                self._markdown_live = Live(Markdown(text, code_theme="fruity"), console=self._console,
-                                           refresh_per_second=1, vertical_overflow="visible", screen=False)
+                self._markdown_live = Live(Markdown(text),
+                                           console=self._console,
+                                           #refresh_per_second=0,
+                                           auto_refresh=False,
+                                           vertical_overflow="visible",
+                                           screen=False)
                 self._markdown_live.start()
             else:
                 self._markdown_text += text
-                self._markdown_live.update(Markdown(self._markdown_text, code_theme="fruity"))
-                # self._markdown_live.refresh()
+                self._markdown_live.update(Markdown(self._markdown_text), refresh=True)
         else:
             print(text, end="", flush=True)
 
@@ -72,12 +74,12 @@ class ConsoleController:
         if not self._display_settings.show_reasoning:
             return
         self._clear(clear_message=(self._streamed_message_id != message_id or self._streamed_reasoning_index != index))
+        self._streamed_message_id = message_id
         if self._streamed_reasoning_index is None:
             self._console.print("Reasoning:")
-            self._streamed_reasoning_index = index
         elif self._streamed_reasoning_index and index != self._streamed_reasoning_index:
-            print()
-            self._streamed_reasoning_index = index
+            self._console.print()
+        self._streamed_reasoning_index = index
         self._console.print(text, end="", style=self._reasoning_style)
         self._console.file.flush()
 
@@ -131,14 +133,14 @@ class ConsoleController:
             self.clear_thinking_message()
 
         if clear_message:
-            if self._streamed_message_id:
-                print()
-                self._streamed_message_id = None
-                self._streamed_reasoning_index = None
             if self._markdown_live:
                 self._markdown_live.stop()
                 self._markdown_live = None
                 self._markdown_text = None
+            if self._streamed_message_id:
+                self._console.print()
+                self._streamed_message_id = None
+                self._streamed_reasoning_index = None
 
         if clear_tools:
             self._running_tools_depths.clear()
