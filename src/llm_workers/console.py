@@ -3,16 +3,27 @@ from uuid import UUID
 
 from langchain_core.messages import AIMessage
 from rich.console import Console
-from rich.markdown import Markdown
-from rich.style import Style
 from rich.live import Live
+from rich.markdown import Markdown, Heading
+from rich.style import Style
 
 from llm_workers.api import WorkerNotification, CONFIDENTIAL
 from llm_workers.config import DisplaySettings
 from llm_workers.worker import Worker
 
 
-class ConsoleStream:
+class LeftHeading(Heading):
+    def __rich_console__(self, console, options):
+        results = super().__rich_console__(console, options)
+        for result in results:
+            result.justify = "left"
+            yield result
+
+# WARNING: This affects ALL Markdown rendering in your application
+Markdown.elements["heading_open"] = LeftHeading
+
+
+class ConsoleController:
     """Handles visual cues and streaming output to the console using Rich library."""
 
     def __init__(self, console: Console, display_settings: DisplaySettings):

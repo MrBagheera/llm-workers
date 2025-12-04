@@ -13,7 +13,7 @@ from rich.syntax import Syntax
 
 from llm_workers.api import ConfirmationRequest, ConfirmationResponse, UserContext, WorkerNotification
 from llm_workers.chat_completer import ChatCompleter
-from llm_workers.console_stream import ConsoleStream
+from llm_workers.console import ConsoleController
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.user_context import StandardUserContext
 from llm_workers.utils import setup_logging, LazyFormatter, FileChangeDetector, \
@@ -135,7 +135,7 @@ class ChatSession:
     async def _run(self, script_file: str, user_context: UserContext, workers_context: StandardWorkersContext):
         async with workers_context: # this opens/closes sessions with MCP servers
             self._chat_context = _ChatSessionContext(script_file, user_context, workers_context)
-            self._console_stream = ConsoleStream(self._console, self._display_settings)
+            self._console_controller = ConsoleController(self._console, self._display_settings)
             # running in a separate thread because it is blocking
             await asyncio.to_thread(self._run_chat_loop)
 
@@ -172,7 +172,7 @@ class ChatSession:
                 self._console.print(f"#{self._iteration} Assistant:", style="bold green")
                 message = HumanMessage(text)
                 self._messages.append(message)
-                self._console_stream.clear()
+                self._console_controller.clear()
                 self._chat_context.file_monitor.check_changes() # reset
                 set_max_start_tool_msg_length(self._console.width - 20)
                 logger.debug("Running new prompt for #%s:\n%r", self._iteration, LazyFormatter(message))
@@ -193,7 +193,7 @@ class ChatSession:
                         if confirmation_response is None:
                             break
                 except Exception as e:
-                    self._console_stream.clear()
+                    self._console_controller.clear()
                     logger.error(f"Error: {e}", exc_info=True)
                     self._console.print(f"Unexpected error in worker: {e}", style="bold red")
                     self._console.print(f"If subsequent conversation fails, try rewinding to previous message", style="bold red")
@@ -482,18 +482,18 @@ class ChatSession:
     def _process_notification(self, notification: WorkerNotification):
         """Process a WorkerNotification based on its type."""
         if notification.type == 'thinking_start':
-            self._console_stream.show_thinking()
+            self._console_controller.show_thinking()
         elif notification.type == 'thinking_end':
-            self._console_stream.clear_thinking_message()
+            self._console_controller.clear_thinking_message()
         elif notification.type == 'ai_output_chunk':
             if notification.text:
-                self._console_stream.process_output_chunk(message_id=notification.message_id, text=notification.text)
+                self._console_controller.process_output_chunk(message_id=notification.message_id, text=notification.text)
         elif notification.type == 'ai_reasoning_chunk':
             if notification.text:
-                self._console_stream.process_reasoning_chunk(message_id=notification.message_id, text=notification.text, index=notification.index)
+                self._console_controller.process_reasoning_chunk(message_id=notification.message_id, text=notification.text, index=notification.index)
         elif notification.type == 'tool_start':
             if notification.text and notification.run_id:
-                self._console_stream.process_tool_start_notification(notification.text, notification.run_id, notification.parent_run_id)
+                self._console_controller.process_tool_start_notification(notification.text, notification.run_id, notification.parent_run_id)
         elif notification.type == 'tool_end':
             # No action needed for tool_end currently
             pass
@@ -507,10 +507,10 @@ class ChatSession:
 
         if not isinstance(message, AIMessage):
             return
-        self._console_stream.process_model_message(message)
+        self._console_controller.process_model_message(message)
 
     def _process_confirmation_request(self, request: ConfirmationRequest) -> ConfirmationResponse:
-        self._console_stream.clear()
+        self._console_controller.clear()
         approved_tool_calls: list[str] = []
 
         # Iterate through all tool calls and ask for confirmation independently
