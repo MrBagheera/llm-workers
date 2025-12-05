@@ -4,6 +4,7 @@ import logging
 import mimetypes
 import os
 import platform
+import re
 import subprocess
 import sys
 import time
@@ -311,6 +312,7 @@ def ensure_environment_variable(var_name: str, description: str = None, is_persi
 
     # Variable is not set, prompt the user
     if description:
+        description = substitute_env_vars(description)
         print(f"\nPlease provide value for '{var_name}': {description}")
     else:
         print(f"\nPlease provide value for '{var_name}'.")
@@ -319,8 +321,7 @@ def ensure_environment_variable(var_name: str, description: str = None, is_persi
         print("If you don't want this, exit with Ctrl-C and run the program with:")
         print(f"  {var_name}=your_token {Path(sys.argv[0]).name}")
     else:
-        print("This variable is transient and will not be saved to .env file.")
-        print("You will be prompted for it each time this script is loaded.")
+        print("This variable will be used, but not saved to disk.")
 
     # Get input from user
     try:
@@ -859,6 +860,34 @@ def format_tool_args(inputs: Dict[str, Any], arg_patterns: List[str], max_length
 
     return result
 
+_env_pattern = re.compile(r'\$\{env\.([A-Za-z_][A-Za-z0-9_]*)\}')
+
+def substitute_env_vars(arg: str) -> str:
+    """
+    Replace ${env.VAR_NAME} references in arg with actual env var values.
+    Args:
+        arg: Argument that may contain ${env.VAR_NAME} references
+    Returns:
+        New string with substituted values
+    Examples:
+        "${env.API_TOKEN}" -> "actual_token_value"
+        "prefix_${env.VAR}_suffix" -> "prefix_value_suffix"
+    """
+    global _env_pattern
+    # Find all ${env.VAR} references
+    matches = _env_pattern.findall(arg)
+    if not matches:
+        return arg
+
+    substituted_arg = arg
+    for var_name in matches:
+        env_value = os.environ.get(var_name)
+        if env_value is None:
+            raise ValueError(f"Environment variable '{var_name}' referenced in args is not defined")
+        substituted_arg = substituted_arg.replace(f'${{env.{var_name}}}', env_value)
+    return substituted_arg
+
+
 def substitute_env_vars_in_list(args: List[str]) -> List[str]:
     """
     Replace ${env.VAR_NAME} references in args list with actual env var values.
@@ -877,34 +906,12 @@ def substitute_env_vars_in_list(args: List[str]) -> List[str]:
         ["prefix_${env.VAR}_suffix"] -> ["prefix_value_suffix"]
         ["regular_arg"] -> ["regular_arg"]
     """
-    import re
-
     if not args:
         return args
 
     result = []
-    # Pattern matches ${env.VAR_NAME}
-    pattern = re.compile(r'\$\{env\.([A-Za-z_][A-Za-z0-9_]*)\}')
-
     for arg in args:
-        if not isinstance(arg, str):
-            result.append(arg)
-            continue
-
-        # Find all ${env.VAR} references
-        matches = pattern.findall(arg)
-        substituted_arg = arg
-
-        for var_name in matches:
-            env_value = os.environ.get(var_name)
-            if env_value is None:
-                raise ValueError(f"Environment variable '{var_name}' referenced in args is not defined")
-
-            # Replace ${env.VAR_NAME} with actual value
-            substituted_arg = substituted_arg.replace(f'${{env.{var_name}}}', env_value)
-
-        result.append(substituted_arg)
-
+        result.append(substitute_env_vars(arg) if isinstance(arg, str) else arg)
     return result
 
 
@@ -925,33 +932,10 @@ def substitute_env_vars_in_dict(env_dict: Dict[str, str]) -> Dict[str, str]:
         {"KEY": "${env.API_TOKEN}"} -> {"KEY": "actual_token_value"}
         {"KEY": "prefix_${env.VAR}_suffix"} -> {"KEY": "prefix_value_suffix"}
     """
-    import re
-
     if not env_dict:
         return env_dict
 
     result = {}
-    # Pattern matches ${env.VAR_NAME}
-    pattern = re.compile(r'\$\{env\.([A-Za-z_][A-Za-z0-9_]*)\}')
-
     for key, value in env_dict.items():
-        if not isinstance(value, str):
-            result[key] = value
-            continue
-
-        # Find all ${env.VAR} references
-        matches = pattern.findall(value)
-        substituted_value = value
-
-        for var_name in matches:
-            env_value = os.environ.get(var_name)
-            if env_value is None:
-                raise ValueError(f"Environment variable '{var_name}' referenced in MCP server config is not defined")
-
-            # Replace ${env.VAR_NAME} with actual value
-            substituted_value = substituted_value.replace(f'${{env.{var_name}}}', env_value)
-
-        result[key] = substituted_value
-
+        result[key] = substitute_env_vars(value) if isinstance(value, str) else value
     return result
-
