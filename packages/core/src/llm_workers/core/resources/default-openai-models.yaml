@@ -1,0 +1,26 @@
+env:
+  OPENAI_API_KEY:
+    description: "API key for OpenAI models. Visit https://platform.openai.com/api-keys to get one."
+    persistent: true
+    secret: true
+
+models:
+  - name: fast
+    provider: openai
+    model: gpt-5-mini
+    temperature: 0
+    max_tokens: 16384
+  - name: default
+    provider: openai
+    model: gpt-5
+    temperature: 0
+    max_tokens: 16384
+  - name: thinking
+    provider: openai
+    model: gpt-5
+    temperature: 0
+    max_tokens: 32768
+    reasoning:
+      effort: medium
+      summary: detailed
+    output_version: "responses/v1"

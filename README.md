@@ -278,8 +278,34 @@ https://github.com/MrBagheera/llm-workers/milestone/17
 
 # Development
 
+## Package Structure
+
+The project is organized as three namespace packages under `llm_workers`:
+
+```
+packages/
+├── core/           # llm-workers-core: Core library (Worker, Context, Config, Tools)
+├── console_chat/   # llm-workers-console-chat: TTY/console chat UI
+└── cli/            # llm-workers-cli: CLI entry points
+```
+
+### Import Paths
+
+```python
+# Core library
+from llm_workers.core import Worker, StandardUserContext, StandardWorkersContext
+from llm_workers.core.config import WorkersConfig, ChatConfig
+from llm_workers.core.api import WorkerNotification, ConfirmationRequest
+
+# Console chat
+from llm_workers.console_chat import ChatSession, ConsoleController
+
+# CLI functions
+from llm_workers.cli import chat_with_llm_script, run_llm_script
+```
+
 ## Packaging for release
 
-- Bump up version in `pyproject.toml`
+- Bump up version in `pyproject.toml` (root and each package under `packages/`)
 - Run `poetry build`
 - Run `poetry publish` to publish to PyPI

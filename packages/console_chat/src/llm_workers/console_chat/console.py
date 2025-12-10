@@ -7,9 +7,9 @@ from rich.live import Live
 from rich.markdown import Markdown, Heading
 from rich.style import Style
 
-from llm_workers.api import WorkerNotification, CONFIDENTIAL
-from llm_workers.config import DisplaySettings
-from llm_workers.worker import Worker
+from llm_workers.core.api import WorkerNotification, CONFIDENTIAL
+from llm_workers.core.config import DisplaySettings
+from llm_workers.core.worker import Worker
 
 
 class LeftHeading(Heading):

@@ -52,12 +52,35 @@ llm-workers-cli <script_file> --
 
 ## Architecture
 
-### Core Components
+### Package Structure
 
-- **Worker** (`src/llm_workers/worker.py`): Central orchestrator that manages LLM interactions and tool execution
-- **Context** (`src/llm_workers/context.py`): Manages configuration loading and provides access to models and tools
-- **Configuration** (`src/llm_workers/config.py`): Defines the YAML configuration schema for LLM scripts
-- **Tools**: Extensible tool system supporting both built-in and custom tools
+The project is split into three namespace packages:
+
+```
+packages/
+├── core/           # llm_workers.core - Core library
+├── console_chat/   # llm_workers.console_chat - TTY/console chat UI
+└── cli/            # llm_workers.cli - CLI entry points
+```
+
+### Core Components (`llm_workers.core`)
+
+- **Worker** (`packages/core/src/llm_workers/core/worker.py`): Central orchestrator that manages LLM interactions and tool execution
+- **WorkersContext** (`packages/core/src/llm_workers/core/workers_context.py`): Manages tool registration and provides access to models and tools
+- **UserContext** (`packages/core/src/llm_workers/core/user_context.py`): Manages user configuration and model initialization
+- **Configuration** (`packages/core/src/llm_workers/core/config.py`): Defines the YAML configuration schema for LLM scripts
+- **Tools** (`packages/core/src/llm_workers/core/tools/`): Extensible tool system supporting both built-in and custom tools
+
+### Console Chat Components (`llm_workers.console_chat`)
+
+- **ChatSession** (`packages/console_chat/src/llm_workers/console_chat/chat_session.py`): Interactive chat session management
+- **ConsoleController** (`packages/console_chat/src/llm_workers/console_chat/console.py`): Rich console rendering
+- **ChatCompleter** (`packages/console_chat/src/llm_workers/console_chat/chat_completer.py`): Command/file completion
+
+### CLI Components (`llm_workers.cli`)
+
+- **batch.py**: CLI batch processing entry point (`llm-workers-cli`)
+- **chat_main.py**: Chat interface entry point (`llm-workers-chat`)
 
 ### LLM Scripts
 
@@ -73,11 +96,12 @@ Tools can be:
 2. **Factory functions** returning tool instances
 3. **Custom tools** defined in YAML using statement composition
 
-Built-in tool categories:
-- **Fetch tools**: Web scraping and content retrieval
-- **File tools**: Read/write operations (marked as "unsafe")
-- **LLM tools**: Nested LLM calls within workflows
-- **System tools**: Process execution and file system operations
+Built-in tool categories (in `llm_workers.core.tools`):
+- **Fetch tools** (`fetch.py`): Web scraping and content retrieval
+- **File tools** (`unsafe.py`): Read/write operations (marked as "unsafe")
+- **LLM tools** (`llm_tool.py`): Nested LLM calls within workflows
+- **Custom tools** (`custom_tool.py`): YAML-based statement composition
+- **Misc tools** (`misc.py`): User input, approval tokens
 
 ### Configuration Loading
 

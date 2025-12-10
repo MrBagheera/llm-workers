@@ -17,15 +17,15 @@ from dotenv import load_dotenv, find_dotenv
 from langchain_core.messages import ToolCall
 from pydantic import BaseModel
 
-from llm_workers.api import WorkersContext, WorkerNotification, ExtendedBaseTool, ExtendedRunnable, \
+from llm_workers.core.api import WorkersContext, WorkerNotification, ExtendedBaseTool, ExtendedRunnable, \
     ExtendedExecutionTool
 from langchain_core.runnables import RunnableConfig
 from langchain_core.runnables.base import Runnable
 from langchain_core.tools import BaseTool
 from langchain_core.tools.base import ToolException
 
-from llm_workers.config import ToolDefinition
-from llm_workers.token_tracking import CompositeTokenUsageTracker
+from llm_workers.core.config import ToolDefinition
+from llm_workers.core.token_tracking import CompositeTokenUsageTracker
 
 logger =  logging.getLogger(__name__)
 

@@ -6,11 +6,11 @@ from typing import Any, Optional
 
 from langchain_community.callbacks import get_openai_callback
 
-from llm_workers.api import UserContext, ExtendedRunnable
-from llm_workers.tools.custom_tool import create_statement_from_model
-from llm_workers.user_context import StandardUserContext
-from llm_workers.utils import setup_logging, prepare_cache, ensure_env_vars_defined
-from llm_workers.workers_context import StandardWorkersContext
+from llm_workers.core.api import UserContext, ExtendedRunnable
+from llm_workers.core.tools.custom_tool import create_statement_from_model
+from llm_workers.core.user_context import StandardUserContext
+from llm_workers.core.utils import setup_logging, prepare_cache, ensure_env_vars_defined
+from llm_workers.core.workers_context import StandardWorkersContext
 
 
 def run_llm_script(

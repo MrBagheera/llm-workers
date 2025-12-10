@@ -1,5 +1,5 @@
 import unittest
-from llm_workers.tools.llm_tool import extract_json_blocks
+from llm_workers.core.tools.llm_tool import extract_json_blocks
 
 
 class TestLLMToolJSONExtraction(unittest.TestCase):

@@ -2,7 +2,7 @@ import unittest
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from llm_workers.utils import format_as_yaml, parse_standard_type, _split_type_parameters, format_tool_args
+from llm_workers.core.utils import format_as_yaml, parse_standard_type, _split_type_parameters, format_tool_args
 
 
 class TestFormatMessageAsYaml(unittest.TestCase):

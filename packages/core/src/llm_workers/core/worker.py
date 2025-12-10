@@ -6,12 +6,12 @@ from langchain_core.messages import BaseMessage, SystemMessage, AIMessage, ToolM
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.tools import BaseTool
 
-from llm_workers.api import WorkersContext, ConfirmationRequest, ConfirmationResponse, \
+from llm_workers.core.api import WorkersContext, ConfirmationRequest, ConfirmationResponse, \
     ConfirmationRequestToolCallDescription, ConfirmationRequestParam, \
     ExtendedBaseTool, CONFIDENTIAL, WorkerNotification, WorkerException
-from llm_workers.config import BaseLLMConfig, ToolDefinition, ToolReference
-from llm_workers.token_tracking import CompositeTokenUsageTracker
-from llm_workers.utils import LazyFormatter, call_tool
+from llm_workers.core.config import BaseLLMConfig, ToolDefinition, ToolReference
+from llm_workers.core.token_tracking import CompositeTokenUsageTracker
+from llm_workers.core.utils import LazyFormatter, call_tool
 
 logger = logging.getLogger(__name__)
 

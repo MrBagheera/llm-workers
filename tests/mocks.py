@@ -5,8 +5,8 @@ from langchain_core.messages import BaseMessage, AIMessage, AIMessageChunk
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 
-from llm_workers.api import WorkersContext
-from llm_workers.config import WorkersConfig
+from llm_workers.core.api import WorkersContext
+from llm_workers.core.config import WorkersConfig
 
 
 class MockInvokeLLM(BaseChatModel):

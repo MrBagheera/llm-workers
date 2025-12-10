@@ -1,0 +1,25 @@
+[project]
+name = "llm-workers-console-chat"
+version = "1.0.0-rc4"
+description = "TTY/console-based chat UI for LLM Workers"
+authors = [
+    {name = "Dmitry Mikhaylov", email = "mikhailov.dmitry@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "llm-workers-core~=1.0.0rc4",
+    "prompt-toolkit (==3.0.50)",
+    "rich (>=14.1.0,<15.0.0)",
+]
+
+[project.urls]
+Homepage = "https://github.com/MrBagheera/llm-workers"
+Issues = "https://github.com/MrBagheera/llm-workers/issues"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [{include = "llm_workers", from = "src"}]

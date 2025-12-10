@@ -11,10 +11,10 @@ from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
 
-from llm_workers.api import WorkersContext, WorkerException, ExtendedBaseTool, UserContext
-from llm_workers.config import WorkersConfig, ToolDefinition, ToolReference
-from llm_workers.tools.custom_tool import build_custom_tool
-from llm_workers.utils import matches_patterns, substitute_env_vars_in_list, substitute_env_vars_in_dict
+from llm_workers.core.api import WorkersContext, WorkerException, ExtendedBaseTool, UserContext
+from llm_workers.core.config import WorkersConfig, ToolDefinition, ToolReference
+from llm_workers.core.tools.custom_tool import build_custom_tool
+from llm_workers.core.utils import matches_patterns, substitute_env_vars_in_list, substitute_env_vars_in_dict
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +101,10 @@ class StandardWorkersContext(WorkersContext):
         if ':' in name:
             module, resource = name.split(':', 1)
             if len(module) > 1: # ignore volume names on windows
+                # Backward compatibility: redirect old llm_workers: paths to llm_workers.core.resources:
+                if module == "llm_workers":
+                    module = "llm_workers.core.resources"
+                    logger.debug(f"Redirecting llm_workers:{resource} to {module}:{resource}")
                 with importlib.resources.files(module).joinpath(resource).open("r") as file:
                     config_data = yaml.safe_load(file)
                 return WorkersConfig(**config_data)

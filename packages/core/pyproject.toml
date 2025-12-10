@@ -1,31 +1,25 @@
 [project]
-name = "llm-workers-dev"
+name = "llm-workers-core"
 version = "1.0.0-rc4"
-description = "LLM Workers Development Meta-package"
+description = "Core library for LLM Workers - YAML-based LLM interactions"
 authors = [
     {name = "Dmitry Mikhaylov", email = "mikhailov.dmitry@gmail.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.12,<4.0"
 dependencies = [
-    # Core dependencies (from packages/core)
     "pydantic~=2.10.5",
     "python-dotenv~=1.0.1",
     "beautifulsoup4~=4.12.3",
     "PyYAML~=6.0.2",
     "html-text (>=0.7.0,<0.8.0)",
+    # has to pin those down due f-string template issues introduced in later versions
     "langchain (>=0.3.27,<0.4.0)",
     "langchain-core (>=0.3.76,<0.3.80)",
     "langchain-community (>=0.3.29,<0.4.0)",
     "langchain-openai (>=0.3.32,<0.4.0)",
     "langchain-anthropic (>=0.3.0,<0.4.0)",
     "langchain-mcp-adapters (>=0.1.0,<0.2.0)",
-    # Console chat dependencies (from packages/console_chat)
-    "prompt-toolkit (==3.0.50)",
-    "rich (>=14.1.0,<15.0.0)",
-    # Development/test dependencies
-    "echo-mcp-server-for-testing (>=0.1.5,<0.2.0)",
-    "notebook (>=7.3.2,<8.0.0)",
 ]
 
 [project.optional-dependencies]
@@ -38,17 +32,9 @@ dev = [
 Homepage = "https://github.com/MrBagheera/llm-workers"
 Issues = "https://github.com/MrBagheera/llm-workers/issues"
 
-[project.scripts]
-llm-workers-chat = "llm_workers.cli.chat_main:main"
-llm-workers-cli = "llm_workers.cli.batch:main"
-
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-packages = [
-    {include = "llm_workers", from = "packages/core/src"},
-    {include = "llm_workers", from = "packages/console_chat/src"},
-    {include = "llm_workers", from = "packages/cli/src"},
-]
+packages = [{include = "llm_workers", from = "src"}]

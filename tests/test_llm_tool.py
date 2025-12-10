@@ -2,9 +2,9 @@ import unittest
 
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
 
-from llm_workers.api import WorkerNotification
-from llm_workers.token_tracking import CompositeTokenUsageTracker
-from llm_workers.tools.llm_tool import build_llm_tool
+from llm_workers.core.api import WorkerNotification
+from llm_workers.core.token_tracking import CompositeTokenUsageTracker
+from llm_workers.core.tools.llm_tool import build_llm_tool
 from tests.mocks import MockInvokeLLM, StubWorkersContext
 
 

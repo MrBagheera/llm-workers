@@ -2,7 +2,7 @@ import unittest
 import json
 from unittest.mock import patch
 
-from llm_workers.tools.misc import (
+from llm_workers.core.tools.misc import (
     RequestApprovalTool,
     ValidateApprovalTool,
     ConsumeApprovalTool,

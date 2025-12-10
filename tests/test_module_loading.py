@@ -1,7 +1,7 @@
 import argparse
 
-from llm_workers.chat import chat_with_llm_script
-from llm_workers.utils import setup_logging
+from llm_workers.cli.chat_main import chat_with_llm_script
+from llm_workers.core.utils import setup_logging
 
 if __name__ == "__main__":
     parser: argparse.ArgumentParser = argparse.ArgumentParser(

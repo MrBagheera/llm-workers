@@ -8,8 +8,8 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel
 
-from llm_workers.config import WorkersConfig, ToolReference, ModelDefinition, UserConfig, Json
-from llm_workers.token_tracking import CompositeTokenUsageTracker
+from llm_workers.core.config import WorkersConfig, ToolReference, ModelDefinition, UserConfig, Json
+from llm_workers.core.token_tracking import CompositeTokenUsageTracker
 
 # Flag for confidential messages (not shown to LLM)
 CONFIDENTIAL: str = 'confidential'

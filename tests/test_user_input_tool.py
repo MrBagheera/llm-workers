@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch
-from llm_workers.tools.misc import UserInputTool
+from llm_workers.core.tools.misc import UserInputTool
 
 
 class TestUserInputTool(unittest.TestCase):

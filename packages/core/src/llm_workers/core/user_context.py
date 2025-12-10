@@ -10,9 +10,9 @@ from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 from langchain_core.rate_limiters import InMemoryRateLimiter
 
-from llm_workers.api import WorkerException, UserContext
-from llm_workers.config import UserConfig, StandardModelDefinition, ImportModelDefinition, ModelDefinition
-from llm_workers.utils import find_and_load_dotenv
+from llm_workers.core.api import WorkerException, UserContext
+from llm_workers.core.config import UserConfig, StandardModelDefinition, ImportModelDefinition, ModelDefinition
+from llm_workers.core.utils import find_and_load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +135,7 @@ class StandardUserContext(UserContext):
         import importlib.resources
 
         default_file = f"default-{provider}-models.yaml"
-        with importlib.resources.files("llm_workers").joinpath(default_file).open("r") as f:
+        with importlib.resources.files("llm_workers.core.resources").joinpath(default_file).open("r") as f:
             config_content = f.read()
         config_path.write_text(config_content)
 
@@ -151,7 +151,7 @@ class StandardUserContext(UserContext):
         print("\nBelow is an example of Anthropic-based configuration:")
         print("-" * 50)
 
-        with importlib.resources.files("llm_workers").joinpath("default-anthropic-models.yaml").open("r") as f:
+        with importlib.resources.files("llm_workers.core.resources").joinpath("default-anthropic-models.yaml").open("r") as f:
             example_content = f.read()
         print(example_content)
 

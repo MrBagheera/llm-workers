@@ -3,12 +3,12 @@ import unittest
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
-from llm_workers.api import WorkerNotification
-from llm_workers.token_tracking import CompositeTokenUsageTracker
-from llm_workers.tools.custom_tool import TemplateHelper, create_statement_from_model, build_custom_tool
-from llm_workers.config import CustomToolParamsDefinition, CallDefinition, ResultDefinition, \
+from llm_workers.core.api import WorkerNotification
+from llm_workers.core.token_tracking import CompositeTokenUsageTracker
+from llm_workers.core.tools.custom_tool import TemplateHelper, create_statement_from_model, build_custom_tool
+from llm_workers.core.config import CustomToolParamsDefinition, CallDefinition, ResultDefinition, \
     MatchDefinition, MatchClauseDefinition, ToolDefinition, WorkersConfig
-from llm_workers.utils import call_tool
+from llm_workers.core.utils import call_tool
 from tests.mocks import StubWorkersContext
 
 

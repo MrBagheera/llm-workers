@@ -5,8 +5,8 @@ from langchain_core.callbacks import CallbackManager, BaseCallbackHandler
 from langchain_core.messages import AIMessage, HumanMessage, AIMessageChunk, ToolMessage
 from langchain_core.tools import BaseTool
 
-from llm_workers.config import BaseLLMConfig
-from llm_workers.worker import Worker
+from llm_workers.core.config import BaseLLMConfig
+from llm_workers.core.worker import Worker
 from tests.mocks import MockInvokeLLM, StubWorkersContext, MockStreamLLM
 
 
@@ -61,7 +61,7 @@ class TestWorker(unittest.TestCase):
             result.extend(chunk)
 
         # Verify: stream() returns both notifications and messages
-        from llm_workers.api import WorkerNotification
+        from llm_workers.core.api import WorkerNotification
 
         # Expected order: thinking_start, thinking_end, AIMessage
         self.assertEqual(len(result), 3)
@@ -103,7 +103,7 @@ class TestWorker(unittest.TestCase):
             result.extend(chunk)
 
         # Verify: stream() returns notifications and message
-        from llm_workers.api import WorkerNotification
+        from llm_workers.core.api import WorkerNotification
 
         # Expected order: thinking_start, ai_output_chunk (Hi), ai_output_chunk ( there!), thinking_end, AIMessage
         self.assertEqual(len(result), 5)
@@ -144,7 +144,9 @@ class TestWorker(unittest.TestCase):
             name='simple_tool',
             confidential=False,
             require_confirmation=None,
-            ui_hint_template=None
+            ui_hint_template=None,
+            ui_hint=None,
+            ui_hint_args=None
         )}
 
         # Setup messages
@@ -191,7 +193,7 @@ class TestWorker(unittest.TestCase):
             result.extend(chunk)
 
         # Verify the sequence of messages
-        from llm_workers.api import WorkerNotification
+        from llm_workers.core.api import WorkerNotification
 
         # Expected order:
         # 1. thinking_start
@@ -260,7 +262,9 @@ class TestWorker(unittest.TestCase):
             name='direct_tool',
             confidential=False,
             require_confirmation=None,
-            ui_hint_template=None
+            ui_hint_template=None,
+            ui_hint=None,
+            ui_hint_args=None
         )}
 
         # Setup messages
@@ -297,7 +301,7 @@ class TestWorker(unittest.TestCase):
             result.extend(chunk)
 
         # Verify the sequence of messages
-        from llm_workers.api import WorkerNotification
+        from llm_workers.core.api import WorkerNotification
 
         # Expected order:
         # 1. thinking_start
@@ -366,7 +370,9 @@ class TestWorker(unittest.TestCase):
             name='standard_tool',
             confidential=False,
             require_confirmation=None,
-            ui_hint_template=None
+            ui_hint_template=None,
+            ui_hint=None,
+            ui_hint_args=None
         )}
 
         direct_tool = DirectTool()
@@ -374,7 +380,9 @@ class TestWorker(unittest.TestCase):
             name='direct_tool',
             confidential=False,
             require_confirmation=None,
-            ui_hint_template=None
+            ui_hint_template=None,
+            ui_hint=None,
+            ui_hint_args=None
         )}
 
         # Setup messages
@@ -435,7 +443,7 @@ class TestWorker(unittest.TestCase):
             result.extend(chunk)
 
         # Verify the sequence of messages
-        from llm_workers.api import WorkerNotification
+        from llm_workers.core.api import WorkerNotification
 
         # Expected order:
         # 0. thinking_start
@@ -519,7 +527,9 @@ class TestWorker(unittest.TestCase):
             name='direct_tool_1',
             confidential=False,
             require_confirmation=None,
-            ui_hint_template=None
+            ui_hint_template=None,
+            ui_hint=None,
+            ui_hint_args=None
         )}
 
         direct_tool_2 = DirectTool2()
@@ -527,7 +537,9 @@ class TestWorker(unittest.TestCase):
             name='direct_tool_2',
             confidential=False,
             require_confirmation=None,
-            ui_hint_template=None
+            ui_hint_template=None,
+            ui_hint=None,
+            ui_hint_args=None
         )}
 
         # Setup messages
@@ -577,7 +589,7 @@ class TestWorker(unittest.TestCase):
             result.extend(chunk)
 
         # Verify the sequence of messages
-        from llm_workers.api import WorkerNotification
+        from llm_workers.core.api import WorkerNotification
 
         # Expected order:
         # 0. thinking_start
@@ -662,7 +674,9 @@ class TestWorker(unittest.TestCase):
             name='confidential_tool',
             confidential=True,  # Mark as confidential
             require_confirmation=None,
-            ui_hint_template=None
+            ui_hint_template=None,
+            ui_hint=None,
+            ui_hint_args=None
         )}
 
         # Setup messages
@@ -699,7 +713,7 @@ class TestWorker(unittest.TestCase):
             result.extend(chunk)
 
         # Verify the sequence of messages
-        from llm_workers.api import WorkerNotification, CONFIDENTIAL
+        from llm_workers.core.api import WorkerNotification, CONFIDENTIAL
 
         # Expected order:
         # 0. thinking_start
@@ -789,7 +803,9 @@ class TestWorker(unittest.TestCase):
             name='confirmation_tool',
             confidential=False,
             require_confirmation=True,  # Requires confirmation
-            ui_hint_template=None
+            ui_hint_template=None,
+            ui_hint=None,
+            ui_hint_args=None
         )}
 
         # Setup messages
@@ -823,7 +839,7 @@ class TestWorker(unittest.TestCase):
             result.extend(chunk)
 
         # Verify: ConfirmationRequest is yielded
-        from llm_workers.api import WorkerNotification, ConfirmationRequest
+        from llm_workers.core.api import WorkerNotification, ConfirmationRequest
 
         # Expected: thinking_start, thinking_end, AIMessage, ConfirmationRequest
         self.assertEqual(len(result), 4)
@@ -860,7 +876,9 @@ class TestWorker(unittest.TestCase):
             name='confirmation_tool',
             confidential=False,
             require_confirmation=True,
-            ui_hint_template=None
+            ui_hint_template=None,
+            ui_hint=None,
+            ui_hint_args=None
         )}
 
         # Setup messages
@@ -906,7 +924,7 @@ class TestWorker(unittest.TestCase):
             result1.extend(chunk)
 
         # Find the ConfirmationRequest
-        from llm_workers.api import ConfirmationRequest, ConfirmationResponse
+        from llm_workers.core.api import ConfirmationRequest, ConfirmationResponse
         confirmation_request = None
         for item in result1:
             if isinstance(item, ConfirmationRequest):
@@ -949,7 +967,9 @@ class TestWorker(unittest.TestCase):
             name='confirmation_tool',
             confidential=False,
             require_confirmation=True,
-            ui_hint_template=None
+            ui_hint_template=None,
+            ui_hint=None,
+            ui_hint_args=None
         )}
 
         # Setup messages
@@ -983,7 +1003,7 @@ class TestWorker(unittest.TestCase):
             result1.extend(chunk)
 
         # Find the ConfirmationRequest
-        from llm_workers.api import ConfirmationRequest, ConfirmationResponse
+        from llm_workers.core.api import ConfirmationRequest, ConfirmationResponse
         confirmation_request = None
         for item in result1:
             if isinstance(item, ConfirmationRequest):

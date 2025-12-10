@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import Mock
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from llm_workers.token_tracking import SimpleTokenUsageTracker, CompositeTokenUsageTracker, _extract_usage_metadata_from_message
+from llm_workers.core.token_tracking import SimpleTokenUsageTracker, CompositeTokenUsageTracker, _extract_usage_metadata_from_message
 
 
 class TestSimpleTokenUsageTracker(unittest.TestCase):
