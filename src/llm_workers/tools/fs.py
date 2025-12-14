@@ -135,29 +135,29 @@ class EditFileTool(BaseTool, ExtendedBaseTool):
     args_schema: Type[EditFileToolSchema] = EditFileToolSchema
 
     def needs_confirmation(self, input: dict[str, Any]) -> bool:
-        return _not_in_working_directory(input.get('filename', ''))
+        return _not_in_working_directory(input.get('path', ''))
 
     def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequestToolCallDescription:
-        filename = input['filename']
+        path = input['path']
         return ConfirmationRequestToolCallDescription(
-            action=f"edit file \"{filename}\" outside working directory" if _not_in_working_directory(filename)
-            else f"edit file \"{filename}\"",
+            action=f"edit file \"{path}\" outside working directory" if _not_in_working_directory(path)
+            else f"edit file \"{path}\"",
             params=[]
         )
 
     def get_ui_hint(self, input: dict[str, Any]) -> str:
-        return f"Editing file {input['filename']}"
+        return f"Editing file {input['path']}"
 
-    def _run(self, filename: str, old_string: str, new_string: str,
+    def _run(self, path: str, old_string: str, new_string: str,
              replace_all: bool = False, expected_count: Optional[int] = None) -> dict:
         try:
-            with open(filename, 'r') as file:
+            with open(path, 'r') as file:
                 content = file.read()
 
             count = content.count(old_string)
 
             if count == 0:
-                raise ToolException(f"old_string not found in file {filename}")
+                raise ToolException(f"old_string not found in file {path}")
 
             if not replace_all and count > 1:
                 raise ToolException(f"Multiple matches ({count}) found but replace_all=false. "
@@ -173,7 +173,7 @@ class EditFileTool(BaseTool, ExtendedBaseTool):
                 new_content = content.replace(old_string, new_string, 1)
                 replacements_made = 1
 
-            with open(filename, 'w') as file:
+            with open(path, 'w') as file:
                 file.write(new_content)
 
             return { "replacements": replacements_made}
@@ -181,7 +181,7 @@ class EditFileTool(BaseTool, ExtendedBaseTool):
         except ToolException:
             raise
         except Exception as e:
-            raise ToolException(f"Error editing file {filename}: {e}")
+            raise ToolException(f"Error editing file {path}: {e}")
 
 
 class GlobFilesToolSchema(BaseModel):

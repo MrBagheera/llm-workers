@@ -181,13 +181,13 @@ class TestEditFileTool(unittest.TestCase):
         tool = EditFileTool()
 
         # Relative path should not need confirmation
-        self.assertFalse(tool.needs_confirmation({"filename": "test.txt"}))
+        self.assertFalse(tool.needs_confirmation({"path": "test.txt"}))
 
         # Absolute path should need confirmation
-        self.assertTrue(tool.needs_confirmation({"filename": "/tmp/test.txt"}))
+        self.assertTrue(tool.needs_confirmation({"path": "/tmp/test.txt"}))
 
         # Path with .. should need confirmation
-        self.assertTrue(tool.needs_confirmation({"filename": "../test.txt"}))
+        self.assertTrue(tool.needs_confirmation({"path": "../test.txt"}))
 
 
 class TestGlobFilesTool(unittest.TestCase):
