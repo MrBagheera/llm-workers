@@ -1,16 +1,3 @@
-tools:
-  - name: read_file
-    import_from: llm_workers.tools.unsafe.ReadFileTool
-  - name: write_file
-    import_from: llm_workers.tools.unsafe.WriteFileTool
-  - name: list_files
-    import_from: llm_workers.tools.unsafe.ListFilesTool
-  - name: run_process
-    import_from: llm_workers.tools.unsafe.RunProcessTool
-  - name: bash
-    import_from: llm_workers.tools.unsafe.BashTool
-
-
 chat:
   user_banner: |-
     # Welcome to Your AI Coding Assistant
@@ -55,3 +42,8 @@ chat:
     so when asked to generate the code, just generate it; no need to explain the code in detail.
     
     If unsure about the requirements, ask for clarification.
+  tools:
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: ''
+    - import_tool: llm_workers.tools.unsafe.RunProcessTool
+    - import_tool: llm_workers.tools.unsafe.BashTool

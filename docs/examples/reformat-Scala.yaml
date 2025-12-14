@@ -2,13 +2,11 @@
 # match statements with conditional file operations, file I/O tools, LLM tool integration for code transformation
 cli:
   - call:
-      name: read_file
-      import_from: llm_workers.tools.unsafe.ReadFileTool
+      import_tool: llm_workers.tools.fs.ReadFileTool
     params:
       filename: "{input}"
   - call:
-      name: llm
-      import_from: llm_workers.tools.llm_tool.build_llm_tool
+      import_tool: llm_workers.tools.llm_tool.build_llm_tool
     params:
       prompt: |-
         You are senior Scala developer. Your job is to reformat give file according to the rules below. 
@@ -65,7 +63,7 @@ cli:
     default:
       - call:
           name: write_file
-          import_from: llm_workers.tools.unsafe.WriteFileTool
+          import_tool: llm_workers.tools.unsafe.WriteFileTool
         params:
           filename: "{input}"
           content: "{output1}"

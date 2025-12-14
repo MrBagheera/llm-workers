@@ -75,18 +75,26 @@ mcp:
     url: <url> # For streamable_http
     headers: # Optional, for streamable_http
       <key>: <value>
-    tools: [<pattern>] # Optional, default: ["*"]
-    ui_hints_for: [<pattern>] # Optional
-    ui_hints_args: [<pattern>] # Optional, filters which arguments to show in UI hints
-    require_confirmation_for: [<pattern>] # Optional
+    auto_import_scope: none|shared tools|cli|chat
 
-# Built-in tools configuration
+# Tools configuration
 tools:
+  # Single tool import
+  - import_tool: <import_path>
+    name: <tool_name> # Optional
+    # ... other tool parameters
+
+  # Mass import from toolkit or MCP server
+  - import_tools: <toolkit_or_mcp_server>
+    prefix: <prefix> # Mandatory
+    filter: [<pattern>, ...] # Optional
+    ui_hints_for: [<pattern>, ...] # Optional
+    ui_hints_args: [<arg>, ...] # Optional
+    require_confirmation_for: [<pattern>, ...] # Optional
+
+  # Custom tool definition
   - name: <tool_name>
-    import_from: <import_path> # Required for importing tools
     description: <description> # Optional
-    config: # Optional, tool-specific configuration
-      <key>: <value>
     input: # Required for custom tools
       - name: <param_name>
         description: <description>
@@ -95,7 +103,7 @@ tools:
     confidential: <boolean> # Optional
     return_direct: <boolean> # Optional
     ui_hint: <template_string> # Optional
-    body: # Required for custom tools (also can be specified in config section)
+    body: # Required for custom tools
       <statement(s)> # List of statements for more complex flows
 
 shared: # Optional shared configuration accessible to all tools
@@ -191,25 +199,47 @@ mcp:
     headers:  # Optional
       X-API-KEY: "${env.API_KEY}"
 
-    # Tool filtering (optional, default: ["*"])
-    tools:
-      - "pattern*"      # Include tools matching pattern
-      - "!exclude*"     # Exclude tools matching pattern
+    # Auto-import scope (optional, default: "none")
+    # Controls where tools from this server are automatically imported
+    auto_import_scope: none | shared tools | chat
+```
 
-    # UI hints (optional, default: [])
-    ui_hints_for:
-      - "pattern*"      # Show UI hints for matching tools
+### Auto-Import Scope
 
-    # Argument filtering for UI hints (optional, default: [])
-    ui_hints_args:
-      - "!*password*"   # Exclude arguments with "password" in name
-      - "!*secret*"     # Exclude arguments with "secret" in name
-      - "!*_key"        # Exclude arguments ending with "_key"
-      - "!*token*"      # Exclude arguments with "token" in name
+The `auto_import_scope` field controls where tools from an MCP server are automatically imported:
 
-    # Confirmation (optional, default: [])
-    require_confirmation_for:
-      - "pattern*"      # Require confirmation for matching tools
+- `none` (default): Tools are not automatically imported. You must explicitly import them using `import_tool` or `import_tools` statements.
+- `shared tools`: Tools are automatically imported to the `tools` section, making them accessible across all agents.
+- `chat`: Tools are automatically imported to the `chat.tools` section, making them available only in chat mode.
+
+**Example with auto-import:**
+```yaml
+mcp:
+  echo:
+    transport: "stdio"
+    command: "uvx"
+    args: ["echo-mcp-server-for-testing"]
+    auto_import_scope: chat  # All tools automatically available in chat
+
+chat:
+  system_message: "You are a helpful assistant."
+  # No need to explicitly import echo tools - they're already available
+```
+
+**Example without auto-import (manual import):**
+```yaml
+mcp:
+  github:
+    transport: "streamable_http"
+    url: "https://api.githubcopilot.com/mcp/"
+    auto_import_scope: none  # Must import manually
+
+chat:
+  system_message: "You are a helpful assistant."
+  tools:
+    - import_tools: mcp:github  # Explicitly import GitHub tools
+      prefix: gh_
+      filter: ["!*delete*"]
 ```
 
 ### Transport Types
@@ -221,6 +251,7 @@ mcp:
     transport: "stdio"
     command: "uvx"
     args: ["mcp-server-math"]
+    auto_import_scope: chat
 ```
 
 **HTTP Transport** - For remote MCP servers accessible via HTTP:
@@ -231,6 +262,7 @@ mcp:
     url: "http://localhost:8000/mcp"
     headers:
       X-API-KEY: "${env.WEATHER_API_KEY}"
+    auto_import_scope: none
 ```
 
 ### Environment Variable Substitution
@@ -258,71 +290,40 @@ mcp:
 - Supports embedded substitutions: `"prefix_${env.VAR}_suffix"` → `"prefix_value_suffix"`
 - Can use multiple variables in one string: `"${env.VAR1}_and_${env.VAR2}"`
 
-### Tool Filtering
+### Tool Naming and Import Control
 
-Use glob patterns to include or exclude specific tools:
+When importing tools from MCP servers (either via `auto_import_scope` or `import_tools`), you control the naming and behavior through the import statement:
 
+**With auto-import:**
+- Tools are imported with their original names from the MCP server
+- The server name is used as a prefix: `server_name_tool_name`
+- Example: `add` tool from `math` server → `math_add`
+
+**With manual import (import_tools):**
+- You have full control via the `prefix` parameter
+- You can filter, add UI hints, and require confirmation
+- See [Mass Import](#2-mass-import-import_tools) section for details
+
+**Example with filtering and UI hints:**
 ```yaml
 mcp:
   github:
     transport: "stdio"
     command: "npx"
     args: ["-y", "@modelcontextprotocol/server-github"]
-    tools:
-      - "gh*"           # Include all gh tools
-      - "!gh_write*"    # Exclude write operations
-      - "!gh_delete*"   # Exclude delete operations
+    auto_import_scope: none  # Manual import required
+
+chat:
+  tools:
+    - import_tools: mcp:github
+      prefix: gh_
+      filter:
+        - "!*write*"    # Exclude write operations
+        - "!*delete*"   # Exclude delete operations
+      ui_hints_for: ["*"]
+      ui_hints_args: ["owner", "repo"]
+      require_confirmation_for: ["*push*"]
 ```
-
-**Pattern matching** uses Unix shell-style wildcards:
-- `*` - matches everything
-- `?` - matches any single character
-- `[seq]` - matches any character in seq
-- `[!seq]` - matches any character not in seq
-- `!pattern` - negation (exclude matching tools)
-
-### UI Hints and Argument Filtering
-
-MCP tools can display UI hints when they are called, showing the tool name and its arguments. Use `ui_hints_for` to enable UI hints for specific tools, and `ui_hints_args` to control which arguments are displayed.
-
-**Enabling UI hints:**
-```yaml
-mcp:
-  echo:
-    transport: "stdio"
-    command: "uvx"
-    args: ["echo-mcp-server-for-testing"]
-    ui_hints_for: ["*"]  # Show UI hints for all tools from this server
-```
-
-**Filtering arguments in UI hints:**
-
-The `ui_hints_args` field controls which tool arguments are shown in UI hints. 
-Remember to exclude sensitive information like passwords, API keys, or tokens.
-
-```yaml
-mcp:
-  echo:
-    transport: "stdio"
-    command: "uvx"
-    args: ["echo-mcp-server-for-testing"]
-    ui_hints_for: ["*"]
-    ui_hints_args:
-      - "!*password*"   # Exclude arguments with "password" in name
-      - "!*secret*"     # Exclude arguments with "secret" in name
-      - "!*_key"        # Exclude arguments ending with "_key"
-      - "!*token*"      # Exclude arguments with "token" in name
-```
-
-**Default behavior:**
-
-If `ui_hints_args` is not specified, only tool name is printed.
-
-### Tool Naming
-
-Tools from MCP servers are prefixed with the server name:
-- Original tool: `add` → Registered as: `math_add` (from server named "math")
-- Original tool: `gh_read_file` → Registered as: `github_gh_read_file` (from server named "github")
 
 ### Complete MCP Example
 
@@ -336,48 +337,51 @@ env:
     persistent: true
 
 mcp:
-  # Local math server
+  # Local math server with auto-import
   math:
     transport: "stdio"
     command: "uvx"
     args: ["mcp-server-math"]
-    tools: ["*"]
-    ui_hints_for: ["*"]
+    auto_import_scope: chat  # Tools automatically available in chat
 
-  # GitHub server with filtering
+  # GitHub server with manual import for fine-grained control
   github:
     transport: "stdio"
     command: "npx"
     args: ["-y", "@modelcontextprotocol/server-github"]
     env:
       GITHUB_TOKEN: "${env.GITHUB_TOKEN}"
-    tools:
-      - "gh*"
-      - "!gh_write*"
-      - "!gh_delete*"
-    ui_hints_for: ["gh*"]
-    ui_hints_args:
-      - "!*token*"
-    require_confirmation_for: ["gh_delete*"]
+    auto_import_scope: none  # Must import manually
 
-  # Remote weather API
+  # Remote weather API with auto-import
   weather:
     transport: "streamable_http"
     url: "http://localhost:8000/mcp"
     headers:
       X-API-KEY: "${env.WEATHER_API_KEY}"
-    tools:
-      - "get_*"
-      - "!get_internal_*"
-    require_confirmation_for: ["*"]
+    auto_import_scope: chat
 
 # Regular tools work alongside MCP tools
 tools:
-  - name: read_file
-    import_from: llm_workers.tools.unsafe.ReadFileTool
+  - import_tool: llm_workers.tools.unsafe.ReadFileTool
 
 chat:
   system_message: "You are a helpful assistant with access to MCP tools."
+  tools:
+    # GitHub tools imported manually with fine-grained control
+    - import_tools: mcp:github
+      prefix: gh_
+      filter:
+        - "!*write*"
+        - "!*delete*"
+      ui_hints_for: ["*"]
+      ui_hints_args: ["owner", "repo"]
+      require_confirmation_for: ["*push*"]
+
+    # Regular tool reference
+    - read_file
+
+    # math and weather tools are auto-imported, no need to list them
 ```
 
 ### Error Handling
@@ -388,18 +392,69 @@ chat:
 
 ## Tools Section
 
-Defines the tools available to the LLMs. Tools can be imported from Python libraries or combined from other tools
-in LLM script.
+The `tools` section defines shared tools that can be used across agents and other tools. Tools can be:
+- Imported from Python classes or functions (`import_tool`)
+- Mass imported from toolkits or MCP servers (`import_tools`)
+- Custom tools defined using statement composition (custom tool definition)
 
-Example:
+**Structure:**
 ```yaml
 tools:
-  - name: _fetch_page_text
-    import_from: llm_workers.tools.fetch.FetchPageTextTool
+  # Import single tool from Python class/function
+  - import_tool: <import_path>
+    name: <tool_name>  # Optional, can override the default name
+    description: <description>  # Optional
+    # ... other tool parameters
 
-  - name: _LLM
-    import_from: llm_workers.tools.llm_tool.build_llm_tool
+  # Import single tool from toolkit
+  - import_tool: <toolkit_class>/<tool_name>
+    # ... tool parameters
 
+  # Import single tool from MCP server
+  - import_tool: mcp:<server_name>/<tool_name>
+    # ... tool parameters
+
+  # Mass import from toolkit or MCP server
+  - import_tools: <toolkit_class_or_mcp_server>
+    prefix: <prefix>  # Mandatory, can be empty ""
+    filter: [<pattern>, ...]  # Optional, default: ["*"]
+    ui_hints_for: [<pattern>, ...]  # Optional, default: ["*"]
+    ui_hints_args: [<arg>, ...]  # Optional, default: []
+    require_confirmation_for: [<pattern>, ...]  # Optional, default: []
+
+  # Custom tool definition
+  - name: <tool_name>
+    description: <description>
+    input:
+      - name: <param_name>
+        description: <param_description>
+        type: <type>
+    body:
+      # ... statements
+```
+
+**Example:**
+```yaml
+tools:
+  # Single tool import from Python class
+  - import_tool: llm_workers.tools.fetch.FetchPageTextTool
+    name: _fetch_page_text
+
+  # Single tool import from Python function
+  - import_tool: llm_workers.tools.llm_tool.build_llm_tool
+    name: _LLM
+
+  # Mass import from toolkit with filtering
+  - import_tools: llm_workers.tools.fs.FilesystemToolkit
+    prefix: fs_
+    filter:
+      - "read_*"  # Include read operations
+      - "!write_*"  # Exclude write operations
+    ui_hints_for: ["*"]
+    ui_hints_args: ["path"]
+    require_confirmation_for: []
+
+  # Custom tool definition
   - name: metacritic_monkey
     description: >
       Finds the Metacritic score for a given movie title and year. Returns either a single number or "N/A" if the movie is not found.
@@ -429,8 +484,8 @@ tools:
             {output0}
 ```
 
-In addition to defining tools in the `tools` section, you can define tools inline within `call` statements and within 
-the `tools` configuration of LLMs. This provides flexibility for single-use tools or when you need to customize 
+In addition to defining tools in the `tools` section, you can define tools inline within `call` statements and within
+the `tools` configuration of LLMs. This provides flexibility for single-use tools or when you need to customize
 tool behavior for specific calls. See relevant sections below.
 
 ### Common Tool Parameters
@@ -494,27 +549,67 @@ Configuration for interactive chat mode:
 - `system_message`: Instructions for the LLM's behavior
 - `default_prompt`: Initial prompt when starting the chat, defaults to empty string
 - `user_banner`: Optional markdown-formatted text displayed at the beginning of chat session, defaults to not shown
-- `tools`: (Optional) List of tool names or inline tool definitions to make available for this LLM.
-  Defaults to all public tools (e.g. not starting with `_`). Supports:
-  - Tool names (strings): References to tools defined in the global tools section
-  - Inline tool definitions: Complete tool definitions with `name`, `import_from`/`input`, and other tool parameters
-  - Mixed usage: Combination of tool names and inline definitions
+- `tools`: (Optional) List of tools to make available for this LLM. Defaults to all public tools (e.g. not starting with `_`).
 
+**Tools can be specified in multiple ways:**
+
+1. **By name** - Reference tools defined in the `tools` section:
+   ```yaml
+   tools:
+     - read_file
+     - write_file
+   ```
+
+2. **By pattern** - Use patterns to match multiple tools:
+   ```yaml
+   tools:
+     - match: ["fs_*", "!fs_write*"]  # Include fs_* but exclude fs_write*
+   ```
+
+3. **Inline import_tool** - Import a single tool with full control:
+   ```yaml
+   tools:
+     - import_tool: llm_workers.tools.unsafe.ReadFileTool
+       name: read_file
+       require_confirmation: false
+   ```
+
+4. **Inline import_tools** - Mass import from toolkit or MCP server:
+   ```yaml
+   tools:
+     - import_tools: llm_workers.tools.fs.FilesystemToolkit
+       prefix: fs_
+       filter: ["read_*", "!write_*"]
+   ```
+
+5. **Inline custom tool** - Define a custom tool directly:
+   ```yaml
+   tools:
+     - name: custom_processor
+       description: "Process data"
+       input:
+         - name: data
+           type: str
+       body:
+         - result: "Processed: {data}"
+   ```
+
+**Example:**
 ```yaml
 chat:
   model_ref: thinking
   user_banner: |
     # Game Analytics Assistant
-    
+
     Welcome to the mobile game analytics environment! I can help you investigate live game issues by:
     - Writing Python scripts to fetch and analyze data
     - Connecting data from various sources
     - Generating reports in JSON format
-    
+
     Type your requests naturally and I'll get to work!
   system_message: |-
     You are AI assistant in a mobile game company.
-    Your team is investigating issues in a live game. Your task is to help your team by writing 
+    Your team is investigating issues in a live game. Your task is to help your team by writing
     and running Python scripts to fetch and connect data from various sources.
 
     If needed, preview text file content by reading first few lines from it.
@@ -526,11 +621,21 @@ chat:
   default_prompt: |-
     Please run Python script to detect Python version.
   tools:
-    # reference to tool defined in the tools section
+    # Reference by name
     - read_file
-    # inline tool definition
-    - name: _run_python_script
-      import_from: llm_workers.tools.unsafe.RunPythonScriptTool
+
+    # Pattern matching
+    - match: ["fs_read*", "fs_list*"]
+
+    # Inline tool import
+    - import_tool: llm_workers.tools.unsafe.RunPythonScriptTool
+      name: run_python
+      require_confirmation: true
+
+    # Mass import from toolkit
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: safe_
+      filter: ["read_*", "list_*"]
 ```
 
 
@@ -611,44 +716,142 @@ cli:
 
 # Using Tools
 
+## Referencing Tools
+
+Tools can be referenced in different ways depending on the context:
+
+**In `call` statements** (single tool reference):
+- By name: `call: read_file`
+- Inline import: `call: {import_tool: llm_workers.tools.unsafe.ReadFileTool, name: read_file}`
+- Inline custom definition: `call: {name: my_tool, input: [...], body: [...]}`
+
+**In `chat.tools` and `build_llm_tool` config** (multiple tools):
+- By name: `- read_file`
+- By pattern: `- match: ["fs_*", "!fs_write*"]`
+- Inline import_tool: `- import_tool: llm_workers.tools.unsafe.ReadFileTool`
+- Inline import_tools: `- import_tools: llm_workers.tools.fs.FilesystemToolkit`
+- Inline custom definition: `- name: my_tool ...`
+
+For most simple projects, tools should be defined in the global `tools` section and referenced by name in `chat.tools`.
+
 ## Importing Tools
 
-To import tools from Python modules, use the `import_from` parameter with a fully-qualified Python path.
+LLM Workers provides three ways to import tools:
 
-The imported symbol can be:
-- A `BaseTool` instance (used directly)
-- A class extending `langchain_core.tools.base.BaseTool` (instantiated with config parameters)
-- A factory function/method returning a `BaseTool` instance
+### 1. Import Single Tool (`import_tool`)
+
+The `import_tool` statement imports a single tool with full control over its properties.
+
+**Import from Python class or function:**
+```yaml
+tools:
+  - import_tool: llm_workers.tools.unsafe.ReadFileTool
+    name: read_file  # Optional, can override default name
+    description: "Custom description"  # Optional
+    require_confirmation: true  # Optional
+```
+
+**Import single tool from toolkit:**
+
+You can import one specific tool from a toolkit using `<toolkit_class>/<tool_name>` syntax:
+
+```yaml
+tools:
+  - import_tool: llm_workers.tools.fs.FilesystemToolkit/read_file
+    name: my_read_file
+    ui_hint: "Reading file: {path}"
+```
+
+**Import single tool from MCP server:**
+
+You can import one specific tool from an MCP server using `mcp:<server_name>/<tool_name>` syntax:
+
+```yaml
+tools:
+  - import_tool: mcp:github/search_repositories
+    name: gh_search
+    require_confirmation: false
+```
+
+**Supported import sources:**
+- Python class extending `langchain_core.tools.base.BaseTool` (instantiated with config parameters)
+- Python factory function/method returning a `BaseTool` instance
+- Single tool from a toolkit
+- Single tool from an MCP server
 
 Factory functions must conform to this signature:
 ```python
 def build_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> BaseTool:
 ```
 
-Examples:
+### 2. Mass Import (`import_tools`)
 
-**Importing a tool class:**
+The `import_tools` statement imports multiple tools at once with basic control over their properties.
+
+**Import from toolkit:**
 ```yaml
 tools:
-  - name: read_file
-    import_from: llm_workers.tools.unsafe.ReadFileTool
+  - import_tools: llm_workers.tools.fs.FilesystemToolkit
+    prefix: fs_  # Mandatory prefix (can be empty "")
+    filter:  # Optional, default: ["*"]
+      - "read_*"  # Include read operations
+      - "list_*"  # Include list operations
+      - "!write_*"  # Exclude write operations
+    ui_hints_for: ["*"]  # Optional, patterns for UI hints
+    ui_hints_args: ["path"]  # Optional, args to show in UI hints
+    require_confirmation_for: ["write_*"]  # Optional, patterns requiring confirmation
 ```
 
-**Importing a factory function:**
+**Import from MCP server:**
 ```yaml
 tools:
-  - name: _llm
-    import_from: llm_workers.tools.llm_tool.build_llm_tool
+  - import_tools: mcp:github
+    prefix: gh_
+    filter:
+      - "!*delete*"  # Exclude delete operations
+      - "!*force*"   # Exclude force operations
+    ui_hints_for: ["*"]
+    ui_hints_args: ["owner", "repo"]
+    require_confirmation_for: ["*write*", "*push*"]
 ```
 
-**Importing with configuration:**
+**Pattern Matching:**
+
+The `filter`, `ui_hints_for`, and `require_confirmation_for` fields support Unix shell-style wildcards:
+- `*` - matches everything
+- `?` - matches any single character
+- `[seq]` - matches any character in seq
+- `[!seq]` - matches any character not in seq
+- `!pattern` - negation (exclude matching tools)
+
+Patterns are evaluated in order:
+- Tools are included if they match any inclusion pattern
+- Tools are excluded if they match any exclusion pattern (prefixed with `!`)
+
+**Parameters:**
+- `prefix`: (Mandatory) Prefix for all imported tool names. Can be empty `""` for no prefix
+- `filter`: (Optional, default: `["*"]`) Patterns to include/exclude tools
+- `ui_hints_for`: (Optional, default: `["*"]`) Patterns for which tools should show UI hints
+- `ui_hints_args`: (Optional, default: `[]`) Tool arguments to include in UI hints (empty means show tool name only)
+- `require_confirmation_for`: (Optional, default: `[]`) Patterns for tools requiring user confirmation
+
+### 3. Custom Tool Definitions
+
+Tools without `import_tool` or `import_tools` are custom tool definitions. See [Defining Custom Tools](#defining-custom-tools) section for details.
+
+**Example:**
 ```yaml
 tools:
-  - name: custom_tool
-    import_from: my_module.tools.CustomTool
-    config:
-      api_key: "your-key"
-      timeout: 30
+  - name: metacritic_monkey
+    description: "Finds Metacritic score for a movie"
+    input:
+      - name: movie_title
+        description: Movie title
+        type: str
+    body:
+      - call: fetch_page_text
+        params:
+          url: "https://www.metacritic.com/search/{movie_title}"
 ```
 
 ## Built-in Tools
@@ -662,8 +865,8 @@ any imported library, or [define your own](https://python.langchain.com/docs/con
 #### fetch_content
 
 ```yaml
-- name: fetch_content
-  import_from: llm_workers.tools.fetch.FetchContentTool
+- import_tool: llm_workers.tools.fetch.FetchContentTool
+  name: fetch_content
 ```
 
 Fetches raw content from a given URL and returns it as a string.
@@ -677,8 +880,8 @@ Fetches raw content from a given URL and returns it as a string.
 #### fetch_page_markdown
 
 ```yaml
-- name: fetch_page_markdown
-  import_from: llm_workers.tools.fetch.FetchPageMarkdownTool
+- import_tool: llm_workers.tools.fetch.FetchPageMarkdownTool
+  name: fetch_page_markdown
 ```
 
 Fetches web page or page element and converts it to markdown.
@@ -693,8 +896,8 @@ Fetches web page or page element and converts it to markdown.
 #### fetch_page_text
 
 ```yaml
-- name: fetch_page_text
-  import_from: llm_workers.tools.fetch.FetchPageTextTool
+- import_tool: llm_workers.tools.fetch.FetchPageTextTool
+  name: fetch_page_text
 ```
 
 Fetches the text from web page or web page element.
@@ -709,8 +912,8 @@ Fetches the text from web page or web page element.
 #### fetch_page_links
 
 ```yaml
-- name: fetch_page_links
-  import_from: llm_workers.tools.fetch.FetchPageLinksTool
+- import_tool: llm_workers.tools.fetch.FetchPageLinksTool
+  name: fetch_page_links
 ```
 
 Fetches the links from web page or web page element.
@@ -732,8 +935,8 @@ Based on the `llm_tool.py` file, here is documentation for the LLM tool function
 #### build_llm_tool
 
 ```yaml
-- name: llm
-  import_from: llm_workers.tools.llm_tool.build_llm_tool
+- import_tool: llm_workers.tools.llm_tool.build_llm_tool
+  name: llm
 ```
 
 Creates a tool that allows calling an LLM with a prompt and returning its response.
@@ -815,8 +1018,8 @@ These tools provide access to the file system and allow code execution, which ma
 #### read_file
 
 ```yaml
-- name: read_file
-  import_from: llm_workers.tools.unsafe.ReadFileTool
+- import_tool: llm_workers.tools.unsafe.ReadFileTool
+  name: read_file
 ```
 
 Reads a file and returns its content.
@@ -828,8 +1031,8 @@ Reads a file and returns its content.
 #### write_file
 
 ```yaml
-- name: write_file
-  import_from: llm_workers.tools.unsafe.WriteFileTool
+- import_tool: llm_workers.tools.unsafe.WriteFileTool
+  name: write_file
 ```
 
 Writes content to a file.
@@ -842,8 +1045,8 @@ Writes content to a file.
 #### run_python_script
 
 ```yaml
-- name: run_python_script
-  import_from: llm_workers.tools.unsafe.RunPythonScriptTool
+- import_tool: llm_workers.tools.unsafe.RunPythonScriptTool
+  name: run_python_script
 ```
 
 Runs a Python script and returns its output.
@@ -866,8 +1069,8 @@ Runs a Python script and returns its output.
 #### show_file
 
 ```yaml
-- name: show_file
-  import_from: llm_workers.tools.unsafe.ShowFileTool
+- import_tool: llm_workers.tools.unsafe.ShowFileTool
+  name: show_file
 ```
 
 Opens a file in the OS default application.
@@ -878,8 +1081,8 @@ Opens a file in the OS default application.
 #### bash
 
 ```yaml
-- name: bash
-  import_from: llm_workers.tools.unsafe.BashTool
+- import_tool: llm_workers.tools.unsafe.BashTool
+  name: bash
 ```
 
 Executes a bash script and returns its output.
@@ -898,8 +1101,8 @@ Executes a bash script and returns its output.
 #### list_files
 
 ```yaml
-- name: list_files
-  import_from: llm_workers.tools.unsafe.ListFilesTool
+- import_tool: llm_workers.tools.unsafe.ListFilesTool
+  name: list_files
 ```
 
 Lists files and directories with optional detailed information.
@@ -914,8 +1117,8 @@ Lists files and directories with optional detailed information.
 #### run_process
 
 ```yaml
-- name: run_process
-  import_from: llm_workers.tools.unsafe.RunProcessTool
+- import_tool: llm_workers.tools.unsafe.RunProcessTool
+  name: run_process
 ```
 
 Runs a system process and returns its output.
@@ -936,8 +1139,8 @@ Runs a system process and returns its output.
 #### user_input
 
 ```yaml
-- name: user_input
-  import_from: llm_workers.tools.misc.UserInputTool
+- import_tool: llm_workers.tools.misc.UserInputTool
+  name: user_input
 ```
 
 Prompts the user for input and returns their response.
@@ -988,8 +1191,8 @@ This approach allows you to quickly prototype and test tool interactions before 
 The approval tools provide a way to require explicit user confirmation for potentially dangerous operations through a token-based system:
 
 ```yaml
-- name: request_approval
-  import_from: llm_workers.tools.misc.RequestApprovalTool
+- import_tool: llm_workers.tools.misc.RequestApprovalTool
+  name: request_approval
 ```
 
 Shows a prompt to the user for approval and returns an approval token that can be used to authorize subsequent operations.
@@ -1009,8 +1212,8 @@ Shows a prompt to the user for approval and returns an approval token that can b
 #### validate_approval
 
 ```yaml
-- name: validate_approval
-  import_from: llm_workers.tools.misc.ValidateApprovalTool
+- import_tool: llm_workers.tools.misc.ValidateApprovalTool
+  name: validate_approval
 ```
 
 Validates that an approval token exists and has not been consumed.
@@ -1029,8 +1232,8 @@ Validates that an approval token exists and has not been consumed.
 #### consume_approval
 
 ```yaml
-- name: consume_approval
-  import_from: llm_workers.tools.misc.ConsumeApprovalTool
+- import_tool: llm_workers.tools.misc.ConsumeApprovalTool
+  name: consume_approval
 ```
 
 Validates and marks an approval token as consumed, making it unusable for future operations.
@@ -1053,21 +1256,21 @@ The approval tools are designed to work together in custom tool workflows to for
 
 ```yaml
 tools:
-  - name: _run_python_script_no_confirmation
-    import_from: llm_workers.tools.unsafe.RunPythonScriptTool
+  - import_tool: llm_workers.tools.unsafe.RunPythonScriptTool
+    name: _run_python_script_no_confirmation
     require_confirmation: false
 
-  - name: show_plan_to_user
-    import_from: llm_workers.tools.misc.RequestApprovalTool
+  - import_tool: llm_workers.tools.misc.RequestApprovalTool
+    name: show_plan_to_user
     description: |-
       Show plan to user and asks for explicit confirmation; upon confirmation return `approval_token` to be used in
       the following call to `run_script`.
 
-  - name: _validate_approval
-    import_from: llm_workers.tools.misc.ValidateApprovalTool
+  - import_tool: llm_workers.tools.misc.ValidateApprovalTool
+    name: _validate_approval
 
-  - name: _consume_approval
-    import_from: llm_workers.tools.misc.ConsumeApprovalTool
+  - import_tool: llm_workers.tools.misc.ConsumeApprovalTool
+    name: _consume_approval
 
   - name: run_python_script
     description: Consume approval_token and run given Python script
@@ -1141,11 +1344,11 @@ Executes a specific tool with optional parameters. Tools can be referenced by na
   catch: [error_type1, error_type2]  # Optional error handling
 ```
 
-**Inline tool definition (recommended for single-use tools):**
+**Inline import_tool (recommended for single-use tool imports):**
 ```yaml
 - call:
-    name: tool_name
-    import_from: module.path.ToolClass
+    import_tool: module.path.ToolClass
+    name: tool_name  # Optional
     description: "Tool description"  # Optional
     config:  # Optional tool-specific configuration
       key: value

@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Type, Any, Optional, List, Literal
 
 from langchain_core.tools import BaseTool
-from langchain_core.tools.base import ToolException
+from langchain_core.tools.base import ToolException, BaseToolkit
 from pydantic import BaseModel, Field
 
 from llm_workers.api import ConfirmationRequestToolCallDescription
@@ -372,7 +372,8 @@ class FileInfoTool(BaseTool, ExtendedBaseTool):
     args_schema: Type[FileInfoToolSchema] = FileInfoToolSchema
 
     def needs_confirmation(self, input: dict[str, Any]) -> bool:
-        return _not_in_working_directory(input['path'])
+        # FileInfo is read-only, no confirmation needed
+        return False
 
     def get_ui_hint(self, input: dict[str, Any]) -> str:
         if _not_in_working_directory(input['path']):
@@ -501,3 +502,18 @@ class ListFilesTool(BaseTool, ExtendedBaseTool):
             raise
         except Exception as e:
             raise ToolException(f"Error listing files at {path}: {e}")
+
+
+class FilesystemToolkit(BaseToolkit):
+    """Toolkit containing filesystem operation tools."""
+
+    def get_tools(self) -> list[BaseTool]:
+        return [
+            ReadFileTool(),
+            WriteFileTool(),
+            EditFileTool(),
+            GlobFilesTool(),
+            GrepFilesTool(),
+            FileInfoTool(),
+            ListFilesTool(),
+        ]

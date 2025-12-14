@@ -1,6 +1,5 @@
 import unittest
 import json
-from unittest.mock import patch
 
 from llm_workers.tools.misc import (
     RequestApprovalTool,

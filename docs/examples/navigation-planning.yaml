@@ -1,16 +1,19 @@
 # Demonstrates: Web fetching tools with markdown conversion,
 # nested custom tools, tool composition with return_direct flag, CLI mode with tool restrictions, chat mode configuration
 tools:
+  # Defining shared tools here because we use them both in chat and cli sections.
+  # Since tools are visible to LLM, we care for clarity of naming and description.
+
   - name: fetch_page_markdown
-    import_from: llm_workers.tools.fetch.FetchPageMarkdownTool
+    import_tool: llm_workers.tools.fetch.FetchPageMarkdownTool
 
   - name: _llm
-    import_from: llm_workers.tools.llm_tool.build_llm_tool
+    import_tool: llm_workers.tools.llm_tool.build_llm_tool
 
   - name: generate_navigation_summary
     description: >
       Generates a summary of navigation information from given text.
-      Summary is returned as text , not saved anywhere.
+      Summary is returned as text, not saved anywhere.
     input:
       - name: text
         description: text to summarize
@@ -65,17 +68,17 @@ tools:
 cli:
   call: _llm
   tools:
-    - fetch_page_markdown
-    - generate_navigation_summary
-    - generate_navigation_summary_from_url
+    - match: [ "*", "!_*"] # all tools that doesn't start with _
   params:
     prompt: >
       Please fetch the page from {input} and print navigation summary for this region, as well as for all bays and marinas in it.
 
 chat:
-#  model_ref: claude_bedrock
   system_message: >
     You are an assistant to a sailing boat navigator. Your job is to use provided tools
     to help user to prepare for navigation.
   default_prompt: >
-    Please print navigation summary for https://www.coastguidetr.com/tr/korfez/1011/marmaris-kurdoglu-burnu-arasi, as well as for all bays and marinas in this region
+    Please print navigation summary for https://www.coastguidetr.com/tr/korfez/1011/marmaris-kurdoglu-burnu-arasi, 
+    as well as for all bays and marinas in this region
+  tools:
+    - match: [ "*", "!_*"] # all tools that doesn't start with _

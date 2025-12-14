@@ -1,18 +1,17 @@
 import logging
 import re
 from copy import deepcopy, copy
-from typing import Type, Any, Optional, Dict, TypeAlias, List, Iterator, AsyncIterator, Union, Iterable
+from typing import Type, Any, Optional, Dict, TypeAlias, List, Iterator, Union, Iterable
 
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableConfig
-from langchain_core.runnables.base import Runnable
 from langchain_core.tools import StructuredTool
 from langchain_core.tools.base import ToolException
-from pydantic import BaseModel, Field, create_model, TypeAdapter, PrivateAttr
+from pydantic import BaseModel, Field, create_model, PrivateAttr
 
 from llm_workers.api import WorkersContext, WorkerNotification, ExtendedRunnable, ExtendedExecutionTool
 from llm_workers.config import Json, CustomToolParamsDefinition, \
-    CallDefinition, ResultDefinition, StatementDefinition, MatchDefinition, ToolDefinition, CustomToolDefinition
+    CallDefinition, ResultDefinition, StatementDefinition, MatchDefinition, CustomToolDefinition
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.utils import LazyFormatter, parse_standard_type, call_tool
 
@@ -338,20 +337,15 @@ def create_dynamic_schema(name: str, params: List[CustomToolParamsDefinition]) -
     return create_model(model_name, **fields)
 
 
-_custom_tool_definition_adapter = TypeAdapter(CustomToolDefinition)
-
-def build_custom_tool(tool_def: ToolDefinition, context: WorkersContext) -> StructuredTool:
-    extra_def_json = copy(tool_def.config if tool_def.config else tool_def.model_extra)
-    extra_tool_def = _custom_tool_definition_adapter.validate_python(extra_def_json)
-    valid_template_vars = [param.name for param in extra_tool_def.input] + ["shared"]
-    args_schema = create_dynamic_schema(tool_def.name, extra_tool_def.input)
-    body = create_statement_from_model(valid_template_vars, extra_tool_def.body, context)
+def build_custom_tool(tool_def: CustomToolDefinition, context: WorkersContext) -> StructuredTool:
+    valid_template_vars = [param.name for param in tool_def.input] + ["shared"]
+    body = create_statement_from_model(valid_template_vars, tool_def.body, context)
 
     return CustomTool(
         context=context,
         body=body,
         name=tool_def.name,
         description=tool_def.description,
-        args_schema=create_dynamic_schema(tool_def.name, extra_tool_def.input),
+        args_schema=create_dynamic_schema(tool_def.name, tool_def.input),
         return_direct=tool_def.return_direct or False
     )

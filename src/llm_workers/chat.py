@@ -36,7 +36,7 @@ class _ChatSessionContext:
         self.context = context
         if not self.context.config.chat:
             raise ValueError(f"'chat' section is missing from '{self.script_name}'")
-        self.worker = Worker(self.context.config.chat, self.context, top_level=True)
+        self.worker = Worker(self.context.config.chat, self.context, scope='chat')
         self.file_monitor = FileChangeDetector(
             path='.',
             included_patterns=self.user_context.user_config.display_settings.file_monitor_include,
@@ -196,7 +196,7 @@ class ChatSession:
                     self._console_controller.clear()
                     logger.error(f"Error: {e}", exc_info=True)
                     self._console.print(f"Unexpected error in worker: {e}", style="bold red")
-                    self._console.print(f"If subsequent conversation fails, try rewinding to previous message", style="bold red")
+                    self._console.print("If subsequent conversation fails, try rewinding to previous message", style="bold red")
                 self._handle_changed_files()
                 self._iteration = self._iteration + 1
         except KeyboardInterrupt:

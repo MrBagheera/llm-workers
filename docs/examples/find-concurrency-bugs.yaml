@@ -2,13 +2,11 @@
 # file reading tool, thinking model via model_ref, structured JSON output (LLM-instructed)
 cli:
   - call:
-      name: read_file
-      import_from: llm_workers.tools.unsafe.ReadFileTool
+      import_tool: llm_workers.tools.fs.ReadFileTool
     params:
       filename: "{input}"
   - call:
-      name: llm
-      import_from: llm_workers.tools.llm_tool.build_llm_tool
+      import_tool: llm_workers.tools.llm_tool.build_llm_tool
       model_ref: thinking
     params:
       prompt: |-

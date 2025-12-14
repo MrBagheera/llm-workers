@@ -1,0 +1,40 @@
+# Example configuration demonstrating toolkit import functionality
+
+tools:
+
+# Chat configuration
+chat:
+  system_message: |-
+    You are a helpful AI assistant with access to filesystem tools imported via toolkit.
+
+    Available tool groups:
+    - fs_* prefix: Full filesystem toolkit with write operations requiring confirmation
+    - safe_* prefix: Read-only filesystem operations (read, list, glob)
+    - file_info: Single tool without prefix for getting file information
+
+  default_prompt: "List all available tools and explain what each group does."
+  tools:
+    # Example 1: Import all filesystem tools with prefix
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: fs_
+      ui_hints_args: ["path"]  # Show only 'path' argument in UI hints
+      require_confirmation_for: ["write_*", "edit_*"]  # Require confirmation for write operations
+
+    # Example 2: Import only specific tools with pattern matching
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: safe_
+      filter:
+        - "read_*"  # Include read operations
+        - "list_*"  # Include list operations
+        - "glob_*"  # Include glob operations
+        - "!*edit*"  # Exclude edit operations (already excluded by inclusion patterns, but shown for demonstration)
+      ui_hints_args: ["*"]
+      require_confirmation_for: []  # No confirmation needed for read-only operations
+
+    # Example 3: Import with empty prefix (no prefix)
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: ""  # Tools will have their original names
+      filter: ["file_info"]  # Only import file_info tool
+      ui_hints_for: []  # No UI hints
+      ui_hints_args: []
+      require_confirmation_for: []

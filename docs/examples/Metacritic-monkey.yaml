@@ -1,6 +1,9 @@
 # Demonstrates: Custom tools with statement composition, web fetching tools, inline tool definitions,
 # match statements with stubbed data, LLM tool integration, template variables, UI hints
 tools:
+
+  # Stub for debugging without hammering actual Metacritics site
+  # Defined here to keep chat.tools section clean.
   - name: _search_movie_on_metacritic_stub
     description: >
       (debug) Searches for the Metacritic score for a given movie title. Returns text from Metacritic web site,
@@ -95,45 +98,46 @@ tools:
       default:
         - call:
             name: _user_input
-            import_from: llm_workers.tools.misc.UserInputTool
+            import_tool: llm_workers.tools.misc.UserInputTool
           params:
             prompt: "Movie '{movie_title}' not found in stub data. Please provide mock Metacritic search results (movie titles, years, and scores):"
 
-  - name: metacritic_monkey
-    description: >
-      Finds the Metacritic score for a given movie title and year. Returns either a single number or "N/A" if the movie is not found.
-    input:
-      - name: movie_title
-        description: Movie title
-        type: str
-      - name: movie_year
-        description: Movie release year
-        type: int
-    ui_hint: Looking up Metacritic score for movie "{movie_title}" ({movie_year})
-    body:
-      - call:
-          name: _fetch_page_text
-          import_from: llm_workers.tools.fetch.FetchPageTextTool
-        params:
-          url: "https://www.metacritic.com/search/{movie_title}/?page=1&category=2"
-          xpath: "//*[@class=\"c-pageSiteSearch-results\"]"
-#      - call: _search_movie_on_metacritic_stub
-#        params:
-#          movie_title: "{movie_title}"
-      - call:
-          name: _extract_score_from_search_results
-          import_from: llm_workers.tools.llm_tool.build_llm_tool
-          ui_hint: Extracting Metacritic score from search results
-        params:
-          prompt: >
-            Find Metacritic score for movie "{movie_title}" released in {movie_year}.
-            To do so:
-              - From the list of possible matches, chose the one matching movie title and year and return metacritic score as single number
-              - If no matching movie is found, respond with just "N/A" (without quotes)
-              - DO NOT provide any additional information in the response
-            
-            Possible matches:
-            {output0}
-
 chat:
   default_prompt: Please find metacritic score for the movie "Soul" (2020).
+  tools:
+    - name: metacritic_monkey
+      description: >
+        Finds the Metacritic score for a given movie title and year. Returns either a single number or "N/A" if the movie is not found.
+      input:
+        - name: movie_title
+          description: Movie title
+          type: str
+        - name: movie_year
+          description: Movie release year
+          type: int
+      ui_hint: Looking up Metacritic score for movie "{movie_title}" ({movie_year})
+      body:
+        - call:
+            import_tool: llm_workers.tools.fetch.FetchPageTextTool
+          params:
+            url: "https://www.metacritic.com/search/{movie_title}/?page=1&category=2"
+            xpath: "//*[@class=\"c-pageSiteSearch-results\"]"
+        # replace block above with commented out block below for debugging with stub data
+#        - call: _search_movie_on_metacritic_stub
+#          params:
+#            movie_title: "{movie_title}"
+        - call:
+            import_tool: llm_workers.tools.llm_tool.build_llm_tool
+            ui_hint: Extracting Metacritic score from search results
+          params:
+            prompt: >
+              Find Metacritic score for movie "{movie_title}" released in {movie_year}.
+              To do so:
+                - From the list of possible matches, chose the one matching movie title and year and return metacritic score as single number
+                - If no matching movie is found, respond with just "N/A" (without quotes)
+                - DO NOT provide any additional information in the response
+              
+              Possible matches:
+              {output0}
+
+    

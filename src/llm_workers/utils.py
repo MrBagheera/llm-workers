@@ -10,21 +10,19 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Callable, Any, List, Optional, Dict, Iterator
+from typing import Any
+from typing import Callable, List, Optional, Dict, Iterator
 
 import yaml
 from dotenv import load_dotenv, find_dotenv
 from langchain_core.messages import ToolCall
-from pydantic import BaseModel
-
-from llm_workers.api import WorkersContext, WorkerNotification, ExtendedBaseTool, ExtendedRunnable, \
-    ExtendedExecutionTool
 from langchain_core.runnables import RunnableConfig
-from langchain_core.runnables.base import Runnable
 from langchain_core.tools import BaseTool
 from langchain_core.tools.base import ToolException
+from pydantic import BaseModel
 
-from llm_workers.config import ToolDefinition
+from llm_workers.api import WorkerNotification, ExtendedBaseTool, ExtendedExecutionTool
+from llm_workers.config import ToolDefinition, EnvVarDefinition
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 
 logger =  logging.getLogger(__name__)
@@ -329,7 +327,7 @@ def ensure_environment_variable(var_name: str, description: str = None, is_persi
             from prompt_toolkit import prompt
             value = prompt('Value (input hidden): ', is_password=True)
         else:
-            value = input(f"Value: ").strip()
+            value = input("Value: ").strip()
     except KeyboardInterrupt:
         print("\nExiting...")
         exit(1)
@@ -361,7 +359,7 @@ def ensure_environment_variable(var_name: str, description: str = None, is_persi
     return value
 
 
-def ensure_env_vars_defined(env_definitions: Dict[str, 'EnvVarDefinition']) -> None:
+def ensure_env_vars_defined(env_definitions: Dict[str, EnvVarDefinition]) -> None:
     """
     Process environment variable definitions, prompting user for missing values.
 
@@ -609,7 +607,7 @@ def open_file_in_default_app(filepath: str) -> bool:
         else:
             subprocess.run(['xdg-open', str(path)])
         return True
-    except Exception as e:
+    except Exception:
         logger.warning(f"Failed to open file {filepath} in default app", exc_info=True)
         return False
 
@@ -744,7 +742,7 @@ def get_start_tool_message(tool_name: str, tool_meta: Optional[Dict[str, Any]], 
                 return hint
             else:
                 return None  # empty hint means no message should be shown
-    except Exception as e:
+    except Exception:
         logger.warning(f"Unexpected exception formating start message for tool {tool_name}", exc_info=True)
     # default
     return f"Running tool {tool_name}"

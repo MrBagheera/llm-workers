@@ -8,7 +8,8 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel
 
-from llm_workers.config import WorkersConfig, ToolReference, ModelDefinition, UserConfig, Json
+from llm_workers.config import WorkersConfig, ToolDefinitionOrReference, ModelDefinition, UserConfig, Json, \
+    ToolsDefinitionOrReference
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 
 # Flag for confidential messages (not shown to LLM)
@@ -42,13 +43,12 @@ class WorkersContext(ABC):
     def config(self) -> WorkersConfig:
         pass
 
-    @property
     @abstractmethod
-    def get_public_tools(self) -> List[BaseTool]:
+    def get_tool(self, tool_ref: ToolDefinitionOrReference) -> BaseTool:
         pass
 
     @abstractmethod
-    def get_tool(self, tool_ref: ToolReference) -> BaseTool:
+    def get_tools(self, scope: str, tool_refs: List[ToolsDefinitionOrReference]) -> List[BaseTool]:
         pass
 
     @abstractmethod

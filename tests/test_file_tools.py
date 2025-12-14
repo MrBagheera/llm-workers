@@ -4,7 +4,7 @@ import unittest
 
 from langchain_core.tools.base import ToolException
 
-from llm_workers.tools.unsafe import (
+from llm_workers.tools.fs import (
     ReadFileTool,
     EditFileTool,
     GlobFilesTool,
@@ -121,8 +121,7 @@ class TestEditFileTool(unittest.TestCase):
         tool = EditFileTool()
         result = tool._run(self.test_file, "World", "Universe")
 
-        self.assertTrue(result["success"])
-        self.assertEqual(result["replacements_made"], 1)
+        self.assertEqual(result["replacements"], 1)
 
         with open(self.test_file, 'r') as f:
             content = f.read()
@@ -133,8 +132,7 @@ class TestEditFileTool(unittest.TestCase):
         tool = EditFileTool()
         result = tool._run(self.test_file, "Hello", "Hi", replace_all=True)
 
-        self.assertTrue(result["success"])
-        self.assertEqual(result["replacements_made"], 2)
+        self.assertEqual(result["replacements"], 2)
 
         with open(self.test_file, 'r') as f:
             content = f.read()
@@ -164,7 +162,7 @@ class TestEditFileTool(unittest.TestCase):
 
         # Correct expected count
         result = tool._run(self.test_file, "Hello", "Hi", replace_all=True, expected_count=2)
-        self.assertTrue(result["success"])
+        self.assertEqual(result["replacements"], 2)
 
         # Reset file
         with open(self.test_file, 'w') as f:

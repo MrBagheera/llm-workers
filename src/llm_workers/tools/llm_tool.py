@@ -4,13 +4,12 @@ import logging
 import re
 from typing import Dict, Any, List, Union, Iterable, Optional
 
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import BaseTool
 from pydantic import PrivateAttr, BaseModel, Field
 
 from llm_workers.api import WorkersContext, WorkerNotification, ExtendedExecutionTool
-from llm_workers.config import ToolLLMConfig, Json
+from llm_workers.config import ToolLLMConfig
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.utils import LazyFormatter
 from llm_workers.worker import Worker
@@ -95,7 +94,6 @@ class LLMTool(ExtendedExecutionTool):
             text = ""
 
         # Apply JSON filtering if configured
-        content: Union[str, list[Union[str, dict]]] = ""
         if self._config.extract_json and self._config.extract_json != "none" and self._config.extract_json is not False:
             _logger.debug("Extracting JSON from LLM output (mode=%s):\n%s", self._config.extract_json, LazyFormatter(text))
             json_text = extract_json_blocks(text, self._config.extract_json)
@@ -104,7 +102,7 @@ class LLMTool(ExtendedExecutionTool):
                 # so it may also produce single-quoted JSON outputs
                 # return json.loads(json_text)
                 return ast.literal_eval(json_text.replace("true", "True").replace("false", "False"))
-            except (json.JSONDecodeError, ValueError, SyntaxError) as e:
+            except (json.JSONDecodeError, ValueError, SyntaxError):
                 _logger.warning("Failed to parse JSON from LLM output, returning as plain text:\n%s", json_text, exc_info=True)
                 return json_text
         else:
@@ -149,7 +147,7 @@ class LLMTool(ExtendedExecutionTool):
 
 def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> LLMTool:
     config = ToolLLMConfig(**tool_config)
-    agent = Worker(config, context)
+    agent = Worker(config, context, scope='build_llm_tool')
 
     return LLMTool(
         agent=agent,

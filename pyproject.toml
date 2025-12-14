@@ -46,3 +46,6 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 packages = [{include = "llm_workers", from = "src"}]
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.14.9"
+

@@ -5,7 +5,7 @@ from langchain_core.callbacks import CallbackManager, BaseCallbackHandler
 from langchain_core.messages import AIMessage, HumanMessage, AIMessageChunk, ToolMessage
 from langchain_core.tools import BaseTool
 
-from llm_workers.config import BaseLLMConfig
+from llm_workers.config import BaseLLMConfig, ToolDefinition
 from llm_workers.worker import Worker
 from tests.mocks import MockInvokeLLM, StubWorkersContext, MockStreamLLM
 
@@ -26,7 +26,7 @@ class TestWorker(unittest.TestCase):
         # Create mock context and worker
         context = StubWorkersContext(fake_llm)
         llm_config = BaseLLMConfig(model_ref="default")
-        worker = Worker(llm_config, context)
+        worker = Worker(llm_config, context, scope='chat')
 
         # Execute: Invoke worker with non-streaming
         result = worker.invoke([input_message], stream=False)
@@ -53,7 +53,7 @@ class TestWorker(unittest.TestCase):
         # Create mock context and worker
         context = StubWorkersContext(fake_llm)
         llm_config = BaseLLMConfig(model_ref="default")
-        worker = Worker(llm_config, context)
+        worker = Worker(llm_config, context, scope='chat')
 
         # Execute: Stream worker with non-streaming (stream=False)
         result = []
@@ -95,7 +95,7 @@ class TestWorker(unittest.TestCase):
         # Create mock context and worker
         context = StubWorkersContext(fake_llm)
         llm_config = BaseLLMConfig(model_ref="default")
-        worker = Worker(llm_config, context)
+        worker = Worker(llm_config, context, scope='chat')
 
         # Execute: Stream worker with streaming (stream=True)
         result = []
@@ -140,7 +140,7 @@ class TestWorker(unittest.TestCase):
 
         # Create tool with metadata
         tool = SimpleTool()
-        tool.metadata = {'tool_definition': Mock(
+        tool.metadata = {'tool_definition': ToolDefinition(
             name='simple_tool',
             confidential=False,
             require_confirmation=None,
@@ -182,7 +182,7 @@ class TestWorker(unittest.TestCase):
         context._tools = {'simple_tool': tool}
 
         llm_config = BaseLLMConfig(model_ref="default", tools=['simple_tool'])
-        worker = Worker(llm_config, context)
+        worker = Worker(llm_config, context, scope='chat')
         worker._tools = {'simple_tool': tool}
 
         # Execute: Stream worker with non-streaming (stream=False)
@@ -256,7 +256,7 @@ class TestWorker(unittest.TestCase):
 
         # Create tool with metadata
         tool = DirectTool()
-        tool.metadata = {'tool_definition': Mock(
+        tool.metadata = {'tool_definition': ToolDefinition(
             name='direct_tool',
             confidential=False,
             require_confirmation=None,
@@ -288,7 +288,7 @@ class TestWorker(unittest.TestCase):
         context._tools = {'direct_tool': tool}
 
         llm_config = BaseLLMConfig(model_ref="default", tools=['direct_tool'])
-        worker = Worker(llm_config, context)
+        worker = Worker(llm_config, context, scope='chat')
         worker._tools = {'direct_tool': tool}
 
         # Execute: Stream worker with non-streaming (stream=False)
@@ -362,7 +362,7 @@ class TestWorker(unittest.TestCase):
 
         # Create tools with metadata
         standard_tool = StandardTool()
-        standard_tool.metadata = {'tool_definition': Mock(
+        standard_tool.metadata = {'tool_definition': ToolDefinition(
             name='standard_tool',
             confidential=False,
             require_confirmation=None,
@@ -370,7 +370,7 @@ class TestWorker(unittest.TestCase):
         )}
 
         direct_tool = DirectTool()
-        direct_tool.metadata = {'tool_definition': Mock(
+        direct_tool.metadata = {'tool_definition': ToolDefinition(
             name='direct_tool',
             confidential=False,
             require_confirmation=None,
@@ -423,7 +423,7 @@ class TestWorker(unittest.TestCase):
         }
 
         llm_config = BaseLLMConfig(model_ref="default", tools=['standard_tool', 'direct_tool'])
-        worker = Worker(llm_config, context)
+        worker = Worker(llm_config, context, scope='chat')
         worker._tools = {
             'standard_tool': standard_tool,
             'direct_tool': direct_tool
@@ -515,7 +515,7 @@ class TestWorker(unittest.TestCase):
 
         # Create tools with metadata
         direct_tool_1 = DirectTool1()
-        direct_tool_1.metadata = {'tool_definition': Mock(
+        direct_tool_1.metadata = {'tool_definition': ToolDefinition(
             name='direct_tool_1',
             confidential=False,
             require_confirmation=None,
@@ -523,7 +523,7 @@ class TestWorker(unittest.TestCase):
         )}
 
         direct_tool_2 = DirectTool2()
-        direct_tool_2.metadata = {'tool_definition': Mock(
+        direct_tool_2.metadata = {'tool_definition': ToolDefinition(
             name='direct_tool_2',
             confidential=False,
             require_confirmation=None,
@@ -565,7 +565,7 @@ class TestWorker(unittest.TestCase):
         }
 
         llm_config = BaseLLMConfig(model_ref="default", tools=['direct_tool_1', 'direct_tool_2'])
-        worker = Worker(llm_config, context)
+        worker = Worker(llm_config, context, scope='chat')
         worker._tools = {
             'direct_tool_1': direct_tool_1,
             'direct_tool_2': direct_tool_2
@@ -658,7 +658,7 @@ class TestWorker(unittest.TestCase):
 
         # Create tool with metadata marking it as confidential
         confidential_tool = ConfidentialTool()
-        confidential_tool.metadata = {'tool_definition': Mock(
+        confidential_tool.metadata = {'tool_definition': ToolDefinition(
             name='confidential_tool',
             confidential=True,  # Mark as confidential
             require_confirmation=None,
@@ -690,7 +690,7 @@ class TestWorker(unittest.TestCase):
         context._tools = {'confidential_tool': confidential_tool}
 
         llm_config = BaseLLMConfig(model_ref="default", tools=['confidential_tool'])
-        worker = Worker(llm_config, context)
+        worker = Worker(llm_config, context, scope='chat')
         worker._tools = {'confidential_tool': confidential_tool}
 
         # Execute: Stream worker with non-streaming (stream=False)
@@ -785,7 +785,7 @@ class TestWorker(unittest.TestCase):
                 return f"Executed: {input_str}"
 
         tool = ConfirmationTool()
-        tool.metadata = {'tool_definition': Mock(
+        tool.metadata = {'tool_definition': ToolDefinition(
             name='confirmation_tool',
             confidential=False,
             require_confirmation=True,  # Requires confirmation
@@ -815,7 +815,7 @@ class TestWorker(unittest.TestCase):
         # Create context and worker
         context = StubWorkersContext(fake_llm, tools={'confirmation_tool': tool})
         llm_config = BaseLLMConfig(model_ref="default", tools=['confirmation_tool'])
-        worker = Worker(llm_config, context)
+        worker = Worker(llm_config, context, scope='chat')
 
         # Execute: Stream worker
         result = []
@@ -856,7 +856,7 @@ class TestWorker(unittest.TestCase):
                 return f"Executed: {input_str}"
 
         tool = ConfirmationTool()
-        tool.metadata = {'tool_definition': Mock(
+        tool.metadata = {'tool_definition': ToolDefinition(
             name='confirmation_tool',
             confidential=False,
             require_confirmation=True,
@@ -898,7 +898,7 @@ class TestWorker(unittest.TestCase):
         # Create context and worker
         context = StubWorkersContext(fake_llm, tools={'confirmation_tool': tool})
         llm_config = BaseLLMConfig(model_ref="default", tools=['confirmation_tool'])
-        worker = Worker(llm_config, context)
+        worker = Worker(llm_config, context, scope='chat')
 
         # First invocation: get ConfirmationRequest
         result1 = []
@@ -945,7 +945,7 @@ class TestWorker(unittest.TestCase):
                 return f"Executed: {input_str}"
 
         tool = ConfirmationTool()
-        tool.metadata = {'tool_definition': Mock(
+        tool.metadata = {'tool_definition': ToolDefinition(
             name='confirmation_tool',
             confidential=False,
             require_confirmation=True,
@@ -975,7 +975,7 @@ class TestWorker(unittest.TestCase):
         # Create context and worker
         context = StubWorkersContext(fake_llm, tools={'confirmation_tool': tool})
         llm_config = BaseLLMConfig(model_ref="default", tools=['confirmation_tool'])
-        worker = Worker(llm_config, context)
+        worker = Worker(llm_config, context, scope='chat')
 
         # First invocation: get ConfirmationRequest
         result1 = []

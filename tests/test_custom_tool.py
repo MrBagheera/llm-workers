@@ -4,10 +4,10 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
 from llm_workers.api import WorkerNotification
+from llm_workers.config import CustomToolParamsDefinition, CallDefinition, ResultDefinition, \
+    MatchDefinition, MatchClauseDefinition, WorkersConfig, CustomToolDefinition
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.tools.custom_tool import TemplateHelper, create_statement_from_model, build_custom_tool
-from llm_workers.config import CustomToolParamsDefinition, CallDefinition, ResultDefinition, \
-    MatchDefinition, MatchClauseDefinition, ToolDefinition, WorkersConfig
 from llm_workers.utils import call_tool
 from tests.mocks import StubWorkersContext
 
@@ -225,7 +225,7 @@ class TestSharedContentIntegration(unittest.TestCase):
         context = StubWorkersContext(config=config)
         
         # Define a custom tool that uses shared content
-        tool_definition = ToolDefinition(
+        tool_definition = CustomToolDefinition(
             name="demo_shared_access",
             description="Demo tool using shared content",
             input=[
@@ -233,7 +233,7 @@ class TestSharedContentIntegration(unittest.TestCase):
             ],
             body=ResultDefinition(result="Query {query} returned {shared[prompts][test]}")
         )
-        
+
         # Build the custom tool
         tool = build_custom_tool(tool_definition, context)
         
@@ -342,7 +342,7 @@ class TestHierarchicalToolCalling(unittest.TestCase):
         # Create a CustomTool that calls inner_sum_tool
         context = StubWorkersContext(tools={"inner_sum_tool": inner_sum_tool})
 
-        tool_definition = ToolDefinition(
+        tool_definition = CustomToolDefinition(
             name="outer_calculator",
             description="Tool that calls another tool to calculate",
             input=[

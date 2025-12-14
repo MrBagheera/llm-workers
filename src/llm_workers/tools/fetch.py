@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def _handle_error(url: str, e: IOError, on_error: Literal['raise_exception', 'return_error', 'return_empty'], empty: Json) -> Json:
-    logger.debug(f"Error fetching %s", url, e)
+    logger.debug("Error fetching %s", url, e)
     if on_error == "raise_exception":
         raise RequestException(f"Error fetching {url}: {e}", e)
     elif on_error == "return_error":
@@ -30,7 +30,7 @@ def _handle_error(url: str, e: IOError, on_error: Literal['raise_exception', 're
         return empty
 
 def _handle_no_content(url: str, xpath: str, on_no_content: Literal['raise_exception', 'return_error', 'return_empty'], empty: Json) -> Json:
-    logger.debug(f"Got empty content for URL %s and xpath %s", url, xpath)
+    logger.debug("Got empty content for URL %s and xpath %s", url, xpath)
     if on_no_content == "raise_exception":
         raise ValueError(f"No content matching '{xpath}' found at url {url}")
     elif on_no_content == "return_error":
@@ -55,7 +55,7 @@ def _fetch_content(
     """
     if headers is None:
         headers = {}
-    if not 'User-Agent' in headers:
+    if 'User-Agent' not in headers:
         # read the user-agent from USER_AGENT environment variable
         useragent = os.getenv('USER_AGENT', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3')
         headers['User-Agent'] = useragent

@@ -1,0 +1,54 @@
+# Example configuration demonstrating MCP (Model Context Protocol) servers support
+
+# Environment variables configuration
+env:
+  ECHO_SECRET_KEY:
+    description: "An example environment variable for the 'echo' MCP example."
+    persistent: false # (default) will be asked at the beginning of each session
+    secret: true
+  GITHUB_TOKEN:
+    description: "GitHub token"
+    persistent: true # will be saved in user-specific .env file
+    secret: true
+
+# MCP Servers Configuration
+mcp:
+  # Example 1: Local echo server via stdio transport
+  echo:
+    "transport": "stdio"  # Local subprocess communication
+    "command": "uvx"
+    "args": [ "echo-mcp-server-for-testing" ]
+    "env": {
+      "SECRET_KEY": "${env.ECHO_SECRET_KEY}"
+    }
+    auto_import_scope: chat # auto-import all tools to chat.tools
+
+  # Example 2: GitHub server with manual tools import
+  github:
+    transport: "streamable_http"
+    url: "https://api.githubcopilot.com/mcp/"
+    headers:
+      Authorization: "Bearer ${env.GITHUB_TOKEN}"
+    auto_import_scope: none # must be imported manually
+
+# Chat configuration
+chat:
+  system_message: |-
+    You are a helpful AI assistant with access to tools.
+  default_prompt: "Please list the tools you have access to."
+  tools:
+    - import_tools: mcp:github
+      prefix: ''  # no prefix, use original tool names
+      filter: # read-only access, including doing PRs and creating issues
+        - "!push_files"
+        - "!create_*"
+        - "!*copilot*"
+        - "!merge_*"
+        - "!fork_*"
+      ui_hints_for: ["*"] # Show UI hints for all GitHub tools
+      ui_hints_args: ["owner", "repo"]  # Show only owner and repo tool call args
+      require_confirmation_for: ["*write*"] # Require confirmation for write operations
+
+    # Regular tools (work alongside MCP tools)
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: 'fs_'  # prefix all filesystem tools with 'fs_'

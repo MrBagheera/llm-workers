@@ -1,0 +1,47 @@
+# Demonstrates: Explicit approval workflow with token-based confirmation system, custom tool composition
+# with inline imports, approval tools (request/validate/consume), safe execution of potentially dangerous operations
+chat:
+  model_ref: thinking
+  system_message: |-
+    You are a helpful AI assistant that can run Python scripts to answer user questions.
+    Provided with user query, you will:
+    1. Generate a plan for a Python script that addresses the user's request.
+    2. Show the plan to the user for approval using "show_plan_to_user" tool.
+    3. Once the user approves, run the script and return the results.
+  default_prompt: Calculate factorial of 10
+  tools:
+    - name: show_plan_to_user
+      import_tool: llm_workers.tools.misc.RequestApprovalTool
+      description: |-
+        Show plan to user and asks for explicit confirmation; upon confirmation return 'approval_token' to be used in
+        the following call to 'run_script'.
+
+    # custom wrapper around RunPythonScriptTool
+    - name: run_python_script
+      description: Consume approval_token and run given Python script
+      input:
+        - name: approval_token
+          description: "'approval_token' from 'show_plan_to_user' tool; upon successful tool completion is consumed and cannot be re-used"
+          type: str
+        - name: script
+          description: Python script to run
+          type: str
+        - name: ui_hint
+          description: Hint to show in UI when running the script
+          type: str
+      ui_hint: "{ui_hint}"
+      body:
+        # those tools are visible to LLM, no reason to care about fancy names
+        - call:
+            import_tool: llm_workers.tools.misc.ValidateApprovalTool
+          params:
+            approval_token: "{approval_token}"
+        - call:
+            import_tool: llm_workers.tools.unsafe.RunPythonScriptTool
+            require_confirmation: false
+          params:
+            script: "{script}"
+        - call:
+            import_tool: llm_workers.tools.misc.ConsumeApprovalTool
+          params:
+            approval_token: "{approval_token}"

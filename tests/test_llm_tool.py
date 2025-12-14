@@ -1,6 +1,6 @@
 import unittest
 
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 from llm_workers.api import WorkerNotification
 from llm_workers.token_tracking import CompositeTokenUsageTracker

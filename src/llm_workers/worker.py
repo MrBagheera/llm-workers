@@ -9,7 +9,7 @@ from langchain_core.tools import BaseTool
 from llm_workers.api import WorkersContext, ConfirmationRequest, ConfirmationResponse, \
     ConfirmationRequestToolCallDescription, ConfirmationRequestParam, \
     ExtendedBaseTool, CONFIDENTIAL, WorkerNotification, WorkerException
-from llm_workers.config import BaseLLMConfig, ToolDefinition, ToolReference
+from llm_workers.config import BaseLLMConfig, ToolDefinition
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.utils import LazyFormatter, call_tool
 
@@ -22,29 +22,18 @@ Out = List[BaseMessage | WorkerNotification | ConfirmationRequest]
 
 class Worker(Runnable[In, Out]):
 
-    def __init__(self, llm_config: BaseLLMConfig, context: WorkersContext, top_level: bool = False):
+    def __init__(self, llm_config: BaseLLMConfig, context: WorkersContext, scope: str):
         self._llm_config = llm_config
         self._context = context
         self._system_message: Optional[SystemMessage] = None
         if llm_config.system_message is not None:
             self._system_message = SystemMessage(llm_config.system_message)
         self._llm = context.get_llm(llm_config.model_ref)
-        self._tools = {}
+        self._tools: dict[str, BaseTool] = {}
 
-        tools = []
-        tool_refs: Optional[List[ToolReference]] = llm_config.tools
-        if tool_refs is None:
-            if top_level:
-                tools = context.get_public_tools
-                for tool in tools:
-                    self._tools[tool.name] = tool
-            # else: no tools
-        else:
-            tool_ref: ToolReference
-            for tool_ref in tool_refs:
-                tool = context.get_tool(tool_ref)
-                self._tools[tool.name] = tool
-                tools.append(tool)
+        tools = context.get_tools(scope, self._llm_config.tools)
+        for tool in tools:
+            self._tools[tool.name] = tool
 
         if len(tools) > 0:
             self._llm = self._llm.bind_tools(tools)
@@ -165,7 +154,7 @@ class Worker(Runnable[In, Out]):
                     yield llm_message
             yield WorkerNotification.thinking_end()
             if not llm_response:
-                raise WorkerException(f"Invoking LLM resulted no message")
+                raise WorkerException("Invoking LLM resulted no message")
             self._log_llm_message(llm_response, "LLM message")
             yield llm_response # yield LLM message (possibly with calls)
 
@@ -275,7 +264,7 @@ class Worker(Runnable[In, Out]):
             tool_name = tool_call['name']
             if tool_name not in self._tools:
                 logger.warning("Failed to call tool %s: no such tool", tool_name, exc_info=True)
-                content = f"Tool error: no such tool %s" % tool_name
+                content = "Tool error: no such tool %s" % tool_name
                 response = ToolMessage(content = content, tool_call_id = tool_call['id'], name = tool_name)
                 self._log_llm_message(response, "tool call message")
                 yield response

@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import Mock
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, ToolMessage
 
 from llm_workers.token_tracking import SimpleTokenUsageTracker, CompositeTokenUsageTracker, _extract_usage_metadata_from_message
 

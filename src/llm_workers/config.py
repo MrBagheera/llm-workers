@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict
+from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict, Literal
 
 from langchain_core.prompts import PromptTemplate
-from pydantic import BaseModel, model_validator, PrivateAttr, ConfigDict
+from pydantic import BaseModel, model_validator, PrivateAttr, ConfigDict, Field, Discriminator, Tag
 from pydantic import ValidationError, WrapValidator
 from pydantic_core import PydanticCustomError
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler, ValidationInfo
@@ -27,6 +27,8 @@ def json_custom_error_validator(
             'Input is not valid json',
         )
 
+
+# noinspection PyTypeHints
 Json = TypeAliasType(
     'Json',
     Annotated[
@@ -36,7 +38,61 @@ Json = TypeAliasType(
 )
 
 
+def create_discriminator(key_to_tag: dict[str | type, str]):
+    """
+    Returns a discriminator function for Pydantic.
+
+    Args:
+        key_to_tag: A dictionary mapping either:
+                    1. A Type (e.g., str) -> tag
+                    2. A string key (field name) -> tag
+    """
+
+    # 1. Separate keys into types (for instance checks) and strings (for dict lookups)
+    type_map = {k: v for k, v in key_to_tag.items() if isinstance(k, type)}
+    str_key_map = {k: v for k, v in key_to_tag.items() if isinstance(k, str)}
+
+    valid_dict_keys = set(str_key_map.keys())
+
+    def discriminator(v: Any) -> str | None:
+
+        # --- Check 1: Object/Primitive Passthrough ---
+        # If 'v' is a direct instance of a mapped type (e.g. str), return that tag.
+        for type_cls, tag in type_map.items():
+            if isinstance(v, type_cls):
+                return tag
+
+        # --- Check 2: Dictionary / JSON Parsing ---
+        # If it is not a direct instance match, we check if it is a dict
+        if not isinstance(v, dict):
+            # If it's not a dict and didn't match our types above, return None.
+            # This lets Pydantic handle the type error natively.
+            return None
+
+        # Identify which discriminator keys are present in the dict
+        present_keys = [k for k in valid_dict_keys if k in v]
+
+        # --- Strict Business Logic Errors ---
+        if len(present_keys) > 1:
+            raise ValueError(
+                f"Ambiguous match: Found keys {present_keys}. "
+                f"Only one of {list(valid_dict_keys)} allowed."
+            )
+
+        if len(present_keys) == 0:
+            # Note: We raise an error here to prevent Pydantic from trying
+            # other union members if the input LOOKS like a dict but is invalid.
+            raise ValueError(
+                f"Invalid input dictionary: Must contain one of {list(valid_dict_keys)}."
+            )
+
+        discriminator_field = present_keys[0]
+        return str_key_map[discriminator_field]
+
+    return discriminator
+
 class RateLimiterConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     requests_per_second: float
     check_every_n_seconds: float = 0.1
     max_bucket_size: float
@@ -67,15 +123,39 @@ class DisplaySettings(BaseModel):
 
 class EnvVarDefinition(BaseModel):
     """Definition for an environment variable."""
+    model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     description: Optional[str] = None
     persistent: bool = False  # If false, prompted each script load
     secret: bool = False  # If true, input is hidden (requires prompt_toolkit)
 
 
 class UserConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     env: Optional[Dict[str, EnvVarDefinition]] = None
     models: list[StandardModelDefinition | ImportModelDefinition] = ()
     display_settings: DisplaySettings = DisplaySettings()
+
+
+class MCPServerBase(BaseModel):
+    """Shared attributes for all MCP servers."""
+    model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
+    auto_import_scope: Literal['none', 'shared tools', 'chat']
+
+class MCPServerStdio(MCPServerBase):
+    transport: Literal['stdio']
+    command: str
+    args: List[str] = [] # Defaults to empty list if not provided
+    env: Dict[str, str] = {} # Defaults to empty dict
+
+class MCPServerHttp(MCPServerBase):
+    transport: Literal['streamable_http']
+    url: str
+    headers: Dict[str, str] = {}
+
+MCPServerDefinition = Annotated[
+    Union[MCPServerStdio, MCPServerHttp],
+    Field(discriminator='transport')
+]
 
 
 StatementDefinition = TypeAliasType(
@@ -89,16 +169,19 @@ BodyDefinition = TypeAliasType(
 )
 
 class ResultDefinition(BaseModel):
+    model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     result: Json
     key: Optional[Json] = None
     default: Optional[Json] = None
 
 class CallDefinition(BaseModel):
-    call: ToolReference
+    model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
+    call: ToolDefinitionOrReference
     params: Optional[Dict[str, Json]] = None
     catch: Optional[str | list[str]] = None
 
 class MatchClauseDefinition(BaseModel):
+    model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     case: Optional[str] = None
     pattern: Optional[str] = None
     then: BodyDefinition
@@ -113,42 +196,16 @@ class MatchClauseDefinition(BaseModel):
         return value
 
 class MatchDefinition(BaseModel):
+    model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     match: str
     trim: bool = False
     matchers: List[MatchClauseDefinition]
     default: BodyDefinition
 
-class CustomToolParamsDefinition(BaseModel):
-    name: str
-    description: str
-    type: str
-    default: Optional[Json] = None
-
-
-def _ensure_only_one_of(values: dict[str, Any], keys: set[str], context: str):
-    """Ensure that only one of the specified parameters is present in the values."""
-    if sum(1 for key in keys if key in values) > 1:
-        raise ValueError(f"Only one of {keys} should be specified in {context}.")
-
-def _ensure_set(model: Any, keys: list[str], context: str):
-    """Ensure that the specified parameters are set in the model."""
-    violations = [param for param in keys if getattr(model, param) is None]
-    if len(violations) > 0:
-        raise ValueError(f"Required fields {violations} are missing in {context}.")
-
-def _ensure_not_set(model: Any, keys: list[str], context: str):
-    """Ensure that the specified parameters are set in the model."""
-    violations = [param for param in keys if getattr(model, param) is not None]
-    if len(violations) > 0:
-        raise ValueError(f"Fields {violations} are not supported in {context}.")
-
-class CustomToolDefinition(BaseModel):
-    input: List[CustomToolParamsDefinition] = []
-    body: BodyDefinition
 
 class ToolDefinition(BaseModel):
-    model_config = ConfigDict(extra="allow")
-    name: str
+    """Common fields for single tool definitions."""
+    name: Optional[str] = None
     description: Optional[str] = None
     config: Optional[Dict[str, Json]] = None
     return_direct: Optional[bool] = None
@@ -157,7 +214,6 @@ class ToolDefinition(BaseModel):
     ui_hint: Optional[str | bool] = None
     ui_hint_args: List[str] = []
     _ui_hint_template: Optional[PromptTemplate] = PrivateAttr(default=None)  # private field
-    import_from: Optional[str] = None  # for imported tools, the symbol to import from
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -168,49 +224,122 @@ class ToolDefinition(BaseModel):
     def ui_hint_template(self) -> Optional[PromptTemplate]:
         return self._ui_hint_template
 
+class ImportToolStatement(ToolDefinition):
+    """Definition for an imported tool."""
+    model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
+    import_tool: str
 
-class MCPServerDefinition(BaseModel):
-    """Definition for an MCP server connection."""
-    transport: str  # "stdio" or "streamable_http"
+    def __init__(self, **data):
+        super().__init__(**data)
+        if isinstance(self.ui_hint, str):
+            self._ui_hint_template = PromptTemplate.from_template(self.ui_hint)
 
-    # For stdio transport
-    command: Optional[str] = None
-    args: Optional[List[str]] = None
-    env: Optional[Dict[str, str]] = None  # Environment variables for the server process
+    @property
+    def ui_hint_template(self) -> Optional[PromptTemplate]:
+        return self._ui_hint_template
 
-    # For streamable_http transport
-    url: Optional[str] = None
-    headers: Optional[Dict[str, str]] = None
-
-    # Tool filtering and configuration
-    tools: List[str] = ["*"]  # Patterns for including tools
-    ui_hints_for: List[str] = []  # Patterns for tools that need UI hints
-    ui_hints_args: List[str] = []  # Patterns for filtering tool arguments in UI hints
-    require_confirmation_for: List[str] = []  # Patterns for tools requiring confirmation
-
-    @model_validator(mode='after')
-    def validate_transport(cls, value: Any) -> Self:
-        if value.transport == "stdio":
-            _ensure_set(value, ["command", "args"], "stdio transport")
-            _ensure_not_set(value, ["url"], "stdio transport")
-        elif value.transport == "streamable_http":
-            _ensure_set(value, ["url"], "streamable_http transport")
-            _ensure_not_set(value, ["command", "args"], "streamable_http transport")
-        else:
-            raise ValueError(f"Invalid transport: {value.transport}")
-        return value
+    def __str__(self):
+        return f"import_tool: {self.import_tool}"
 
 
-ToolReference = TypeAliasType(
-    'ToolReference',
-    Union[str, ToolDefinition],
-)
+class CustomToolParamsDefinition(BaseModel):
+    model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
+    name: str
+    description: str
+    type: str
+    default: Optional[Json] = None
+
+class CustomToolDefinition(ToolDefinition):
+    """Definition for a custom tool."""
+    name: str
+    input: List[CustomToolParamsDefinition] = []
+    body: BodyDefinition
+
+    def __init__(self, **data):
+        super().__init__(**data)
+
+    def __str__(self):
+        return f"name: {self.name}"
+
+class ImportToolsStatement(BaseModel):
+    """Statement for importing multiple tools at once."""
+    model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
+    import_tools: str
+    prefix: str  # mandatory prefix for tool names (can be empty "")
+    filter: List[str] = ["*"]  # patterns to include/exclude tools
+    ui_hints_for: List[str] = ["*"]  # patterns for UI hints
+    ui_hints_args: List[str] = []  # args to include in UI hints
+    require_confirmation_for: List[str] = []  # patterns requiring confirmation
+
+    @property
+    def import_tools_split(self) -> (str, str):
+        if ':' in self.import_tools:
+            i = self.import_tools.index(':')
+            return self.import_tools[:i], self.import_tools[i + 1:]
+        return '', self.import_tools
+
+# For defining tools - single or multiple.
+# This incantation allows us to pick concrete Type based on field presence,
+# and get nicer error messages if validation fails (compared to using validators).
+ToolsDefinitionStatement = Annotated[
+    Union[
+        Annotated[ImportToolStatement, Tag('<import_tool statement>')],
+        Annotated[ImportToolsStatement, Tag('<import_tools statement>')],
+        Annotated[CustomToolDefinition, Tag('<custom_tool definition>')],
+    ],
+    Discriminator(create_discriminator({
+        'import_tool': '<import_tool statement>',
+        'import_tools': '<import_tools statement>',
+        'body': '<custom_tool definition>',
+    }))
+]
+
+# For referencing single tools.
+# This incantation allows us to pick concrete Type based on field presence,
+# and get nicer error messages if validation fails (compared to using validators).
+ToolDefinitionOrReference = Annotated[
+    Union[
+        Annotated[str, Tag('<tool reference>')],
+        Annotated[ImportToolStatement, Tag('<import_tools statement>')],
+        Annotated[CustomToolDefinition, Tag('<custom_tool definition>')]
+    ],
+    Discriminator(create_discriminator({
+        str: '<tool reference>',
+        'import_tool': '<import_tools statement>',
+        'body': '<custom_tool definition>',
+    }))
+]
+
+
+class ToolsReference(BaseModel):
+    match: list[str]
+
+# For referencing multiple tools.
+# This incantation allows us to pick concrete Type based on field presence,
+# and get nicer error messages if validation fails (compared to using validators).
+ToolsDefinitionOrReference = Annotated[
+    Union[
+        Annotated[str, Tag('<tool reference>')],
+        Annotated[ToolsReference, Tag('<tools references>')],
+        Annotated[ImportToolStatement, Tag('<import_tool statement>')],
+        Annotated[ImportToolsStatement, Tag('<import_tools statement>')],
+        Annotated[CustomToolDefinition, Tag('<custom_tool definition>')],
+    ],
+    Discriminator(create_discriminator({
+        str: '<tool reference>',
+        'match': '<tools references>',
+        'import_tool': '<import_tool statement>',
+        'import_tools': '<import_tools statement>',
+        'body': '<custom_tool definition>',
+    }))
+]
 
 
 class BaseLLMConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     model_ref: str = "default"
     system_message: str = None
-    tools: Optional[List[ToolReference]] = None
+    tools: List[ToolsDefinitionOrReference] = []
 
 
 class ToolLLMConfig(BaseLLMConfig):
@@ -223,9 +352,10 @@ class ChatConfig(BaseLLMConfig):
 
 
 class WorkersConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     env: Optional[Dict[str, EnvVarDefinition]] = None
-    tools: list[ToolDefinition] = ()
-    mcp: Optional[Dict[str, MCPServerDefinition]] = None
+    tools: list[ToolsDefinitionStatement] = []
+    mcp: Dict[str, MCPServerDefinition] = {}
     shared: Dict[str, Json] = {}
     chat: Optional[ChatConfig] = None
     cli: Optional[BodyDefinition] = None
