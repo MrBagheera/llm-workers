@@ -791,13 +791,15 @@ def matches_patterns(tool_name: str, patterns: List[str]) -> bool:
 
     Rules:
     - If pattern starts with !, it's a negation (exclude)
-    - Negations are processed after inclusions
-    - If no non-negation patterns exist, defaults to matching none
+    - To match: must match at least one positive pattern AND not match any negative pattern
+    - If only negative patterns exist, matches by default (like implicit "*")
 
     Examples:
         matches_patterns("gh_read", ["gh*", "!gh_write*"]) -> True
         matches_patterns("gh_write_file", ["gh*", "!gh_write*"]) -> False
         matches_patterns("any_tool", []) -> False
+        matches_patterns("foo", ["!bar"]) -> True   # only exclusions, foo not excluded
+        matches_patterns("bar", ["!bar"]) -> False  # only exclusions, bar is excluded
     """
     if not patterns:
         return False
@@ -805,7 +807,7 @@ def matches_patterns(tool_name: str, patterns: List[str]) -> bool:
     inclusions = [p for p in patterns if not p.startswith("!")]
     exclusions = [p[1:] for p in patterns if p.startswith("!")]
 
-    # If no inclusions, default to matching all
+    # If only negative patterns, match by default (implicit "*")
     if not inclusions:
         included = True
     else:

@@ -2,7 +2,7 @@ import unittest
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from llm_workers.utils import format_as_yaml, parse_standard_type, _split_type_parameters, format_tool_args
+from llm_workers.utils import format_as_yaml, parse_standard_type, _split_type_parameters, format_tool_args, matches_patterns
 
 
 class TestFormatMessageAsYaml(unittest.TestCase):
@@ -161,7 +161,7 @@ class TestFormatToolArgs(unittest.TestCase):
         self.assertEqual("'username': 'alice'", result)
 
     def test_multiple_secret_patterns(self):
-        """Test filtering with multiple secret patterns."""
+        """Test filtering with multiple secret patterns (only exclusions = implicit *)."""
         result = format_tool_args(
             {
                 'username': 'bob',
@@ -197,6 +197,86 @@ class TestFormatToolArgs(unittest.TestCase):
             max_length=60
         )
         self.assertEqual(result, '')
+
+
+class TestMatchesPatterns(unittest.TestCase):
+    """Tests for matches_patterns function.
+
+    Logic: To match, string must match at least one positive pattern
+    AND not match any negative pattern (prefixed with !).
+    """
+
+    def test_empty_patterns_returns_false(self):
+        """Empty pattern list never matches."""
+        self.assertFalse(matches_patterns("any_tool", []))
+
+    def test_only_negative_patterns_matches_by_default(self):
+        """Only negative patterns = implicit '*', matches unless excluded."""
+        # Not excluded -> matches
+        self.assertTrue(matches_patterns("foo", ["!bar"]))
+        self.assertTrue(matches_patterns("anything", ["!x", "!y", "!z"]))
+        # Excluded -> no match
+        self.assertFalse(matches_patterns("foo", ["!foo"]))
+        self.assertFalse(matches_patterns("x", ["!x", "!y", "!z"]))
+
+    def test_simple_positive_match(self):
+        """Single positive pattern that matches."""
+        self.assertTrue(matches_patterns("foo", ["foo"]))
+        self.assertTrue(matches_patterns("foo_bar", ["foo*"]))
+        self.assertTrue(matches_patterns("bar_foo_baz", ["*foo*"]))
+
+    def test_simple_positive_no_match(self):
+        """Single positive pattern that doesn't match."""
+        self.assertFalse(matches_patterns("foo", ["bar"]))
+        self.assertFalse(matches_patterns("foo", ["bar*"]))
+        self.assertFalse(matches_patterns("foo", ["*bar"]))
+
+    def test_multiple_positive_patterns_any_matches(self):
+        """Multiple positive patterns - matches if any one matches."""
+        self.assertTrue(matches_patterns("foo", ["foo", "bar"]))
+        self.assertTrue(matches_patterns("bar", ["foo", "bar"]))
+        self.assertTrue(matches_patterns("baz", ["foo", "bar", "baz"]))
+        self.assertFalse(matches_patterns("qux", ["foo", "bar", "baz"]))
+
+    def test_positive_with_exclusion_basic(self):
+        """Positive match excluded by negative pattern."""
+        # Matches gh* but excluded by !gh_write*
+        self.assertTrue(matches_patterns("gh_read", ["gh*", "!gh_write*"]))
+        self.assertFalse(matches_patterns("gh_write_file", ["gh*", "!gh_write*"]))
+        self.assertFalse(matches_patterns("gh_write", ["gh*", "!gh_write*"]))
+
+    def test_positive_with_exclusion_no_initial_match(self):
+        """No positive match, exclusion doesn't matter."""
+        self.assertFalse(matches_patterns("other_tool", ["gh*", "!gh_write*"]))
+
+    def test_multiple_exclusions(self):
+        """Multiple negative patterns all apply."""
+        patterns = ["*", "!secret*", "!password*", "!*_key"]
+        self.assertTrue(matches_patterns("username", patterns))
+        self.assertTrue(matches_patterns("message", patterns))
+        self.assertFalse(matches_patterns("secret_value", patterns))
+        self.assertFalse(matches_patterns("password", patterns))
+        self.assertFalse(matches_patterns("api_key", patterns))
+
+    def test_wildcard_positive_with_exclusions(self):
+        """Wildcard * matches all, then exclusions filter."""
+        patterns = ["*", "!admin*"]
+        self.assertTrue(matches_patterns("user", patterns))
+        self.assertTrue(matches_patterns("guest", patterns))
+        self.assertFalse(matches_patterns("admin", patterns))
+        self.assertFalse(matches_patterns("admin_panel", patterns))
+
+    def test_exact_match_patterns(self):
+        """Exact match (no wildcards) in positive patterns."""
+        self.assertTrue(matches_patterns("foo", ["foo"]))
+        self.assertFalse(matches_patterns("foo_bar", ["foo"]))
+        self.assertFalse(matches_patterns("foobar", ["foo"]))
+
+    def test_case_sensitivity(self):
+        """Pattern matching is case-sensitive."""
+        self.assertTrue(matches_patterns("Foo", ["Foo"]))
+        self.assertFalse(matches_patterns("foo", ["Foo"]))
+        self.assertFalse(matches_patterns("FOO", ["foo"]))
 
 
 if __name__ == "__main__":
