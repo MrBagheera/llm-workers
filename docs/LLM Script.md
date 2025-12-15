@@ -1487,10 +1487,13 @@ Statements can be used as part of a tool's `body` section to create composite to
 tools:
   - name: advanced_search
     description: "Performs an enhanced search with preprocessing"
+    input:
+      - name: query
+        type: str
     body:
       - call: normalize_input
         params:
-          text: "{input}"
+          text: "{input.query}"
       - call: search_database
         params:
           query: "{output0}"
