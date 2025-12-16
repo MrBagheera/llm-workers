@@ -4,6 +4,7 @@ import logging
 import sys
 from copy import copy
 from pathlib import Path
+from typing import Dict
 
 import yaml
 from langchain.chat_models import init_chat_model
@@ -20,10 +21,15 @@ logger = logging.getLogger(__name__)
 class StandardUserContext(UserContext):
     CONFIG_DIR_PATH = Path.home() / ".config" / "llm-workers"
 
-    def __init__(self, user_config: UserConfig):
+    def __init__(self, user_config: UserConfig, environment: Dict[str, str]):
         self._user_config = user_config
         self._models = dict[str, BaseChatModel]()
         self._register_models()
+        self._environment = environment
+
+    @property
+    def environment(self) -> Dict[str, str]:
+        return self._environment
 
     @property
     def user_config(self) -> UserConfig:
@@ -38,7 +44,7 @@ class StandardUserContext(UserContext):
     def _register_models(self):
         # register models
         for model_def in self._user_config.models:
-            model_params = copy(model_def.config) if model_def.config else model_def.model_extra
+            model_params = copy(model_def.config.evaluate(self._environment)) if model_def.config else {}
             if model_def.rate_limiter:
                 model_params['rate_limiter'] = InMemoryRateLimiter(
                     requests_per_second = model_def.rate_limiter.requests_per_second,

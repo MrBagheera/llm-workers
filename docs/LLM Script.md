@@ -1317,17 +1317,17 @@ tools:
     body:
       - call: some_tool
         params:
-          tool_param: "{param1}"
-      - match: "{output0}"
+          tool_param: "${param1}"
+      - match: "${output0}"
         matchers:
           - case: "success"
             then:
-              - result: "Operation successful: {param1}"
+              - result: "Operation successful: ${param1}"
         default:
           - result: "Operation failed"
 ```
-Input section defines the parameters that the tool accepts. These parameters can 
-later be referenced in the `body` section using the `{param_name}` syntax.
+Input section defines the parameters that the tool accepts. These parameters can
+later be referenced in the `body` section using the `${param_name}` syntax.
 
 The `body` section contains one or more statements that can be composed in various ways:
 
@@ -1355,7 +1355,7 @@ Executes a specific tool with optional parameters. Tools can be referenced by na
     return_direct: true  # Optional
     confidential: false  # Optional
     require_confirmation: true  # Optional
-    ui_hint: "Processing {param1}..."  # Optional
+    ui_hint: "Processing ${param1}..."  # Optional
   params:
     param1: value1
     param2: value2
@@ -1406,13 +1406,13 @@ Returns a specific value directly.
 
 ### Dynamic Key Resolution
 
-The `result` statement supports optional `key` and `default` parameters for dynamic value extraction from dictionaries and lists. 
+The `result` statement supports optional `key` and `default` parameters for dynamic value extraction from dictionaries and lists.
 **This feature is primarily intended for cases where the key itself is dynamic** (determined at runtime from template variables).
-For static keys, standard templating with bracket notation (e.g., `"{data[static_key]}"`) works just fine.
+For static keys, standard templating with bracket notation (e.g., `"${data['static_key']}"`) works just fine.
 
 ```yaml
-- result: "{shared.ask_schema_expert}"
-  key: "{json_schema}"  # Dynamic key from template variable
+- result: "${shared.ask_schema_expert}"
+  key: "${json_schema}"  # Dynamic key from template variable
   default: ""
 ```
 
@@ -1424,8 +1424,8 @@ For static keys, standard templating with bracket notation (e.g., `"{data[static
 
 Primary use case - dynamic key from template variables:
 ```yaml
-- result: "{api_response}"
-  key: "{requested_field}"
+- result: "${api_response}"
+  key: "${requested_field}"
   default: "N/A"
 # Extracts api_response[requested_field] where requested_field is determined at runtime
 ```
@@ -1508,20 +1508,24 @@ tools:
 
 ## Template Variables
 
-Custom tools support template variables in strings:
+Custom tools support template variables using the `${...}` expression syntax (powered by simpleeval):
 
-- Direct references: `"{param_name}"` - preserves referenced parameter type
-- Complex templates: `"The value is {param_name} and {other_param}"`
-- Nested element access: 
-  - Dictionary keys: `"{param_dict[key_name]}"` - accesses dictionary values by key
-  - List indices: `"{param_list[0]}"` - accesses list elements by index  
-  - Nested structures: `"{param_dict[nested][value]}"` - supports multiple levels of nesting
-- Shared data access: `"{shared[key]}"` - accesses values from the shared configuration section
-- Tool input parameters: `"{<parm_name>}"`
-- (inside the list of statements) Previous statement results: `"{outputN}"` where N is the 0-based index of a previous statement
-- (inside `match` statement) Regex capture groups: `"{matchN}"` when using regex patterns in match statements
+- Direct references: `"${param_name}"` - preserves referenced parameter type (returns the actual value, not string)
+- Complex templates: `"The value is ${param_name} and ${other_param}"` - returns string with interpolated values
+- Nested element access:
+  - Dictionary keys (bracket): `"${param_dict['key_name']}"` - accesses dictionary values by key using standard Python syntax
+  - Dictionary keys (dot): `"${param_dict.key_name}"` - also works via simpleeval's "sweetener" feature
+  - List indices: `"${param_list[0]}"` - accesses list elements by index
+  - Nested structures: `"${param_dict['nested']['value']}"` or `"${param_dict.nested.value}"` - supports multiple levels of nesting
+- Shared data access: `"${shared['key']}"` or `"${shared.key}"` - accesses values from the shared configuration section
+- Tool input parameters: `"${param_name}"`
+- (inside the list of statements) Previous statement results: `"${outputN}"` where N is the 0-based index of a previous statement
+- (inside `match` statement) Regex capture groups: `"${matchN}"` when using regex patterns in match statements
+- Python expressions: `"${a + b}"`, `"${len(items)}"`, `"${value if condition else default}"` - supports any safe Python expression via simpleeval
 
-**Note:** Nested element access uses bracket notation (`[key]`) for both dictionary keys and list indices. This syntax works with complex templates but requires the entire template to be processed as a string (the nested values cannot preserve their original types).
+**Type Preservation:** When a string contains only a single expression (e.g., `"${param}"`), the original type is preserved. When text or multiple expressions are present, the result is converted to a string.
+
+**Note:** Expressions are evaluated using simpleeval for safety, which supports standard Python operations but restricts potentially dangerous operations.
 
 **Example with nested element and shared access:**
 ```yaml
@@ -1530,20 +1534,20 @@ shared:
     name: "MyApp"
     version: "1.0"
   templates:
-    user_format: "Welcome to {shared[app][name]}!"
+    user_format: "Welcome to ${shared.app.name}!"
 
 tools:
-  - name: process_user_data  
+  - name: process_user_data
     description: "Processes user data with nested access"
     input:
       - name: user_profile
         description: "User profile object"
         type: object
       - name: settings
-        description: "User settings array"  
+        description: "User settings array"
         type: array
     body:
-      - result: "User {user_profile[name]} has email {user_profile[contact][email]} and first setting is {settings[0]}. {shared[templates][user_format]}"
+      - result: "User ${user_profile['name']} has email ${user_profile['contact']['email']} and first setting is ${settings[0]}. ${shared['templates']['user_format']}"
 ```
 
 This would process input like:

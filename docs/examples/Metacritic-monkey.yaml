@@ -13,7 +13,7 @@ tools:
         description: Movie title
         type: str
     body:
-      match: "{movie_title}"
+      match: "${movie_title}"
       matchers:
         - case: "Soul"
           then:
@@ -90,17 +90,16 @@ tools:
               2005
               82
 
-            The Witcher: Nightmare of the Wolf
+              The Witcher: Nightmare of the Wolf
               
               movie
               2021
               67
       default:
         - call:
-            name: _user_input
             import_tool: llm_workers.tools.misc.UserInputTool
           params:
-            prompt: "Movie '{movie_title}' not found in stub data. Please provide mock Metacritic search results (movie titles, years, and scores):"
+            prompt: "Movie '${movie_title}' not found in stub data. Please provide mock Metacritic search results (movie titles, years, and scores):"
 
 chat:
   default_prompt: Please find metacritic score for the movie "Soul" (2020).
@@ -115,29 +114,29 @@ chat:
         - name: movie_year
           description: Movie release year
           type: int
-      ui_hint: Looking up Metacritic score for movie "{movie_title}" ({movie_year})
+      ui_hint: Looking up Metacritic score for movie "${movie_title}" (${movie_year})
       body:
-        - call:
-            import_tool: llm_workers.tools.fetch.FetchPageTextTool
-          params:
-            url: "https://www.metacritic.com/search/{movie_title}/?page=1&category=2"
-            xpath: "//*[@class=\"c-pageSiteSearch-results\"]"
-        # replace block above with commented out block below for debugging with stub data
-#        - call: _search_movie_on_metacritic_stub
+#        - call:
+#            import_tool: llm_workers.tools.fetch.FetchPageTextTool
 #          params:
-#            movie_title: "{movie_title}"
+#            url: "https://www.metacritic.com/search/${movie_title}/?page=1&category=2"
+#            xpath: "//*[@class=\"c-pageSiteSearch-results\"]"
+        # replace block above with commented out block below for debugging with stub data
+        - call: _search_movie_on_metacritic_stub
+          params:
+            movie_title: "${movie_title}"
         - call:
             import_tool: llm_workers.tools.llm_tool.build_llm_tool
             ui_hint: Extracting Metacritic score from search results
           params:
             prompt: >
-              Find Metacritic score for movie "{movie_title}" released in {movie_year}.
+              Find Metacritic score for movie "${movie_title}" released in ${movie_year}.
               To do so:
                 - From the list of possible matches, chose the one matching movie title and year and return metacritic score as single number
                 - If no matching movie is found, respond with just "N/A" (without quotes)
                 - DO NOT provide any additional information in the response
-              
+
               Possible matches:
-              {output0}
+              ${_}
 
     

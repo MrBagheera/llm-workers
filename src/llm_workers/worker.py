@@ -11,7 +11,8 @@ from llm_workers.api import WorkersContext, ConfirmationRequest, ConfirmationRes
     ExtendedBaseTool, CONFIDENTIAL, WorkerNotification, WorkerException
 from llm_workers.config import BaseLLMConfig, ToolDefinition
 from llm_workers.token_tracking import CompositeTokenUsageTracker
-from llm_workers.utils import LazyFormatter, call_tool
+from llm_workers.utils import LazyFormatter
+from llm_workers.worker_utils import call_tool
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class Worker(Runnable[In, Out]):
         self._context = context
         self._system_message: Optional[SystemMessage] = None
         if llm_config.system_message is not None:
-            self._system_message = SystemMessage(llm_config.system_message)
+            self._system_message = SystemMessage(llm_config.system_message.evaluate(context.evaluation_context))
         self._llm = context.get_llm(llm_config.model_ref)
         self._tools: dict[str, BaseTool] = {}
 
@@ -38,6 +39,11 @@ class Worker(Runnable[In, Out]):
         if len(tools) > 0:
             self._llm = self._llm.bind_tools(tools)
         self._direct_tools = set([tool.name for tool in tools if tool.return_direct])
+
+    @property
+    def context(self) -> WorkersContext:
+        """Get the current workers context."""
+        return self._context
 
     @property
     def model_ref(self) -> str:
@@ -283,7 +289,8 @@ class Worker(Runnable[In, Out]):
 
             tool_output: Any = None
             token_tracker = CompositeTokenUsageTracker()
-            for e in call_tool(tool, args, token_tracker, config, kwargs):
+            evaluation_context = kwargs.get('evaluation_context', self._context.evaluation_context)
+            for e in call_tool(tool, args, evaluation_context, token_tracker, config, kwargs):
                 if isinstance(e, WorkerNotification):
                     yield e
                 else:

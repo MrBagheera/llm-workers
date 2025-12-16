@@ -7,9 +7,11 @@ from typing import Any, Optional
 from langchain_community.callbacks import get_openai_callback
 
 from llm_workers.api import UserContext, ExtendedRunnable
+from llm_workers.expressions import EvaluationContext
 from llm_workers.tools.custom_tool import create_statement_from_model
 from llm_workers.user_context import StandardUserContext
-from llm_workers.utils import setup_logging, prepare_cache, ensure_env_vars_defined
+from llm_workers.utils import setup_logging, prepare_cache
+from llm_workers.worker_utils import ensure_env_vars_defined
 from llm_workers.workers_context import StandardWorkersContext
 
 
@@ -29,13 +31,14 @@ def run_llm_script(
     """
     if user_context is None:
         user_config = StandardUserContext.load_config()
-        ensure_env_vars_defined(user_config.env)
-        user_context = StandardUserContext(user_config)
+        environment = EvaluationContext.default_environment()
+        ensure_env_vars_defined(environment, user_config.env)
+        user_context = StandardUserContext(user_config, environment)
 
     prepare_cache()
 
     script = StandardWorkersContext.load_script(script_name)
-    ensure_env_vars_defined(script.env)
+    ensure_env_vars_defined(user_context.environment, script.env)
     context = StandardWorkersContext(script, user_context)
 
     if context.config.cli is None:
@@ -44,7 +47,7 @@ def run_llm_script(
     # FIXME this is broken ATM
     worker: ExtendedRunnable[dict[str, Any], Any]
     try:
-        worker = create_statement_from_model(["input"], context.config.cli, context)
+        worker = create_statement_from_model(context.config.cli, context)
     except Exception as e:
         logging.error("Failed to create worker from CLI configuration", exc_info=True)
         parser.error(f"Failed to create worker from CLI configuration: {e}")

@@ -4,28 +4,19 @@ import logging
 import mimetypes
 import os
 import platform
-import re
 import subprocess
 import sys
 import time
-import uuid
 from pathlib import Path
 from typing import Any
-from typing import Callable, List, Optional, Dict, Iterator
+from typing import Callable, List, Optional, Dict
 
 import yaml
 from dotenv import load_dotenv, find_dotenv
-from langchain_core.messages import ToolCall
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import BaseTool
-from langchain_core.tools.base import ToolException
 from pydantic import BaseModel
 
-from llm_workers.api import WorkerNotification, ExtendedBaseTool, ExtendedExecutionTool
-from llm_workers.config import ToolDefinition, EnvVarDefinition
-from llm_workers.token_tracking import CompositeTokenUsageTracker
-
 logger =  logging.getLogger(__name__)
+
 
 ####################################################
 # Cache
@@ -218,34 +209,6 @@ def multi_cached(
 # Execution Environment
 ####################################################
 
-class RunProcessException(IOError):
-    def __init__(self, message: str, cause: Exception = None):
-        super().__init__(message)
-        self.cause = cause
-
-def run_process(cmd: List[str]) -> str:
-    cmd_str = LazyFormatter(cmd, custom_formatter = lambda x: " ".join(x))
-    logger.debug("Running %s", cmd_str)
-    try:
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-        (result, stderr_data) = process.communicate()
-        exit_code = process.wait()
-    except FileNotFoundError as e:
-        raise e
-    except Exception as e:
-        raise RunProcessException(f"Running sub-process [{cmd_str}] failed with error: {e}", e)
-    if exit_code == 0:
-        logger.debug("Sub-process [%s] finished with exit code %s, result_len=%s, stderr:\n%s", cmd_str, exit_code, len(result), stderr_data)
-        return result
-    else:
-        raise RunProcessException(f"Sub-process [{cmd_str}] finished with exit code {exit_code}, result_len={len(result)}, stderr:\n{stderr_data}")
-
-
 def find_and_load_dotenv(fallback_path: Path):
     """Tries to find and load .env file. Order:
     1. Current directory
@@ -282,11 +245,12 @@ def get_env_var_or_fail(name: str) -> str:
         raise OSError(f"Environment variable {name} not set")
     return var
 
-def ensure_environment_variable(var_name: str, description: str = None, is_persistent: bool = True, is_secret: bool = False) -> str:
+def ensure_environment_variable(environment: Dict[str,str], var_name: str, description: any = None, is_persistent: bool = True, is_secret: bool = False) -> str:
     """
     Ensure an environment variable is set, prompting the user if it's missing.
 
     Args:
+        environment: Dictionary representing the current environment
         var_name: Name of the environment variable
         description: Optional description to show to the user
         is_persistent: If True, save to .env file; if False, only set for current session
@@ -300,17 +264,21 @@ def ensure_environment_variable(var_name: str, description: str = None, is_persi
     """
     global _env_file_path
 
+
     if _env_file_path is None:
         raise RuntimeError("find_and_load_dotenv must be called before ensure_environment_variable")
 
     # Check if the variable is already set
     value = os.environ.get(var_name)
     if value is not None:
+        environment[var_name] = value
         return value
 
     # Variable is not set, prompt the user
     if description:
-        description = substitute_env_vars(description)
+        from llm_workers.expressions import StringExpression
+        if isinstance(description, StringExpression):
+            description = description.evaluate({'env': environment})
         print(f"\nPlease provide value for '{var_name}': {description}")
     else:
         print(f"\nPlease provide value for '{var_name}'.")
@@ -355,34 +323,9 @@ def ensure_environment_variable(var_name: str, description: str = None, is_persi
 
     # Set the environment variable for this session
     os.environ[var_name] = value
+    environment[var_name] = value
 
     return value
-
-
-def ensure_env_vars_defined(env_definitions: Dict[str, EnvVarDefinition]) -> None:
-    """
-    Process environment variable definitions, prompting user for missing values.
-
-    Args:
-        env_definitions: Dictionary mapping var names to EnvVarDefinition objects
-
-    Note:
-        - For persistent=True vars: uses ensure_environment_variable() to prompt and save
-        - For persistent=False vars: only prompts if not already set, doesn't save to .env
-        - For is_secret=True vars: hides input using prompt_toolkit (if available and TTY)
-        - If env var is already set in os.environ, skips prompting
-    """
-    if not env_definitions:
-        return
-
-    for var_name, env_def in env_definitions.items():
-        # ensure_environment_variable will check if already set and skip if so
-        ensure_environment_variable(
-            var_name,
-            env_def.description,
-            is_persistent=env_def.persistent,
-            is_secret=env_def.secret
-        )
 
 
 ####################################################
@@ -510,25 +453,33 @@ class LazyFormatter:
 # Misc.
 ####################################################
 
-def format_tool_call(tc: ToolCall) -> str:
-    name = tc.get('name', '<tool>')
-    args = tc.get("args")
-    return format_tool_invocation(name, args)
+class RunProcessException(IOError):
+    def __init__(self, message: str, cause: Exception = None):
+        super().__init__(message)
+        self.cause = cause
 
-def format_tool_invocation(name: str, args: Any) -> str:
-    if isinstance(args, dict):
-        arg = next(iter(args.values()), None)
-        if arg is None:
-            return name
-        else:
-            args = str(arg)
+def run_process(cmd: List[str]) -> str:
+    cmd_str = LazyFormatter(cmd, custom_formatter = lambda x: " ".join(x))
+    logger.debug("Running %s", cmd_str)
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        (result, stderr_data) = process.communicate()
+        exit_code = process.wait()
+    except FileNotFoundError as e:
+        raise e
+    except Exception as e:
+        raise RunProcessException(f"Running sub-process [{cmd_str}] failed with error: {e}", e)
+    if exit_code == 0:
+        logger.debug("Sub-process [%s] finished with exit code %s, result_len=%s, stderr:\n%s", cmd_str, exit_code, len(result), stderr_data)
+        return result
     else:
-        args = str(args)
-    limit = 80
-    if len(args) > limit:
-        return f"{name} \"{args[:limit]}...\""
-    else:
-        return f"{name} \"{args}\""
+        raise RunProcessException(f"Sub-process [{cmd_str}] finished with exit code {exit_code}, result_len={len(result)}, stderr:\n{stderr_data}")
+
 
 class FileChangeDetector:
     def __init__(self, path: str, included_patterns: list[str], excluded_patterns: list[str]):
@@ -701,87 +652,6 @@ def parse_standard_type(s: str):
         raise ValueError(f"Unknown type: {s}")
 
 
-MAX_START_TOOL_MSG_LENGTH = 80
-
-def set_max_start_tool_msg_length(length: int) -> None:
-    """
-    Set the global maximum length for start tool notification.
-
-    Args:
-        length: Maximum length in characters
-    """
-    global MAX_START_TOOL_MSG_LENGTH
-    MAX_START_TOOL_MSG_LENGTH = length
-
-def get_start_tool_message(tool_name: str, tool_meta: Optional[Dict[str, Any]], inputs: Dict[str, Any]) -> str | None:
-    try:
-        # check if ui_hint is defined in tool definition
-        if tool_meta and 'tool_definition' in tool_meta:
-            tool_def: ToolDefinition = tool_meta['tool_definition']
-            if tool_def.ui_hint_template is not None:
-                hint = tool_def.ui_hint_template.format(**inputs)
-                if hint.strip():  # only return if hint is not empty
-                    return hint
-                else:
-                    return None  # empty hint means no message should be shown
-            # Check if ui_hints_args is configured for this tool
-            if tool_def.ui_hint is not None:
-                if tool_def.ui_hint:
-                    prefix = f"Calling {tool_name}"
-                    max_args_length = MAX_START_TOOL_MSG_LENGTH - len(prefix) - 2  # account for parentheses
-                    args_str = format_tool_args(inputs, tool_def.ui_hint_args, max_args_length)
-                    return f"{prefix}({args_str})" if args_str else prefix
-                else:
-                    return None  # ui_hint is False means no message should be shown
-
-        # fallback to ExtendedBaseTool
-        if tool_meta and '__extension' in tool_meta:
-            extension: ExtendedBaseTool = tool_meta['__extension']
-            hint = extension.get_ui_hint(inputs)
-            if hint.strip():  # only return if hint is not empty
-                return hint
-            else:
-                return None  # empty hint means no message should be shown
-    except Exception:
-        logger.warning(f"Unexpected exception formating start message for tool {tool_name}", exc_info=True)
-    # default
-    return f"Running tool {tool_name}"
-
-def call_tool(
-        tool: BaseTool,
-        input: dict[str, Any],
-        token_tracker: CompositeTokenUsageTracker,
-        config: Optional[RunnableConfig],
-        kwargs: dict[str, Any]
-) -> Iterator[WorkerNotification | Any]:
-    run_id = config.get("run_id", None) if config is not None else None
-    child_config = config
-
-    tool_start_text = get_start_tool_message(tool.name, tool.metadata, input)
-    if tool_start_text:
-        parent_run_id = run_id
-        run_id = uuid.uuid4()
-        child_config = config.copy() if config is not None else RunnableConfig()
-        child_config['run_id'] = run_id
-        yield WorkerNotification.tool_start(tool_start_text, run_id, parent_run_id)
-
-    try:
-        if isinstance(tool, ExtendedExecutionTool):
-            yield from tool.stream_with_notifications(input=input, token_tracker=token_tracker, config=child_config)
-        else:
-            yield tool.invoke(input, child_config, **kwargs)
-    except ToolException as e:
-        logger.warning("Failed to call tool %s", tool.name, exc_info=True)
-        yield f"Tool Error: {e}"
-
-    if tool_start_text:
-        yield WorkerNotification.tool_end(run_id)
-
-
-####################################################
-# MCP Utilities
-####################################################
-
 def matches_patterns(tool_name: str, patterns: List[str]) -> bool:
     """
     Check if tool_name matches any of the patterns.
@@ -817,125 +687,3 @@ def matches_patterns(tool_name: str, patterns: List[str]) -> bool:
         return not excluded
 
     return included
-
-
-def format_tool_args(inputs: Dict[str, Any], arg_patterns: List[str], max_length: int) -> str:
-    """
-    Format tool arguments for UI display, filtering by patterns.
-
-    Args:
-        inputs: Dictionary of tool input arguments
-        arg_patterns: List of patterns to match argument names (supports negation with !)
-        max_length: Maximum length of the formatted string before truncation
-
-    Returns:
-        Formatted argument string truncated to max_length with [...] if needed
-    """
-    if not inputs or not arg_patterns:
-        return ""
-
-    result = ""
-    result_len = 0
-    result_truncated = False
-    for key, value in inputs.items():
-        if not matches_patterns(key, arg_patterns):
-            continue
-
-        key_str = str(key)
-        value_str = repr(value)
-        # [, ]'key': value
-        arg_len = len(key_str) + 4 + len(repr(value)) + (0 if result_len == 0 else 2)
-        if result_len + arg_len > max_length:
-            result_truncated = True
-            # we can't fit this argument, but continue for other args
-        else:
-            if result_len > 0:
-                result += ", "
-            result += f"'{key_str}': {value_str}"
-            result_len += arg_len
-    if result_truncated:
-        if result_len > 0:
-            result += ", "
-        result += "[...]"
-
-    return result
-
-_env_pattern = re.compile(r'\$\{env\.([A-Za-z_][A-Za-z0-9_]*)\}')
-
-def substitute_env_vars(arg: str) -> str:
-    """
-    Replace ${env.VAR_NAME} references in arg with actual env var values.
-    Args:
-        arg: Argument that may contain ${env.VAR_NAME} references
-    Returns:
-        New string with substituted values
-    Examples:
-        "${env.API_TOKEN}" -> "actual_token_value"
-        "prefix_${env.VAR}_suffix" -> "prefix_value_suffix"
-    """
-    global _env_pattern
-    # Find all ${env.VAR} references
-    matches = _env_pattern.findall(arg)
-    if not matches:
-        return arg
-
-    substituted_arg = arg
-    for var_name in matches:
-        env_value = os.environ.get(var_name)
-        if env_value is None:
-            raise ValueError(f"Environment variable '{var_name}' referenced in args is not defined")
-        substituted_arg = substituted_arg.replace(f'${{env.{var_name}}}', env_value)
-    return substituted_arg
-
-
-def substitute_env_vars_in_list(args: List[str]) -> List[str]:
-    """
-    Replace ${env.VAR_NAME} references in args list with actual env var values.
-
-    Args:
-        args: List of arguments that may contain ${env.VAR_NAME} references
-
-    Returns:
-        New list with substituted values
-
-    Raises:
-        ValueError: If an environment variable is not defined
-
-    Examples:
-        ["--path", "${env.HOME}"] -> ["--path", "/Users/username"]
-        ["prefix_${env.VAR}_suffix"] -> ["prefix_value_suffix"]
-        ["regular_arg"] -> ["regular_arg"]
-    """
-    if not args:
-        return args
-
-    result = []
-    for arg in args:
-        result.append(substitute_env_vars(arg) if isinstance(arg, str) else arg)
-    return result
-
-
-def substitute_env_vars_in_dict(env_dict: Dict[str, str]) -> Dict[str, str]:
-    """
-    Replace ${env.VAR_NAME} references in dictionary values with actual env var values.
-
-    Args:
-        env_dict: Dictionary with string values that may contain ${env.VAR_NAME} references
-
-    Returns:
-        New dictionary with substituted values
-
-    Raises:
-        ValueError: If an environment variable is not defined
-
-    Examples:
-        {"KEY": "${env.API_TOKEN}"} -> {"KEY": "actual_token_value"}
-        {"KEY": "prefix_${env.VAR}_suffix"} -> {"KEY": "prefix_value_suffix"}
-    """
-    if not env_dict:
-        return env_dict
-
-    result = {}
-    for key, value in env_dict.items():
-        result[key] = substitute_env_vars(value) if isinstance(value, str) else value
-    return result

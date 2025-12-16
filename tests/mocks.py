@@ -9,6 +9,7 @@ from langchain_core.tools import BaseTool, tool
 
 from llm_workers.api import WorkersContext, UserContext
 from llm_workers.config import WorkersConfig, ToolsDefinitionOrReference
+from llm_workers.expressions import EvaluationContext, JsonExpression
 from llm_workers.user_context import UserContext
 from llm_workers.workers_context import StandardWorkersContext
 
@@ -153,10 +154,16 @@ class StubWorkersContext(WorkersContext):
         self._llm = llm
         self._config = config or WorkersConfig()
         self._tools = tools or {}
+        shared = self._config.shared or JsonExpression({})
+        self._evaluation_context = EvaluationContext({'shared': shared.evaluate(EvaluationContext())})
 
     @property
     def config(self) -> WorkersConfig:
         return self._config
+
+    @property
+    def evaluation_context(self) -> EvaluationContext:
+        return self._evaluation_context
 
     def get_tool(self, tool_ref):
         if tool_ref in self._tools:

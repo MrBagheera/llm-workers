@@ -36,10 +36,10 @@ tools:
             - services and docking information (for marinas) or anchoring recommendations and protection offered (for anchorages)
             - navigational hazards
             - other information relevant to boating
-          Format using markdown, title as level {header_level} header, other information as separate section with bold titles. 
+          Format using markdown, title as level ${header_level} header, other information as separate section with bold titles. 
           
           Text to summarize:
-          {text}
+          ${text}
     return_direct: true
       
   - name: generate_navigation_summary_from_url
@@ -54,15 +54,15 @@ tools:
         description: Level of header to use for title
         type: int
         default: 3
-    ui_hint: Generating navigation summary for {url}
+    ui_hint: Generating navigation summary for ${url}
     body:
       - call: fetch_page_markdown
         params:
-          url: "{url}"
+          url: "${url}"
       - call: generate_navigation_summary
         params:
-          text: "{output0}"
-          header_level: "{header_level}"
+          text: "${output0}"
+          header_level: "${header_level}"
     return_direct: true
 
 cli:
@@ -71,7 +71,7 @@ cli:
     - match: [ "*", "!_*"] # all tools that doesn't start with _
   params:
     prompt: >
-      Please fetch the page from {input} and print navigation summary for this region, as well as for all bays and marinas in it.
+      Please fetch the page from ${input} and print navigation summary for this region, as well as for all bays and marinas in it.
 
 chat:
   system_message: >

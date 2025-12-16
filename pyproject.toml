@@ -16,8 +16,8 @@ dependencies = [
     "html-text (>=0.7.0,<0.8.0)",
     "notebook (>=7.3.2,<8.0.0)",
     "rich (>=14.1.0,<15.0.0)",
-    "echo-mcp-server-for-testing (>=0.1.5,<0.2.0)",
-    # has to ping those down due f-string template issues intriduced in later versions
+    "simpleeval (>=1.0.0,<2.0.0)",
+    # have to pin those down due f-string template issues intriduced in later versions
     "langchain (>=0.3.27,<0.4.0)",
     "langchain-core (>=0.3.76,<0.3.80)",
     "langchain-community (>=0.3.29,<0.4.0)",
@@ -28,8 +28,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "langchain-aws (>=0.2.31,<0.3.0)",
-    "boto3 (>=1.37.8)",
+    "echo-mcp-server-for-testing (>=0.1.5,<0.2.0)",
 ]
 
 [project.urls]

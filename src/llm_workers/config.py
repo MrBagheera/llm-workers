@@ -10,6 +10,8 @@ from pydantic_core import PydanticCustomError
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler, ValidationInfo
 from typing_extensions import Self
 
+from llm_workers.expressions import StringExpression, JsonExpression
+
 
 def json_custom_error_validator(
         value: Any,
@@ -98,9 +100,9 @@ class RateLimiterConfig(BaseModel):
     max_bucket_size: float
 
 class ModelDefinition(BaseModel, ABC):
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra='forbid')
     name: str
-    config: Optional[Dict[str, Json]] = None
+    config: Optional[JsonExpression[dict]] = None
     rate_limiter: Optional[RateLimiterConfig] = None
 
 class StandardModelDefinition(ModelDefinition):
@@ -124,7 +126,7 @@ class DisplaySettings(BaseModel):
 class EnvVarDefinition(BaseModel):
     """Definition for an environment variable."""
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
-    description: Optional[str] = None
+    description: Optional[StringExpression] = None
     persistent: bool = False  # If false, prompted each script load
     secret: bool = False  # If true, input is hidden (requires prompt_toolkit)
 
@@ -144,13 +146,13 @@ class MCPServerBase(BaseModel):
 class MCPServerStdio(MCPServerBase):
     transport: Literal['stdio']
     command: str
-    args: List[str] = [] # Defaults to empty list if not provided
-    env: Dict[str, str] = {} # Defaults to empty dict
+    args: JsonExpression[list] = JsonExpression([])
+    env: JsonExpression[dict] = JsonExpression({})
 
 class MCPServerHttp(MCPServerBase):
     transport: Literal['streamable_http']
     url: str
-    headers: Dict[str, str] = {}
+    headers: JsonExpression[dict] = JsonExpression({})
 
 MCPServerDefinition = Annotated[
     Union[MCPServerStdio, MCPServerHttp],
@@ -158,33 +160,23 @@ MCPServerDefinition = Annotated[
 ]
 
 
-StatementDefinition = TypeAliasType(
-    'StatementDefinition',
-    Union['CallDefinition', 'MatchDefinition', 'ResultDefinition'],
-)
-
-BodyDefinition = TypeAliasType(
-    'BodyDefinition',
-    Union[StatementDefinition, List[StatementDefinition]],
-)
-
 class ResultDefinition(BaseModel):
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
-    result: Json
-    key: Optional[Json] = None
-    default: Optional[Json] = None
+    result: JsonExpression
+    key: Optional[StringExpression] = None
+    default: Optional[JsonExpression] = None
 
 class CallDefinition(BaseModel):
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     call: ToolDefinitionOrReference
-    params: Optional[Dict[str, Json]] = None
+    params: Optional[JsonExpression[dict]] = None
     catch: Optional[str | list[str]] = None
 
 class MatchClauseDefinition(BaseModel):
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     case: Optional[str] = None
     pattern: Optional[str] = None
-    then: BodyDefinition
+    then: 'BodyDefinition'
 
     @classmethod
     @model_validator(mode='after')
@@ -197,10 +189,45 @@ class MatchClauseDefinition(BaseModel):
 
 class MatchDefinition(BaseModel):
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
-    match: str
+    match: StringExpression
     trim: bool = False
     matchers: List[MatchClauseDefinition]
-    default: BodyDefinition
+    default: 'BodyDefinition'
+
+
+StatementDefinition = Annotated[
+    Union[
+        Annotated[CallDefinition, Tag('<call statement>')],
+        Annotated[MatchDefinition, Tag('<match statement>')],
+        Annotated[ResultDefinition, Tag('<result statement>')],
+    ],
+    Discriminator(create_discriminator({
+        'call': '<call statement>',
+        CallDefinition: '<call statement>',
+        'match': '<match statement>',
+        MatchDefinition: '<match statement>',
+        'result': '<result statement>',
+        ResultDefinition: '<result statement>',
+    }))
+]
+
+BodyDefinition = Annotated[
+    Union[
+        Annotated[CallDefinition, Tag('<call statement>')],
+        Annotated[MatchDefinition, Tag('<match statement>')],
+        Annotated[ResultDefinition, Tag('<result statement>')],
+        Annotated[List[StatementDefinition], Tag('<statements>')],
+    ],
+    Discriminator(create_discriminator({
+        'call': '<call statement>',
+        CallDefinition: '<call statement>',
+        'match': '<match statement>',
+        MatchDefinition: '<match statement>',
+        'result': '<result statement>',
+        ResultDefinition: '<result statement>',
+        list: '<statements>'
+    }))
+]
 
 
 class ToolDefinition(BaseModel):
@@ -211,7 +238,7 @@ class ToolDefinition(BaseModel):
     return_direct: Optional[bool] = None
     confidential: Optional[bool] = None
     require_confirmation: Optional[bool] = None
-    ui_hint: Optional[str | bool] = None
+    ui_hint: Optional[StringExpression | bool] = None
     ui_hint_args: List[str] = []
     _ui_hint_template: Optional[PromptTemplate] = PrivateAttr(default=None)  # private field
 
@@ -254,9 +281,6 @@ class CustomToolDefinition(ToolDefinition):
     name: str
     input: List[CustomToolParamsDefinition] = []
     body: BodyDefinition
-
-    def __init__(self, **data):
-        super().__init__(**data)
 
     def __str__(self):
         return f"name: {self.name}"
@@ -338,7 +362,7 @@ ToolsDefinitionOrReference = Annotated[
 class BaseLLMConfig(BaseModel):
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     model_ref: str = "default"
-    system_message: str = None
+    system_message: Optional[StringExpression] = None
     tools: List[ToolsDefinitionOrReference] = []
 
 
@@ -356,6 +380,6 @@ class WorkersConfig(BaseModel):
     env: Optional[Dict[str, EnvVarDefinition]] = None
     tools: list[ToolsDefinitionStatement] = []
     mcp: Dict[str, MCPServerDefinition] = {}
-    shared: Dict[str, Json] = {}
+    shared: JsonExpression = {}
     chat: Optional[ChatConfig] = None
     cli: Optional[BodyDefinition] = None

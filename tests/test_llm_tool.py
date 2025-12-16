@@ -132,6 +132,7 @@ class TestLLMTool(unittest.TestCase):
         token_tracker = CompositeTokenUsageTracker()
         chunks = list(tool.stream_with_notifications(
             input={"prompt": "What is the answer?"},
+            evaluation_context=context.evaluation_context,
             token_tracker=token_tracker,
             config=None
         ))
@@ -143,7 +144,7 @@ class TestLLMTool(unittest.TestCase):
                 result = chunk
 
         # Verify result
-        self.assertEqual(result, "The answer is 42")
+        self.assertEqual("The answer is 42", result)
         mock_llm.verify_all_called()
 
         # Verify token usage was captured
@@ -173,6 +174,7 @@ class TestLLMTool(unittest.TestCase):
         token_tracker = CompositeTokenUsageTracker()
         chunks = list(tool.stream_with_notifications(
             input={"prompt": "Test prompt"},
+            evaluation_context=context.evaluation_context,
             token_tracker=token_tracker,
             config=None
         ))

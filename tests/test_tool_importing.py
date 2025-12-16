@@ -1044,15 +1044,14 @@ tools:
 tools:
   - import_tool: llm_workers.tools.fs.ReadFileTool
     name: read_tool
-    ui_hint: "Reading file {path}"
+    ui_hint: "Reading file ${path}"
 """
         context = self.create_and_initialize_context(yaml_config)
 
         # Verify UI hint is set as string
         tool = context._tools['read_tool']
         tool_def = tool.metadata['tool_definition']
-        self.assertEqual("Reading file {path}", tool_def.ui_hint)
-        self.assertIsNotNone(tool_def.ui_hint_template)
+        self.assertEqual("Reading file file", tool_def.ui_hint.evaluate({'path': 'file'}))
 
     def test_single_tool_import_with_ui_hint_boolean(self):
         """Test single tool import with ui_hint: true or false."""

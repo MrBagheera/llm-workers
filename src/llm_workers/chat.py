@@ -14,11 +14,13 @@ from rich.syntax import Syntax
 from llm_workers.api import ConfirmationRequest, ConfirmationResponse, UserContext, WorkerNotification
 from llm_workers.chat_completer import ChatCompleter
 from llm_workers.console import ConsoleController
+from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.user_context import StandardUserContext
 from llm_workers.utils import setup_logging, LazyFormatter, FileChangeDetector, \
-    open_file_in_default_app, is_safe_to_open, prepare_cache, ensure_env_vars_defined, set_max_start_tool_msg_length
+    open_file_in_default_app, is_safe_to_open, prepare_cache
 from llm_workers.worker import Worker
+from llm_workers.worker_utils import ensure_env_vars_defined, set_max_start_tool_msg_length
 from llm_workers.workers_context import StandardWorkersContext
 
 logger = getLogger(__name__)
@@ -119,7 +121,7 @@ class ChatSession:
         # and then run actual chat session synchronously using separate thread.
         chat_session = ChatSession(console)
         script = StandardWorkersContext.load_script(script_file)
-        ensure_env_vars_defined(script.env)
+        ensure_env_vars_defined(user_context.environment, script.env)
         workers_context = StandardWorkersContext(script, user_context)
 
         loop = asyncio.new_event_loop()
@@ -579,8 +581,9 @@ def chat_with_llm_script(script_name: str, user_context: Optional[UserContext] =
     """
     if user_context is None:
         user_config = StandardUserContext.load_config()
-        ensure_env_vars_defined(user_config.env)
-        user_context = StandardUserContext(user_config)
+        environment = EvaluationContext.default_environment()
+        ensure_env_vars_defined(environment, user_config.env)
+        user_context = StandardUserContext(user_config, environment)
 
     prepare_cache()
 

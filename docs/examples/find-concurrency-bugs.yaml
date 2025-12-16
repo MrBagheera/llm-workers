@@ -4,7 +4,7 @@ cli:
   - call:
       import_tool: llm_workers.tools.fs.ReadFileTool
     params:
-      filename: "{input}"
+      filename: "${input}"
   - call:
       import_tool: llm_workers.tools.llm_tool.build_llm_tool
       model_ref: thinking
@@ -54,6 +54,6 @@ cli:
         
         Report ONLY concurrency issues. Ignore methods called `Init` or private methods called only from `Init` methods.
         Return plain JSON, without extra comments and WITHOUT formatting.
-      
-        Input file {input}:
-        {output0}
+
+        Input file ${input}:
+        ${output0}

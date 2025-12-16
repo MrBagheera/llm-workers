@@ -6,10 +6,11 @@ from typing import Dict, Any, List, Union, Iterable, Optional
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
-from pydantic import PrivateAttr, BaseModel, Field
+from pydantic import PrivateAttr, BaseModel, Field, ConfigDict
 
 from llm_workers.api import WorkersContext, WorkerNotification, ExtendedExecutionTool
 from llm_workers.config import ToolLLMConfig
+from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.utils import LazyFormatter
 from llm_workers.worker import Worker
@@ -66,6 +67,7 @@ def extract_json_blocks(text: str, extract_json: Union[bool, str]) -> str:
 
 class LLMToolInput(BaseModel):
     """Input schema for LLM tool."""
+    model_config = ConfigDict(extra="allow")
     prompt: str = Field(description="Text prompt to send to the LLM")
     system_message: Optional[str] = Field(default=None, description="Optional system message to prepend to the conversation")
 
@@ -78,6 +80,9 @@ class LLMTool(ExtendedExecutionTool):
         super().__init__(**kwargs)
         self._agent = agent
         self._config = config
+
+    def default_evaluation_context(self) -> EvaluationContext:
+        return self._agent.context.evaluation_context
 
     def _extract_result(self, result: List[BaseMessage]) -> Any:
         """Extract text result and capture token usage from LLM response."""
@@ -98,10 +103,10 @@ class LLMTool(ExtendedExecutionTool):
             _logger.debug("Extracting JSON from LLM output (mode=%s):\n%s", self._config.extract_json, LazyFormatter(text))
             json_text = extract_json_blocks(text, self._config.extract_json)
             try:
-                # TODO this is a hack, but until we fix templating input JSON will arrive to LLM as single-quoted
+                return json.loads(json_text)
+                # Keeping just in case: this is a hack, but until we fix templating input JSON will arrive to LLM as single-quoted
                 # so it may also produce single-quoted JSON outputs
-                # return json.loads(json_text)
-                return ast.literal_eval(json_text.replace("true", "True").replace("false", "False"))
+                # return ast.literal_eval(json_text.replace("true", "True").replace("false", "False"))
             except (json.JSONDecodeError, ValueError, SyntaxError):
                 _logger.warning("Failed to parse JSON from LLM output, returning as plain text:\n%s", json_text, exc_info=True)
                 return json_text
@@ -110,6 +115,7 @@ class LLMTool(ExtendedExecutionTool):
 
     def _stream(
             self,
+            evaluation_context: EvaluationContext,
             token_tracker: Optional[CompositeTokenUsageTracker],
             config: Optional[RunnableConfig],
             **kwargs: Any
@@ -121,16 +127,16 @@ class LLMTool(ExtendedExecutionTool):
             prompt: text prompt
             system_message: optional system message to prepend to the conversation
         """
-        prompt = kwargs.get('prompt')
-        system_message = kwargs.get('system_message')
+        input = LLMToolInput(**kwargs)
 
         messages = []
-        if system_message:
-            messages.append(SystemMessage(system_message))
-        messages.append(HumanMessage(prompt))
+        if input.system_message:
+            messages.append(SystemMessage(input.system_message))
+        messages.append(HumanMessage(input.prompt))
 
         result: List[BaseMessage] = list()
-        for e in self._agent.stream_with_notifications(input=messages, config=config, stream=False):
+        for e in self._agent.stream_with_notifications(input=messages, config=config, stream=False,
+               **{**input.model_extra, 'evaluation_context': evaluation_context}):
             if isinstance(e, WorkerNotification):
                 yield e
             else:

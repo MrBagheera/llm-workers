@@ -16,8 +16,9 @@ from llm_workers.api import WorkersContext, WorkerException, ExtendedBaseTool, U
 from llm_workers.config import WorkersConfig, ToolDefinitionOrReference, ImportToolStatement, ImportToolsStatement, \
     ToolDefinition, CustomToolDefinition, ToolsDefinitionStatement, MCPServerStdio, MCPServerHttp, \
     ToolsDefinitionOrReference, ToolsReference
+from llm_workers.expressions import EvaluationContext
 from llm_workers.tools.custom_tool import build_custom_tool
-from llm_workers.utils import matches_patterns, substitute_env_vars_in_list, substitute_env_vars_in_dict
+from llm_workers.utils import matches_patterns
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ class StandardWorkersContext(WorkersContext):
         self._user_context = user_context
         self._tools: Dict[str, BaseTool] = {}
         self._mcp_tools_by_server: dict[str, list[BaseTool]] = {}
+        self._evaluation_context = EvaluationContext({"env": user_context.environment})
 
     @classmethod
     def load_script(cls, name: str) -> WorkersConfig:
@@ -43,6 +45,7 @@ class StandardWorkersContext(WorkersContext):
         if ':' in name:
             module, resource = name.split(':', 1)
             if len(module) > 1: # ignore volume names on windows
+                # noinspection PyUnresolvedReferences
                 with importlib.resources.files(module).joinpath(resource).open("r") as file:
                     config_data = yaml.safe_load(file)
                 return WorkersConfig(**config_data)
@@ -54,6 +57,10 @@ class StandardWorkersContext(WorkersContext):
     @property
     def config(self) -> WorkersConfig:
         return self._config
+
+    @property
+    def evaluation_context(self) -> EvaluationContext:
+        return self._evaluation_context
 
     def get_tool(self, tool_ref: ToolDefinitionOrReference) -> BaseTool:
         if isinstance(tool_ref, ToolDefinition):
@@ -101,21 +108,20 @@ class StandardWorkersContext(WorkersContext):
         if len(self._config.mcp) > 0:
             logger.info("Initializing MCP clients...")
 
-            # Build server configs
             server_configs = {}
             for server_name, server_def in self._config.mcp.items():
                 if isinstance(server_def, MCPServerStdio):
                     server_configs[server_name] = {
                         "transport": "stdio",
                         "command": server_def.command,
-                        "args": substitute_env_vars_in_list(server_def.args),
-                        "env": substitute_env_vars_in_dict(server_def.env),
+                        "args": server_def.args.evaluate(self._evaluation_context),
+                        "env": server_def.env.evaluate(self._evaluation_context),
                     }
                 elif isinstance(server_def, MCPServerHttp):
                     server_configs[server_name] = {
                         "transport": "streamable_http",
                         "url": server_def.url,
-                        "headers": substitute_env_vars_in_dict(server_def.headers),
+                        "headers": server_def.headers.evaluate(self._evaluation_context),
                     }
                 else:
                     raise WorkerException(f"Unsupported MCP definition: {type(server_def)}")
@@ -125,6 +131,12 @@ class StandardWorkersContext(WorkersContext):
                 self._mcp_tools_by_server = await self._load_mcp_tools_async(server_configs)
             except Exception as e:
                 raise WorkerException(f"Failed to initialize MCP clients: {e}", e)
+
+        # resolve and expose "shared data"
+        if self._config.shared:
+            self._evaluation_context.add('shared', self._config.shared.evaluate(self._evaluation_context))
+        # lock the evaluation context to prevent further modifications
+        self._evaluation_context.mutable = False
 
         # Finally we can register all tools
         self._create_tools('shared tools', self._tools, self._config.tools)
@@ -257,7 +269,7 @@ class StandardWorkersContext(WorkersContext):
                 tool.metadata = {}
             tool.metadata['tool_definition'] = tool_def
             if isinstance(tool, ExtendedBaseTool):
-                tool.metadata['__extension'] = tool # TODO really hackish
+                tool.metadata['__extension'] = tool # really hackish
             return tool
         except ImportError as e:
             raise WorkerException(f"Failed to import module for tool {tool_def}: {e}")

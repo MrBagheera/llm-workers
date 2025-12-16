@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from llm_workers.config import WorkersConfig, ToolDefinitionOrReference, ModelDefinition, UserConfig, Json, \
     ToolsDefinitionOrReference
+from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 
 # Flag for confidential messages (not shown to LLM)
@@ -18,6 +19,12 @@ CONFIDENTIAL: str = 'confidential'
 
 
 class UserContext(ABC):
+
+    @property
+    @abstractmethod
+    def environment(self) -> Dict[str, str]:
+        """Get environment vars (only default and explicitly listed)."""
+        pass
 
     @property
     @abstractmethod
@@ -41,6 +48,11 @@ class WorkersContext(ABC):
     @property
     @abstractmethod
     def config(self) -> WorkersConfig:
+        pass
+
+    @property
+    @abstractmethod
+    def evaluation_context(self) -> EvaluationContext:
         pass
 
     @abstractmethod
@@ -122,6 +134,7 @@ class ExtendedRunnable(ABC, Generic[Input, Output]):
     @abstractmethod
     def _stream(
             self,
+            evaluation_context: EvaluationContext,
             token_tracker: Optional[CompositeTokenUsageTracker],
             config: Optional[RunnableConfig],
             **kwargs: Any
@@ -133,20 +146,27 @@ class ExtendedRunnable(ABC, Generic[Input, Output]):
 class ExtendedExecutionTool(BaseTool, ExtendedRunnable[dict[str, Any], Any], ABC):
     """Base class for tools that support streaming and/or internal state notifications."""
 
+    @abstractmethod
+    def default_evaluation_context(self) -> EvaluationContext:
+        """Get the default evaluation context for the tool."""
+        pass
+
     def _run(
             self,
             *args: Any,
             config: Optional[RunnableConfig] = None,
             **kwargs: Any,
     ) -> Any:
-        for chunk in self._stream(token_tracker=None, config = config, **kwargs):
+        # for tools called via this method, we cannot pass context or token tracker - use defaults
+        for chunk in self._stream(self.default_evaluation_context(), token_tracker=None, config=config, **kwargs):
             if isinstance(chunk, WorkerNotification):
                 continue
             return chunk
         return None
 
-    def stream_with_notifications(self, input: dict[str, Any], token_tracker: CompositeTokenUsageTracker, config: Optional[RunnableConfig]):
-        return self._stream(token_tracker = token_tracker, config = config, **input)
+    def stream_with_notifications(self, input: dict[str, Any], evaluation_context: EvaluationContext,
+                                  token_tracker: CompositeTokenUsageTracker, config: Optional[RunnableConfig]):
+        return self._stream(evaluation_context, token_tracker, config, **input)
 
 
 class WorkerNotification:
