@@ -55,9 +55,27 @@ llm-workers-cli <script_file> --
 ### Core Components
 
 - **Worker** (`src/llm_workers/worker.py`): Central orchestrator that manages LLM interactions and tool execution
-- **Context** (`src/llm_workers/context.py`): Manages configuration loading and provides access to models and tools
-- **Configuration** (`src/llm_workers/config.py`): Defines the YAML configuration schema for LLM scripts
-- **Tools**: Extensible tool system supporting both built-in and custom tools
+- **Worker Utils** (`src/llm_workers/worker_utils.py`): Utility functions for worker operations
+- **API** (`src/llm_workers/api.py`): Abstract base classes for UserContext and WorkersContext interfaces
+- **User Context** (`src/llm_workers/user_context.py`): Manages user configuration, environment variables, and model initialization
+- **Workers Context** (`src/llm_workers/workers_context.py`): Manages script configuration, tool loading, and MCP server connections
+- **Configuration** (`src/llm_workers/config.py`): Defines the YAML configuration schema for LLM scripts and user settings
+- **Expressions** (`src/llm_workers/expressions.py`): Expression evaluation system for dynamic values in YAML scripts
+- **Utils** (`src/llm_workers/utils.py`): General utility functions and helpers
+- **CLI** (`src/llm_workers/cli.py`): Command-line interface for batch processing
+- **Chat** (`src/llm_workers/chat.py`): Interactive chat interface
+- **Chat Completer** (`src/llm_workers/chat_completer.py`): Chat completion logic
+- **Console** (`src/llm_workers/console.py`): Console output formatting and display
+- **Token Tracking** (`src/llm_workers/token_tracking.py`): Token usage tracking and reporting
+
+### Tool System (`src/llm_workers/tools/`)
+
+- **Custom Tool** (`custom_tool.py`): Custom tool builder for YAML-defined tools
+- **Fetch** (`fetch.py`): Web scraping and content retrieval tools
+- **FS** (`fs.py`): File system operations (reading, writing, listing)
+- **LLM Tool** (`llm_tool.py`): Nested LLM calls within workflows
+- **Misc** (`misc.py`): Miscellaneous utility tools
+- **Unsafe** (`unsafe.py`): Tools requiring confirmation (file operations, process execution)
 
 ### LLM Scripts
 
@@ -66,18 +84,14 @@ The system uses YAML configuration files called "LLM scripts" that define:
 - **Tools**: Available tools for the LLM (web fetching, file operations, custom tools)
 - **Chat/CLI**: Interface configurations for interactive or batch processing
 
-### Tool System
+### Tool Implementation
 
-Tools can be:
+Tools can be defined in three ways:
 1. **Python classes** extending `langchain_core.tools.base.BaseTool`
 2. **Factory functions** returning tool instances
-3. **Custom tools** defined in YAML using statement composition
+3. **Custom tools** defined in YAML using statement composition (see `src/llm_workers/tools/custom_tool.py`)
 
-Built-in tool categories:
-- **Fetch tools**: Web scraping and content retrieval
-- **File tools**: Read/write operations (marked as "unsafe")
-- **LLM tools**: Nested LLM calls within workflows
-- **System tools**: Process execution and file system operations
+Built-in tools are organized in `src/llm_workers/tools/` (see Tool System section above for details)
 
 ### Configuration Loading
 
@@ -101,3 +115,31 @@ The system supports:
 3. Process input through statement composition
 4. Execute tool calls with confirmation if required
 5. Return results with token usage statistics
+
+## Project Structure
+
+```
+llm-workers/
+├── src/llm_workers/          # Main source code
+│   ├── worker.py             # Core worker implementation
+│   ├── workers_context.py    # Script context management
+│   ├── user_context.py       # User configuration management
+│   ├── config.py             # Configuration schemas
+│   ├── expressions.py        # Expression evaluation
+│   ├── api.py                # Abstract interfaces
+│   ├── cli.py                # CLI tool
+│   ├── chat.py               # Interactive chat interface
+│   └── tools/                # Tool implementations
+│       ├── custom_tool.py    # Custom tool builder
+│       ├── fetch.py          # Web fetching tools
+│       ├── fs.py             # File system tools
+│       ├── llm_tool.py       # Nested LLM tools
+│       ├── misc.py           # Utility tools
+│       └── unsafe.py         # Confirmed-action tools
+├── tests/                    # Unit and integration tests
+├── docs/                     # Documentation
+│   ├── README.md             # Main documentation
+│   ├── LLM Script.md         # Script format documentation
+│   └── examples/             # Example scripts and configurations
+└── workspace/                # Working directory for testing
+```
