@@ -4,7 +4,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
 from llm_workers.api import WorkerNotification
-from llm_workers.config import CustomToolParamsDefinition, CallDefinition, ResultDefinition, \
+from llm_workers.config import CustomToolParamsDefinition, CallDefinition, EvalDefinition, \
     MatchDefinition, MatchClauseDefinition, WorkersConfig, CustomToolDefinition
 from llm_workers.expressions import EvaluationContext, JsonExpression, StringExpression
 from llm_workers.token_tracking import CompositeTokenUsageTracker
@@ -29,7 +29,7 @@ class TestStatements(unittest.TestCase):
 
     def test_return_string(self):
         statement = create_statement_from_model(
-            model = ResultDefinition(result=JsonExpression("${param1} is 42")),
+            model = EvalDefinition(eval=JsonExpression("${param1} is 42")),
             context=StubWorkersContext()
         )
         result = get_stream_result(statement, {"param1": "Meaning of life"})
@@ -37,7 +37,7 @@ class TestStatements(unittest.TestCase):
 
     def test_return_json(self):
         statement = create_statement_from_model(
-            model = ResultDefinition(result=JsonExpression({"inner": "${param1} is 42"})),
+            model = EvalDefinition(eval=JsonExpression({"inner": "${param1} is 42"})),
             context=StubWorkersContext()
         )
         self.assertEqual({"inner": "Meaning of life is 42"}, get_stream_result(statement, {"param1": "Meaning of life"}))
@@ -52,10 +52,10 @@ class TestStatements(unittest.TestCase):
     def test_simple_flow(self):
         statement = create_statement_from_model(
             model = [
-                ResultDefinition(result = JsonExpression(13)),
-                ResultDefinition(result = JsonExpression(29)),
+                EvalDefinition(eval = JsonExpression(13)),
+                EvalDefinition(eval = JsonExpression(29)),
                 CallDefinition(call = "some_function", params = JsonExpression({"param1": "${output0}", "param2": "${output1}"})),
-                ResultDefinition(result = JsonExpression("${param1} is ${output2}"))
+                EvalDefinition(eval = JsonExpression("${param1} is ${output2}"))
             ],
             context=StubWorkersContext(tools={"some_function": test_tool_logic})
         )
@@ -69,18 +69,18 @@ class TestStatements(unittest.TestCase):
                 matchers = [
                     MatchClauseDefinition(
                         case = "Meaning of life",
-                        then = ResultDefinition(result = JsonExpression(42))
+                        then = EvalDefinition(eval = JsonExpression(42))
                     ),
                     MatchClauseDefinition(
                         pattern = "[0-9]+",
-                        then = ResultDefinition(result = JsonExpression("number"))
+                        then = EvalDefinition(eval = JsonExpression("number"))
                     ),
                     MatchClauseDefinition(
                         pattern = "https?://([^/]+)/?.*",
-                        then = ResultDefinition(result = JsonExpression("an URL pointing to ${match[0]}"))
+                        then = EvalDefinition(eval = JsonExpression("an URL pointing to ${match[0]}"))
                     )
                 ],
-                default = ResultDefinition(result = JsonExpression(-1))
+                default = EvalDefinition(eval = JsonExpression(-1))
             ),
             context=StubWorkersContext()
         )
@@ -114,7 +114,7 @@ class TestSharedContentIntegration(unittest.TestCase):
             input=[
                 CustomToolParamsDefinition(name="query", description="Search query", type="str")
             ],
-            body=ResultDefinition(result=JsonExpression("Query ${query} returned ${shared.prompts.test}"))
+            body=EvalDefinition(eval=JsonExpression("Query ${query} returned ${shared.prompts.test}"))
         )
 
         # Build the custom tool
@@ -125,64 +125,39 @@ class TestSharedContentIntegration(unittest.TestCase):
         self.assertEqual("Query test_search returned Yada-yada-yada", result)
 
 
-class TestDynamicKeyResolution(unittest.TestCase):
-    def test_dict_key_resolution(self):
-        """Test resolving dictionary keys with result statement."""
+class TestEvalStatementMigrationPatterns(unittest.TestCase):
+    """Test examples showing how to migrate from result+key+default to eval with expressions."""
+
+    def test_dict_get_with_default(self):
+        """Migration: Use dict.get() for dictionary access with default."""
+        # Old: result: "${data}", key: "json_schema", default: "default_value"
+        # New: eval: "${data.get('json_schema', 'default_value')}"
         statement = create_statement_from_model(
-            model=ResultDefinition(
-                result=JsonExpression({"json_schema": "schema_value", "other": "other_value"}),
-                key=StringExpression("json_schema")
+            model=EvalDefinition(
+                eval=JsonExpression("${data.get('json_schema', 'default_value')}")
             ),
             context=StubWorkersContext()
         )
-        result = get_stream_result(statement, {"param1": "test"})
+
+        # Test with existing key
+        result = get_stream_result(statement, {
+            "data": {"json_schema": "schema_value", "other": "other_value"}
+        })
         self.assertEqual(result, "schema_value")
 
-    def test_dict_key_resolution_with_default(self):
-        """Test resolving dictionary keys with default value."""
-        statement = create_statement_from_model(
-            model=ResultDefinition(
-                result=JsonExpression({"json_schema": "schema_value", "other": "other_value"}),
-                key=StringExpression("missing_key"),
-                default=JsonExpression("default_value")
-            ),
-            context=StubWorkersContext()
-        )
-        result = get_stream_result(statement, {"param1": "test"})
+        # Test with missing key
+        result = get_stream_result(statement, {
+            "data": {"other": "other_value"}
+        })
         self.assertEqual(result, "default_value")
 
-    def test_list_key_resolution(self):
-        """Test resolving list indices with result statement."""
+    def test_dynamic_key_from_variable(self):
+        """Migration: Use dict.get() with dynamic key variable."""
+        # Old: result: "${data}", key: "${key_name}", default: "not_found"
+        # New: eval: "${data.get(key_name, 'not_found')}"
         statement = create_statement_from_model(
-            model=ResultDefinition(
-                result=JsonExpression(["first", "second", "third"]),
-                key=StringExpression("1")
-            ),
-            context=StubWorkersContext()
-        )
-        result = get_stream_result(statement, {"param1": "test"})
-        self.assertEqual(result, "second")
-
-    def test_list_key_resolution_with_default(self):
-        """Test resolving list indices with default value."""
-        statement = create_statement_from_model(
-            model=ResultDefinition(
-                result=JsonExpression(["first", "second"]),
-                key=StringExpression("5"),
-                default=JsonExpression("default_value")
-            ),
-            context=StubWorkersContext()
-        )
-        result = get_stream_result(statement, {"param1": "test"})
-        self.assertEqual(result, "default_value")
-
-    def test_dynamic_key_resolution(self):
-        """Test dynamic key resolution using template variables."""
-        statement = create_statement_from_model(
-            model=ResultDefinition(
-                result=JsonExpression("${data}"),
-                key=StringExpression("${key_name}"),
-                default=JsonExpression("not_found")
+            model=EvalDefinition(
+                eval=JsonExpression("${data.get(key_name, 'not_found')}")
             ),
             context=StubWorkersContext()
         )
@@ -192,16 +167,66 @@ class TestDynamicKeyResolution(unittest.TestCase):
         })
         self.assertEqual(result, "found_value")
 
-    def test_no_key_resolution(self):
-        """Test that result statement works normally without key parameter."""
+    def test_list_index_with_bounds_check(self):
+        """Migration: Use conditional expression for list access with default."""
+        # Old: result: "${items}", key: "${index}", default: "out_of_bounds"
+        # New: eval: "${items[index] if 0 <= index < len(items) else 'out_of_bounds'}"
         statement = create_statement_from_model(
-            model=ResultDefinition(
-                result=JsonExpression({"json_schema": "schema_value", "other": "other_value"})
+            model=EvalDefinition(
+                eval=JsonExpression("${items[index] if 0 <= index < len(items) else 'out_of_bounds'}")
             ),
             context=StubWorkersContext()
         )
-        result = get_stream_result(statement, {"param1": "test"})
-        self.assertEqual(result, {"json_schema": "schema_value", "other": "other_value"})
+
+        # Test valid index
+        result = get_stream_result(statement, {
+            "items": ["first", "second", "third"],
+            "index": 1
+        })
+        self.assertEqual(result, "second")
+
+        # Test out of bounds
+        result = get_stream_result(statement, {
+            "items": ["first", "second"],
+            "index": 5
+        })
+        self.assertEqual(result, "out_of_bounds")
+
+    def test_simple_list_index(self):
+        """Migration: Direct list indexing when bounds are guaranteed."""
+        # Old: result: ["a", "b", "c"], key: "1"
+        # New: eval: "${items[1]}" where items is provided
+        statement = create_statement_from_model(
+            model=EvalDefinition(
+                eval=JsonExpression("${items[1]}")
+            ),
+            context=StubWorkersContext()
+        )
+        result = get_stream_result(statement, {"items": ["a", "b", "c"]})
+        self.assertEqual(result, "b")
+
+    def test_bracket_notation_for_nested_access(self):
+        """Migration: Use bracket notation for nested dictionary access."""
+        # Old: result: "${data}", key: "${field}", default: "N/A"
+        # New: eval: "${data['level1']['level2'] if 'level1' in data and 'level2' in data['level1'] else 'N/A'}"
+        statement = create_statement_from_model(
+            model=EvalDefinition(
+                eval=JsonExpression("${data['level1']['level2'] if 'level1' in data and 'level2' in data['level1'] else 'N/A'}")
+            ),
+            context=StubWorkersContext()
+        )
+
+        # Test existing nested value
+        result = get_stream_result(statement, {
+            "data": {"level1": {"level2": "found"}}
+        })
+        self.assertEqual(result, "found")
+
+        # Test missing nested value
+        result = get_stream_result(statement, {
+            "data": {"level1": {}}
+        })
+        self.assertEqual(result, "N/A")
 
 
 class TestHierarchicalToolCalling(unittest.TestCase):

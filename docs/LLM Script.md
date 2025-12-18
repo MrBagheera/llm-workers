@@ -43,8 +43,7 @@ Table of Contents
          * [consume_approval](#consume_approval)
 * [Defining Custom Tools](#defining-custom-tools)
    * [call Statement](#call-statement)
-   * [result Statement](#result-statement)
-      * [Dynamic Key Resolution](#dynamic-key-resolution)
+   * [eval Statement](#eval-statement)
    * [match Statement](#match-statement)
    * [Composing Statements](#composing-statements)
    * [Template Variables](#template-variables)
@@ -534,7 +533,7 @@ shared:
           description: "Search query"
           type: str
       body:
-        result: "Query ${query} returned ${shared['prompts']['test']}"
+        eval: "Query ${query} returned ${shared['prompts']['test']}"
 ```
 
 **Usage Notes:**
@@ -594,7 +593,7 @@ Configuration for interactive chat mode:
          - name: data
            type: str
        body:
-         - result: "Processed: {data}"
+         - eval: "Processed: ${data}"
    ```
 
 **Example:**
@@ -645,7 +644,7 @@ chat:
 ## CLI Section
 
 Configuration for command-line interface. Contains a list of statements that define the command-line flow.
-Flow is run for each command line parameter. Strings can reference "{input}" variable for value of command-line parameter.
+Flow is run for each command line parameter. Strings can reference "${input}" variable for value of command-line parameter.
 
 See "Custom Tools" section for details on statements.
 
@@ -654,7 +653,7 @@ Example:
 cli:
   - call: read_file
     params:
-      filename: "{input}"
+      filename: "${input}"
   - call: llm
     params:
       prompt: |-
@@ -708,13 +707,13 @@ cli:
     matchers:
       - case: "NO CHANGES"
         then:
-          result: "{input}: NO CHANGES"
+          eval: "${input}: NO CHANGES"
     default:
       - call: write_file
         params:
-          filename: "{input}"
+          filename: "${input}"
           content: "{output1}"
-      - result: "{input}: FIXED"
+      - eval: "${input}: FIXED"
 ```
 
 # Using Tools
@@ -762,7 +761,7 @@ You can import one specific tool from a toolkit using `<toolkit_class>/<tool_nam
 tools:
   - import_tool: llm_workers.tools.fs.FilesystemToolkit/read_file
     name: my_read_file
-    ui_hint: "Reading file: {path}"
+    ui_hint: "Reading file: ${path}"
 ```
 
 **Import single tool from MCP server:**
@@ -1171,18 +1170,18 @@ This tool is primarily intended for **prototyping new tools and prompt combinati
       description: "Search query"
       type: str
   body:
-    - match: "{query}"
+    - match: "${query}"
       matchers:
         - case: "common query 1"
           then:
-            result: "predefined result 1"
+            eval: "predefined result 1"
         - case: "common query 2"
           then:
-            result: "predefined result 2"
+            eval: "predefined result 2"
       default:
         - call: user_input
           params:
-            prompt: "API returned: {query}. Please provide mock response:"
+            prompt: "API returned: ${query}. Please provide mock response:"
 ```
 
 This approach allows you to quickly prototype and test tool interactions before implementing the actual tool logic.
@@ -1291,7 +1290,7 @@ tools:
           approval_token: {approval_token}
       - call: _run_python_script_no_confirmation
         params:
-          script: {script}
+          script: ${script}
       - call: _consume_approval
         params:
           approval_token: {approval_token}
@@ -1325,9 +1324,9 @@ tools:
         matchers:
           - case: "success"
             then:
-              - result: "Operation successful: ${param1}"
+              - eval: "Operation successful: ${param1}"
         default:
-          - result: "Operation failed"
+          - eval: "Operation failed"
 ```
 Input section defines the parameters that the tool accepts. These parameters can
 later be referenced in the `body` section using the `${param_name}` syntax.
@@ -1377,8 +1376,8 @@ Executes a specific tool with optional parameters. Tools can be referenced by na
     body:
       - call: some_other_tool
         params:
-          input: "{data}"
-      - result: "Processed: {output0}"
+          input: "${data}"
+      - eval: "Processed: ${output0}"
   params:
     data: "input_value"
 ```
@@ -1392,72 +1391,79 @@ Inline tool definitions provide maximum flexibility by allowing you to:
 Like regular tool definitions, inline tools also support the `config` option for flexible parameter configuration, 
 which is particularly useful when dealing with complex tool configurations or potential property conflicts.
 
-## result Statement
+## eval Statement
 
-Returns a specific value directly.
+The `eval` statement evaluates an expression and returns the result. It supports all Simple Eval features including nested access, function calls, and conditional expressions.
+
+### Basic Usage
 
 ```yaml
-- result: "This is a fixed response"
+- eval: "This is a fixed response"
 ```
 
 ```yaml
-- result: 
+- eval:
     status: success
     data:
       value: 42
 ```
 
-### Dynamic Key Resolution
-
-The `result` statement supports optional `key` and `default` parameters for dynamic value extraction from dictionaries and lists.
-**This feature is primarily intended for cases where the key itself is dynamic** (determined at runtime from template variables).
-For static keys, standard templating with bracket notation (e.g., `"${data['static_key']}"`) works just fine.
+### Dictionary Access
 
 ```yaml
-- result: "${shared.ask_schema_expert}"
-  key: "${json_schema}"  # Dynamic key from template variable
-  default: ""
+# Static key
+- eval: "${data['field_name']}"
+- eval: "${data.field_name}"
+
+# With default
+- eval: "${data['field_name'] if 'field_name' in data else 'default_value'}"
+# or
+- eval: "${get(data, 'field_name', 'default_value')}"
+
+
+# Dynamic key from variable
+- eval: "${data[key_name]}"
+
+# Nested
+- eval: "${get(get(config, 'database', {}), 'host', 'localhost')}"
 ```
 
-**Parameters:**
-- `key`: The key/index to extract from the result. For dictionaries, uses the key as a string. For lists, converts to integer index. **Most useful when the key value comes from template variables.**
-- `default`: Optional fallback value if the key is not found or index is out of bounds.
+### List Access
 
-**Examples:**
-
-Primary use case - dynamic key from template variables:
 ```yaml
-- result: "${api_response}"
-  key: "${requested_field}"
-  default: "N/A"
-# Extracts api_response[requested_field] where requested_field is determined at runtime
+# Direct indexing
+- eval: "${items[0]}"
+- eval: "${items[-1]}"
+
+# With bounds checking
+- eval: "${items[index] if 0 <= index < len(items) else 'default'}"
+# or
+- eval: "${get(items, index, 'default')}"
 ```
 
-For comparison, static keys should use standard templating:
-```yaml
-# Preferred for static keys:
-- result: "{api_response[schema]}"
+### Conditional Expressions
 
-# Unnecessary for static keys:
-- result: "{api_response}"
-  key: "schema"
+```yaml
+- eval: "${value if value is not None else 'N/A'}"
+- eval: "${'valid' if score >= 80 else 'invalid'}"
+- eval: "${'A' if score >= 90 else 'B' if score >= 80 else 'C'}"
 ```
 
-Additional examples:
+### Expression Composition
 
-Dynamic list index:
 ```yaml
-- result: ["first", "second", "third"]
-  key: "{index_param}"  # Dynamic index from parameter
-# Returns element at runtime-determined index
-```
+# String interpolation
+- eval: "User ${user_name} has score ${score}"
 
-With default value for missing keys:
-```yaml
-- result: "{user_data}"
-  key: "{field_to_extract}"
-  default: "field_not_found"
-# Returns user_data[field_to_extract] or "field_not_found" if key doesn't exist
+# Arithmetic
+- eval: "${total_price * 1.15}"  # Add 15% tax
+
+# String operations
+- eval: "${name.upper()}"
+
+# List operations
+- eval: "${len(items)}"
+- eval: "${[x * 2 for x in numbers]}"  # List comprehension
 ```
 
 ## match Statement
@@ -1465,21 +1471,21 @@ With default value for missing keys:
 Conditionally executes different actions based on matching patterns:
 
 ```yaml
-- match: "{input}"
+- match: "${input}"
   trim: true  # Optional, removes whitespace before matching
   matchers:
     - case: "help"  # Exact match
       then:
-        - result: "Available commands: help, status, search"
-    
+        - eval: "Available commands: help, status, search"
+
     - pattern: "search (.+)"  # Regex pattern match
       then:
         - call: search_tool
           params:
-            query: "{1}"  # Reference to captured group
-  
+            query: "${1}"  # Reference to captured group
+
   default:  # Executed if no matches found
-    - result: "Unknown command. Type 'help' for assistance."
+    - eval: "Unknown command. Type 'help' for assistance."
 ```
 
 ## Composing Statements
@@ -1499,14 +1505,14 @@ tools:
           text: "{input.query}"
       - call: search_database
         params:
-          query: "{output0}"
-      - match: "{output1}"
+          query: "${output0}"
+      - match: "${output1}"
         matchers:
           - case: ""
             then:
-              - result: "No results found"
+              - eval: "No results found"
         default:
-          - result: "{output1}"
+          - eval: "${output1}"
 ```
 
 ## Template Variables
@@ -1550,7 +1556,7 @@ tools:
         description: "User settings array"
         type: array
     body:
-      - result: "User ${user_profile['name']} has email ${user_profile['contact']['email']} and first setting is ${settings[0]}. ${shared['templates']['user_format']}"
+      - eval: "User ${user_profile['name']} has email ${user_profile['contact']['email']} and first setting is ${settings[0]}. ${shared['templates']['user_format']}"
 ```
 
 This would process input like:

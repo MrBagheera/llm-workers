@@ -160,11 +160,9 @@ MCPServerDefinition = Annotated[
 ]
 
 
-class ResultDefinition(BaseModel):
+class EvalDefinition(BaseModel):
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
-    result: JsonExpression
-    key: Optional[StringExpression] = None
-    default: Optional[JsonExpression] = None
+    eval: JsonExpression
 
 class CallDefinition(BaseModel):
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
@@ -199,15 +197,15 @@ StatementDefinition = Annotated[
     Union[
         Annotated[CallDefinition, Tag('<call statement>')],
         Annotated[MatchDefinition, Tag('<match statement>')],
-        Annotated[ResultDefinition, Tag('<result statement>')],
+        Annotated[EvalDefinition, Tag('<eval statement>')],
     ],
     Discriminator(create_discriminator({
         'call': '<call statement>',
         CallDefinition: '<call statement>',
         'match': '<match statement>',
         MatchDefinition: '<match statement>',
-        'result': '<result statement>',
-        ResultDefinition: '<result statement>',
+        'eval': '<eval statement>',
+        EvalDefinition: '<eval statement>',
     }))
 ]
 
@@ -215,7 +213,7 @@ BodyDefinition = Annotated[
     Union[
         Annotated[CallDefinition, Tag('<call statement>')],
         Annotated[MatchDefinition, Tag('<match statement>')],
-        Annotated[ResultDefinition, Tag('<result statement>')],
+        Annotated[EvalDefinition, Tag('<eval statement>')],
         Annotated[List[StatementDefinition], Tag('<statements>')],
     ],
     Discriminator(create_discriminator({
@@ -223,8 +221,8 @@ BodyDefinition = Annotated[
         CallDefinition: '<call statement>',
         'match': '<match statement>',
         MatchDefinition: '<match statement>',
-        'result': '<result statement>',
-        ResultDefinition: '<result statement>',
+        'eval': '<eval statement>',
+        EvalDefinition: '<eval statement>',
         list: '<statements>'
     }))
 ]

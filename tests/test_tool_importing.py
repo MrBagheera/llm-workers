@@ -218,7 +218,7 @@ shared:
           description: Search query
           type: str
       body:
-        - result: "Query result for {query}"
+        - eval: "Query result for {query}"
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -419,7 +419,7 @@ chat:
           description: Search query
           type: str
       body:
-        - result: "Chat query result for {query}"
+        - eval: "Chat query result for {query}"
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -736,7 +736,7 @@ shared:
                 description: Input text
                 type: str
             body:
-              - result: "Processed: {input_text}"
+              - eval: "Processed: {input_text}"
 """
         context = self.create_and_initialize_context(yaml_config)
 

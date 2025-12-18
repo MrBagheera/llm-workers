@@ -17,7 +17,7 @@ shared:
         matchers:
           - case: "Soul"
             then:
-              result: |         
+              eval: |         
                 Soul
                 
                 movie
@@ -50,7 +50,7 @@ shared:
 
           - case: "Wallace & Gromit: The Curse of the Were-Rabbit"
             then:
-              result: |
+              eval: |
                 Wallace & Gromit: The Curse of the Were-Rabbit
                   
                   movie
@@ -71,7 +71,7 @@ shared:
 
           - case: "The Incredibles"
             then:
-              result: |  
+              eval: |  
                 The Incredibles
                 
                 movie

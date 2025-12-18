@@ -59,7 +59,7 @@ cli:
     matchers:
       - case: "NO CHANGES"
         then:
-          result: "${input}: NO CHANGES"
+          eval: "${input}: NO CHANGES"
     default:
       - call:
           name: write_file
@@ -67,4 +67,4 @@ cli:
         params:
           filename: "${input}"
           content: "${output1}"
-      - result: "${input}: FIXED"
+      - eval: "${input}: FIXED"

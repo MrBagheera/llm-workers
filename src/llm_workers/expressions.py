@@ -18,6 +18,13 @@ from llm_workers.utils import LazyFormatter
 logger =  logging.getLogger(__name__)
 
 
+def get_with_default(container, key, default):
+    if isinstance(container, list):
+        return container[key] if key <=0 and key < len(container) else default
+    if isinstance(container, dict):
+        return container.get(key, default)
+    raise ValueError(f"{type(container)} is not allowed container")
+
 def merge(arg1, arg2):
     """Merge two arguments into one."""
     if isinstance(arg1, list) and isinstance(arg2, list):
@@ -80,6 +87,7 @@ def is_bool(value: Any) -> bool:
 
 DEFAULT_FUNCTIONS = simpleeval.DEFAULT_FUNCTIONS.copy()
 DEFAULT_FUNCTIONS['len'] = len  # Ensure len() is available
+DEFAULT_FUNCTIONS['get'] = get_with_default
 DEFAULT_FUNCTIONS['merge'] = merge
 DEFAULT_FUNCTIONS['split'] = split
 DEFAULT_FUNCTIONS['join'] = join

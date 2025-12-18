@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, create_model, PrivateAttr
 
 from llm_workers.api import WorkersContext, WorkerNotification, ExtendedRunnable, ExtendedExecutionTool
 from llm_workers.config import Json, CustomToolParamsDefinition, \
-    CallDefinition, ResultDefinition, StatementDefinition, MatchDefinition, CustomToolDefinition
+    CallDefinition, EvalDefinition, StatementDefinition, MatchDefinition, CustomToolDefinition
 from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.utils import LazyFormatter, parse_standard_type
@@ -24,35 +24,9 @@ Statement: TypeAlias = ExtendedRunnable[Dict[str, Json], Json]
 
 
 # noinspection PyTypeHints
-class ResultStatement(ExtendedRunnable[Dict[str, Json], Json]):
-    result_key: str = 'result'
-    key_param: str = 'key'
-    default_param: str = 'default'
-
-    def __init__(self, model: ResultDefinition):
-        # Store expressions directly
-        self._result_expr = model.result
-        self._key_expr = model.key
-        self._default_expr = model.default
-        self._has_key = model.key is not None
-
-    @staticmethod
-    def _resolve_with_key(result: Json, key: Json, default: Json = None) -> Json:
-        """Resolve result using the provided key, with optional default value."""
-        if isinstance(result, dict):
-            return result.get(str(key), default)
-        elif isinstance(result, list):
-            try:
-                # Convert key to int for list indexing
-                index = int(key)
-                if 0 <= index < len(result):
-                    return result[index]
-                else:
-                    return default
-            except (ValueError, TypeError):
-                return default
-        else:
-            return default
+class EvalStatement(ExtendedRunnable[Dict[str, Json], Json]):
+    def __init__(self, model: EvalDefinition):
+        self._eval_expr = model.eval
 
     def _stream(
             self,
@@ -61,15 +35,8 @@ class ResultStatement(ExtendedRunnable[Dict[str, Json], Json]):
             config: Optional[RunnableConfig],
             **kwargs: Any   # ignored
     ) -> Iterable[Any]:
-        # Evaluate with kwargs as context
-        result = self._result_expr.evaluate(evaluation_context)
-
-        if self._has_key:
-            key = self._key_expr.evaluate(evaluation_context)
-            default = self._default_expr.evaluate(evaluation_context) if self._default_expr else None
-            yield self._resolve_with_key(result, key, default)
-        else:
-            yield result
+        result = self._eval_expr.evaluate(evaluation_context)
+        yield result
 
 
 # noinspection PyTypeHints
@@ -232,8 +199,8 @@ class CustomTool(ExtendedExecutionTool):
 
 
 def create_statement_from_model(model: StatementDefinition, context: WorkersContext) -> Statement:
-    if isinstance(model, ResultDefinition):
-        return ResultStatement(model)
+    if isinstance(model, EvalDefinition):
+        return EvalStatement(model)
     elif isinstance(model, CallDefinition):
         return CallStatement(model, context)
     elif isinstance(model, list):

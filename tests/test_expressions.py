@@ -89,7 +89,7 @@ class TestStringExpression(unittest.TestCase):
         self.assertEqual(result, "Result: 15")
 
     def test_escaping_behavior(self):
-        """Test that \${...} is treated as a literal ${...} and not evaluated."""
+        """Test that \\${...} is treated as a literal ${...} and not evaluated."""
         # Note: In python strings, backslash needs escaping or raw strings.
         # Input string is effectively: "Value is \${price}"
         expr = StringExpression(r"Value is \${price}")
@@ -116,6 +116,28 @@ class TestStringExpression(unittest.TestCase):
         expr = StringExpression("${x} + ${y} = ${x + y}")
         result = expr.evaluate({"x": 1, "y": 2})
         self.assertEqual(result, "1 + 2 = 3")
+
+    def test_nested_references(self):
+        """Tests accessing dict/list elements using other variables"""
+        expr = StringExpression("${x[y[z]]}")
+        result = expr.evaluate({"x": { "a": "success!"}, "y": [ "-", "a"], "z": 1})
+        self.assertEqual(result, "success!")
+
+    def test_in_operator(self):
+        """Tests accessing dict/list elements with default"""
+        expr = StringExpression("${x['a'] if 'a' in x else 'failure!'}")
+        result = expr.evaluate({"x": {"a":"success!"}})
+        self.assertEqual(result, "success!")
+        result = expr.evaluate({"x": {}})
+        self.assertEqual(result, "failure!")
+
+    def test_conditional_dict_access(self):
+        """Tests accessing dict/list elements with default"""
+        expr = StringExpression("${get_with_default(x, 'a', 'failure!')}")
+        result = expr.evaluate({"x": {"a":"success!"}})
+        self.assertEqual(result, "success!")
+        result = expr.evaluate({"x": {}})
+        self.assertEqual(result, "failure!")
 
     def test_pydantic_integration(self):
         """Test that the class works as a Pydantic field."""
