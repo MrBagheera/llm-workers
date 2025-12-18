@@ -27,8 +27,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-    "echo-mcp-server-for-testing (>=0.1.5,<0.2.0)",
+html2text = [
+    "html2text (>=2025.4.15)",
 ]
 
 [project.urls]
@@ -47,4 +47,5 @@ build-backend = "poetry.core.masonry.api"
 packages = [{include = "llm_workers", from = "src"}]
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.14.9"
+echo-mcp-server-for-testing = ">=0.1.5,<0.2.0"
 
