@@ -95,13 +95,14 @@ class TestStatements(unittest.TestCase):
 class TestSharedContentIntegration(unittest.TestCase):
     def test_custom_tool_with_shared_content(self):
         # Create a config with shared data
+        from llm_workers.config import SharedConfig
         config = WorkersConfig(
-            shared=JsonExpression({
+            shared=SharedConfig(data=JsonExpression({
                 "prompts": {
                     "test": "Yada-yada-yada"
                 }
-            }
-        ))
+            }))
+        )
 
         # Create mock context
         context = StubWorkersContext(config=config)

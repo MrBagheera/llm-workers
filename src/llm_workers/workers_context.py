@@ -133,13 +133,13 @@ class StandardWorkersContext(WorkersContext):
                 raise WorkerException(f"Failed to initialize MCP clients: {e}", e)
 
         # resolve and expose "shared data"
-        if self._config.shared:
-            self._evaluation_context.add('shared', self._config.shared.evaluate(self._evaluation_context))
+        if self._config.shared.data:
+            self._evaluation_context.add('shared', self._config.shared.data.evaluate(self._evaluation_context))
         # lock the evaluation context to prevent further modifications
         self._evaluation_context.mutable = False
 
         # Finally we can register all tools
-        self._create_tools('shared tools', self._tools, self._config.tools)
+        self._create_tools('shared', self._tools, self._config.shared.tools)
 
         return self
 

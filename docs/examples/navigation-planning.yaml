@@ -1,74 +1,83 @@
 # Demonstrates: Web fetching tools with markdown conversion,
 # nested custom tools, tool composition with return_direct flag, CLI mode with tool restrictions, chat mode configuration
-tools:
-  # Defining shared tools here because we use them both in chat and cli sections.
-  # Since tools are visible to LLM, we care for clarity of naming and description.
+shared:
+  tools:
+    # Defining shared tools here because we use them both in chat and cli sections.
+    # Since tools are visible to LLM, we care for clarity of naming and description.
 
-  - name: fetch_page_markdown
-    import_tool: llm_workers.tools.fetch.FetchPageMarkdownTool
+    - name: fetch_page_markdown
+      import_tool: llm_workers.tools.fetch.FetchPageMarkdownTool
 
-  - name: _llm
-    import_tool: llm_workers.tools.llm_tool.build_llm_tool
-
-  - name: generate_navigation_summary
-    description: >
-      Generates a summary of navigation information from given text.
-      Summary is returned as text, not saved anywhere.
-    input:
-      - name: text
-        description: text to summarize
-        type: str
-      - name: header_level
-        description: Level of header to use for title
-        type: int
-        default: 3
-    ui_hint: Generating navigation summary
-    body:
-      call: _llm
-      params:
-        prompt: |
-          You are an assistant to a sailing boat navigator.
-          
-          Please write summary of a text below in English, use ONLY the information from provided text.
-          Please follow this structure:
-            - title
-            - coordinates
-            - services and docking information (for marinas) or anchoring recommendations and protection offered (for anchorages)
-            - navigational hazards
-            - other information relevant to boating
-          Format using markdown, title as level ${header_level} header, other information as separate section with bold titles. 
-          
-          Text to summarize:
-          ${text}
-    return_direct: true
-      
-  - name: generate_navigation_summary_from_url
-    description: >
-      Generates a summary of navigation information from a web page.
-      Summary is returned as text, not saved anywhere.
-    input:
-      - name: url
-        description: URL of the page to summarize
-        type: str
-      - name: header_level
-        description: Level of header to use for title
-        type: int
-        default: 3
-    ui_hint: Generating navigation summary for ${url}
-    body:
-      - call: fetch_page_markdown
+    - name: generate_navigation_summary
+      description: >
+        Generates a summary of navigation information from given text.
+        Summary is returned as text, not saved anywhere.
+      input:
+        - name: text
+          description: text to summarize
+          type: str
+        - name: header_level
+          description: Level of header to use for title
+          type: int
+          default: 3
+      ui_hint: Generating navigation summary
+      body:
+        call:
+          import_tool: llm_workers.tools.llm_tool.build_llm_tool
         params:
-          url: "${url}"
-      - call: generate_navigation_summary
-        params:
-          text: "${output0}"
-          header_level: "${header_level}"
-    return_direct: true
+          prompt: |
+            You are an assistant to a sailing boat navigator.
+
+            Please write summary of a text below in English, use ONLY the information from provided text.
+            Please follow this structure:
+              - title
+              - coordinates
+              - services and docking information (for marinas) or anchoring recommendations and protection offered (for anchorages)
+              - navigational hazards
+              - other information relevant to boating
+            Format using markdown, title as level ${header_level} header, other information as separate section with bold titles.
+
+            Text to summarize:
+            ${text}
+      return_direct: true
+
+    - name: generate_navigation_summary_from_url
+      description: >
+        Generates a summary of navigation information from a web page.
+        Summary is returned as text, not saved anywhere.
+      input:
+        - name: url
+          description: URL of the page to summarize
+          type: str
+        - name: header_level
+          description: Level of header to use for title
+          type: int
+          default: 3
+      ui_hint: Generating navigation summary for ${url}
+      body:
+        - call: fetch_page_markdown
+          params:
+            url: "${url}"
+        - call: generate_navigation_summary
+          params:
+            text: "${output0}"
+            header_level: "${header_level}"
+#      tools:
+#        - fetch_page_markdown
+#        - generate_navigation_summary
+#      do: |-
+#        result = generate_navigation_summary(
+#          text = fetch_page_markdown(url = url),
+#          header_level = header_level
+#        )
+      return_direct: true
 
 cli:
-  call: _llm
-  tools:
-    - match: [ "*", "!_*"] # all tools that doesn't start with _
+  call:
+    import_tool: llm_workers.tools.llm_tool.build_llm_tool
+    config:
+      tools:
+        - match: [ "*", "!_*"] # all tools that doesn't start with _
   params:
     prompt: >
       Please fetch the page from ${input} and print navigation summary for this region, as well as for all bays and marinas in it.

@@ -141,7 +141,7 @@ class UserConfig(BaseModel):
 class MCPServerBase(BaseModel):
     """Shared attributes for all MCP servers."""
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
-    auto_import_scope: Literal['none', 'shared tools', 'chat']
+    auto_import_scope: Literal['none', 'shared', 'chat']
 
 class MCPServerStdio(MCPServerBase):
     transport: Literal['stdio']
@@ -375,11 +375,17 @@ class ChatConfig(BaseLLMConfig):
     user_banner: Optional[str] = None
 
 
+class SharedConfig(BaseModel):
+    """Configuration for shared data and tools."""
+    model_config = ConfigDict(extra='forbid')
+    data: JsonExpression = JsonExpression({})
+    tools: list[ToolsDefinitionStatement] = []
+
+
 class WorkersConfig(BaseModel):
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     env: Optional[Dict[str, EnvVarDefinition]] = None
-    tools: list[ToolsDefinitionStatement] = []
+    shared: SharedConfig = SharedConfig()
     mcp: Dict[str, MCPServerDefinition] = {}
-    shared: JsonExpression = {}
     chat: Optional[ChatConfig] = None
     cli: Optional[BodyDefinition] = None

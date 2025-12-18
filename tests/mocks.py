@@ -154,8 +154,8 @@ class StubWorkersContext(WorkersContext):
         self._llm = llm
         self._config = config or WorkersConfig()
         self._tools = tools or {}
-        shared = self._config.shared or JsonExpression({})
-        self._evaluation_context = EvaluationContext({'shared': shared.evaluate(EvaluationContext())})
+        shared_data = self._config.shared.data if self._config.shared else JsonExpression({})
+        self._evaluation_context = EvaluationContext({'shared': shared_data.evaluate(EvaluationContext())})
 
     @property
     def config(self) -> WorkersConfig:

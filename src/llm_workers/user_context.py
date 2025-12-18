@@ -24,8 +24,8 @@ class StandardUserContext(UserContext):
     def __init__(self, user_config: UserConfig, environment: Dict[str, str]):
         self._user_config = user_config
         self._models = dict[str, BaseChatModel]()
-        self._register_models()
         self._environment = environment
+        self._register_models()
 
     @property
     def environment(self) -> Dict[str, str]:

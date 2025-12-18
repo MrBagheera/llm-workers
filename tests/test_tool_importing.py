@@ -100,7 +100,7 @@ class BaseToolImportTest(unittest.TestCase):
 
         Args:
             context: MockMCPWorkersContext instance
-            scope: Scope name ('chat', 'shared tools', etc.)
+            scope: Scope name ('chat', 'shared', etc.)
             tool_refs: List of tool references to retrieve
             expected_names: Expected sorted list of tool names
         """
@@ -119,18 +119,19 @@ class BaseToolImportTest(unittest.TestCase):
             assert_tool_has_property(self, tool, prop_name, expected_value)
 
 
-# Test Category 1: Import to Shared Tools and Reference from Chat
+# Test Category 1: Import to Shared and Reference from Chat
 
 class TestImportToSharedToolsAndReference(BaseToolImportTest):
-    """Test importing tools to shared tools section and referencing from chat."""
+    """Test importing tools to shared section and referencing from chat."""
 
     def test_import_single_tool_to_shared_and_reference(self):
-        """Import single tool to shared tools and reference it from chat."""
+        """Import single tool to shared and reference it from chat."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.fs.ReadFileTool
-    name: read_tool
-    description: Read files
+shared:
+  tools:
+      - import_tool: llm_workers.tools.fs.ReadFileTool
+        name: read_tool
+        description: Read files
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -146,12 +147,13 @@ tools:
         self.assertEqual('read_tool', chat_tools[0].name)
 
     def test_import_single_tool_from_toolkit_to_shared_and_reference(self):
-        """Import one tool from toolkit to shared tools and reference from chat."""
+        """Import one tool from toolkit to shared and reference from chat."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.fs.FilesystemToolkit/read_file
-    name: my_read_tool
-    description: Custom read tool from toolkit
+shared:
+  tools:
+    - import_tool: llm_workers.tools.fs.FilesystemToolkit/read_file
+      name: my_read_tool
+      description: Custom read tool from toolkit
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -167,7 +169,7 @@ tools:
         self.assertEqual('my_read_tool', chat_tools[0].name)
 
     def test_import_single_tool_from_mcp_to_shared_and_reference(self):
-        """Import one tool from MCP server to shared tools and reference from chat."""
+        """Import one tool from MCP server to shared and reference from chat."""
         # Create mock MCP tools
         mock_mcp_tools = {
             'test_server': [
@@ -185,10 +187,11 @@ mcp:
     args: []
     auto_import_scope: none
 
-tools:
-  - import_tool: mcp:test_server/mcp_read
-    name: my_mcp_read
-    description: Custom MCP read tool
+shared:
+  tools:
+    - import_tool: mcp:test_server/mcp_read
+      name: my_mcp_read
+      description: Custom MCP read tool
 """
         context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
 
@@ -204,17 +207,18 @@ tools:
         self.assertEqual('my_mcp_read', chat_tools[0].name)
 
     def test_declare_custom_tool_in_shared_and_reference(self):
-        """Declare custom tool in shared tools and reference from chat."""
+        """Declare custom tool in shared and reference from chat."""
         yaml_config = """
-tools:
-  - name: custom_tool
-    description: A custom tool
-    input:
-      - name: query
-        description: Search query
-        type: str
-    body:
-      - result: "Query result for {query}"
+shared:
+  tools:
+    - name: custom_tool
+      description: A custom tool
+      input:
+        - name: query
+          description: Search query
+          type: str
+      body:
+        - result: "Query result for {query}"
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -230,11 +234,12 @@ tools:
         self.assertEqual('custom_tool', chat_tools[0].name)
 
     def test_import_toolkit_to_shared_and_reference(self):
-        """Import entire toolkit to shared tools and reference from chat."""
+        """Import entire toolkit to shared and reference from chat."""
         yaml_config = """
-tools:
-  - import_tools: llm_workers.tools.fs.FilesystemToolkit
-    prefix: 'fs_'
+shared:
+  tools:
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: 'fs_'
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -251,7 +256,7 @@ tools:
             self.assertTrue(tool.name.startswith('fs_'))
 
     def test_import_mcp_server_to_shared_and_reference(self):
-        """Import all MCP server tools to shared tools and reference from chat."""
+        """Import all MCP server tools to shared and reference from chat."""
         # Create mock MCP tools
         mock_mcp_tools = {
             'test_server': [
@@ -269,9 +274,10 @@ mcp:
     args: []
     auto_import_scope: none
 
-tools:
-  - import_tools: mcp:test_server
-    prefix: 'server_'
+shared:
+  tools:
+    - import_tools: mcp:test_server
+      prefix: 'server_'
 """
         context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
 
@@ -289,7 +295,7 @@ tools:
             self.assertTrue(tool.name.startswith('server_'))
 
     def test_auto_import_mcp_server_to_shared_and_reference(self):
-        """MCP server with auto_import_scope: shared tools."""
+        """MCP server with auto_import_scope: shared."""
         # Create mock MCP tools
         mock_mcp_tools = {
             'auto_server': [
@@ -304,7 +310,7 @@ mcp:
     transport: stdio
     command: test_command
     args: []
-    auto_import_scope: shared tools
+    auto_import_scope: shared
 """
         context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
 
@@ -524,18 +530,19 @@ class TestImportInCustomTools(BaseToolImportTest):
     def test_import_single_tool_in_custom_tool_call(self):
         """Call statement with import_tool: module.Tool."""
         yaml_config = """
-tools:
-  - name: wrapper_tool
-    description: A tool that wraps read_file
-    input:
-      - name: filename
-        description: File to read
-        type: str
-    body:
-      - call:
-          import_tool: llm_workers.tools.fs.ReadFileTool
-        params:
-          path: "{filename}"
+shared:
+  tools:
+    - name: wrapper_tool
+      description: A tool that wraps read_file
+      input:
+        - name: filename
+          description: File to read
+          type: str
+      body:
+        - call:
+            import_tool: llm_workers.tools.fs.ReadFileTool
+          params:
+            path: "{filename}"
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -551,22 +558,23 @@ tools:
     def test_import_single_tool_from_toolkit_in_custom_tool_call(self):
         """Call statement with toolkit tool reference."""
         yaml_config = """
-tools:
-  - name: wrapper_tool
-    description: A tool that wraps edit_file from toolkit
-    input:
-      - name: filename
-        description: File to edit
-        type: str
-      - name: content
-        description: New content
-        type: str
-    body:
-      - call:
-          import_tool: llm_workers.tools.fs.FilesystemToolkit/edit_file
-        params:
-          path: "{filename}"
-          instructions: "{content}"
+shared:
+  tools:
+    - name: wrapper_tool
+      description: A tool that wraps edit_file from toolkit
+      input:
+        - name: filename
+          description: File to edit
+          type: str
+        - name: content
+          description: New content
+          type: str
+      body:
+        - call:
+            import_tool: llm_workers.tools.fs.FilesystemToolkit/edit_file
+          params:
+            path: "{filename}"
+            instructions: "{content}"
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -597,18 +605,19 @@ mcp:
     args: []
     auto_import_scope: none
 
-tools:
-  - name: wrapper_tool
-    description: A tool that wraps MCP process
-    input:
-      - name: data
-        description: Data to process
-        type: str
-    body:
-      - call:
-          import_tool: mcp:custom_server/mcp_process
-        params:
-          input_str: "{data}"
+shared:
+    tools:
+      - name: wrapper_tool
+        description: A tool that wraps MCP process
+        input:
+          - name: data
+            description: Data to process
+            type: str
+        body:
+          - call:
+              import_tool: mcp:custom_server/mcp_process
+            params:
+              input_str: "{data}"
 """
         context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
 
@@ -630,13 +639,14 @@ class TestImportInLLMTools(BaseToolImportTest):
     def test_import_single_tool_in_llm_tool(self):
         """Import single tool in LLM tool declaration."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.llm_tool.build_llm_tool
-    name: llm_with_tool
-    config:
-      tools:
-        - import_tool: llm_workers.tools.fs.ReadFileTool
-          name: read_tool
+shared:
+  tools:
+    - import_tool: llm_workers.tools.llm_tool.build_llm_tool
+      name: llm_with_tool
+      config:
+        tools:
+          - import_tool: llm_workers.tools.fs.ReadFileTool
+            name: read_tool
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -652,13 +662,14 @@ tools:
     def test_import_single_tool_from_toolkit_in_llm_tool(self):
         """Import one tool from toolkit in LLM tool declaration."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.llm_tool.build_llm_tool
-    name: llm_with_toolkit_tool
-    config:
-      tools:
-        - import_tool: llm_workers.tools.fs.FilesystemToolkit/list_files
-          name: list_tool
+shared:
+  tools:
+    - import_tool: llm_workers.tools.llm_tool.build_llm_tool
+      name: llm_with_toolkit_tool
+      config:
+        tools:
+          - import_tool: llm_workers.tools.fs.FilesystemToolkit/list_files
+            name: list_tool
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -689,13 +700,14 @@ mcp:
     args: []
     auto_import_scope: none
 
-tools:
-  - import_tool: llm_workers.tools.llm_tool.build_llm_tool
-    name: llm_with_mcp_tool
-    config:
-      tools:
-        - import_tool: mcp:llm_server/mcp_query
-          name: query_tool
+shared:
+  tools:
+    - import_tool: llm_workers.tools.llm_tool.build_llm_tool
+      name: llm_with_mcp_tool
+      config:
+        tools:
+          - import_tool: mcp:llm_server/mcp_query
+            name: query_tool
 """
         context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
 
@@ -711,19 +723,20 @@ tools:
     def test_declare_custom_tool_in_llm_tool(self):
         """Declare custom tool in LLM tool declaration."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.llm_tool.build_llm_tool
-    name: llm_with_custom_tool
-    config:
-      tools:
-        - name: custom_inline_tool
-          description: A custom tool defined inline
-          input:
-            - name: input_text
-              description: Input text
-              type: str
-          body:
-            - result: "Processed: {input_text}"
+shared:
+  tools:
+    - import_tool: llm_workers.tools.llm_tool.build_llm_tool
+      name: llm_with_custom_tool
+      config:
+        tools:
+          - name: custom_inline_tool
+            description: A custom tool defined inline
+            input:
+              - name: input_text
+                description: Input text
+                type: str
+            body:
+              - result: "Processed: {input_text}"
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -739,13 +752,14 @@ tools:
     def test_import_toolkit_in_llm_tool(self):
         """Import entire toolkit in LLM tool declaration."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.llm_tool.build_llm_tool
-    name: llm_with_fs_toolkit
-    config:
-      tools:
-        - import_tools: llm_workers.tools.fs.FilesystemToolkit
-          prefix: 'fs_'
+shared:
+  tools:
+    - import_tool: llm_workers.tools.llm_tool.build_llm_tool
+      name: llm_with_fs_toolkit
+      config:
+        tools:
+          - import_tools: llm_workers.tools.fs.FilesystemToolkit
+            prefix: 'fs_'
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -776,13 +790,14 @@ mcp:
     args: []
     auto_import_scope: none
 
-tools:
-  - import_tool: llm_workers.tools.llm_tool.build_llm_tool
-    name: llm_with_mcp
-    config:
-      tools:
-        - import_tools: mcp:llm_mcp_server
-          prefix: 'mcp_'
+shared:
+  tools:
+    - import_tool: llm_workers.tools.llm_tool.build_llm_tool
+      name: llm_with_mcp
+      config:
+        tools:
+          - import_tools: mcp:llm_mcp_server
+            prefix: 'mcp_'
 """
         context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
 
@@ -804,12 +819,13 @@ class TestMassImportProperties(BaseToolImportTest):
     def test_toolkit_import_with_tool_filtering_include(self):
         """Test toolkit import with inclusion patterns: tools: ['read*', 'list*']."""
         yaml_config = """
-tools:
-  - import_tools: llm_workers.tools.fs.FilesystemToolkit
-    prefix: ''
-    filter:
-      - 'read*'
-      - 'list*'
+shared:
+  tools:
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: ''
+      filter:
+        - 'read*'
+        - 'list*'
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -823,12 +839,13 @@ tools:
     def test_toolkit_import_with_tool_filtering_exclude(self):
         """Test toolkit import with exclusion patterns: tools: ['*', '!write*']."""
         yaml_config = """
-tools:
-  - import_tools: llm_workers.tools.fs.FilesystemToolkit
-    prefix: ''
-    filter:
-      - '*'
-      - '!write*'
+shared:
+  tools:
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: ''
+      filter:
+        - '*'
+        - '!write*'
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -840,11 +857,12 @@ tools:
     def test_toolkit_import_with_tool_filtering_combined(self):
         """Test toolkit import with combined patterns: tools: ['read*', '!read_unsafe']."""
         yaml_config = """
-tools:
-  - import_tools: llm_workers.tools.fs.FilesystemToolkit
-    prefix: ''
-    filter:
-      - 'read*'
+shared:
+  tools:
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: ''
+      filter:
+        - 'read*'
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -857,9 +875,10 @@ tools:
     def test_toolkit_import_with_prefix(self):
         """Test toolkit import with prefix: prefix: 'fs_'."""
         yaml_config = """
-tools:
-  - import_tools: llm_workers.tools.fs.FilesystemToolkit
-    prefix: 'fs_'
+shared:
+  tools:
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: 'fs_'
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -872,9 +891,10 @@ tools:
     def test_toolkit_import_with_empty_prefix(self):
         """Test toolkit import with empty prefix: prefix: ''."""
         yaml_config = """
-tools:
-  - import_tools: llm_workers.tools.fs.FilesystemToolkit
-    prefix: ''
+shared:
+  tools:
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: ''
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -886,10 +906,11 @@ tools:
     def test_toolkit_import_with_ui_hints_for_all(self):
         """Test toolkit import with ui_hints_for: ['*']."""
         yaml_config = """
-tools:
-  - import_tools: llm_workers.tools.fs.FilesystemToolkit
-    prefix: ''
-    ui_hints_for: ['*']
+shared:
+  tools:
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: ''
+      ui_hints_for: ['*']
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -904,10 +925,11 @@ tools:
     def test_toolkit_import_with_ui_hints_for_pattern(self):
         """Test toolkit import with ui_hints_for: ['read*']."""
         yaml_config = """
-tools:
-  - import_tools: llm_workers.tools.fs.FilesystemToolkit
-    prefix: ''
-    ui_hints_for: ['read*']
+shared:
+  tools:
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: ''
+      ui_hints_for: ['read*']
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -919,11 +941,12 @@ tools:
     def test_toolkit_import_with_ui_hints_args(self):
         """Test toolkit import with ui_hints_args: ['path']."""
         yaml_config = """
-tools:
-  - import_tools: llm_workers.tools.fs.FilesystemToolkit
-    prefix: ''
-    ui_hints_for: ['*']
-    ui_hints_args: ['path']
+shared:
+  tools:
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: ''
+      ui_hints_for: ['*']
+      ui_hints_args: ['path']
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -938,10 +961,11 @@ tools:
     def test_toolkit_import_with_require_confirmation_for_pattern(self):
         """Test toolkit import with require_confirmation_for: ['write*']."""
         yaml_config = """
-tools:
-  - import_tools: llm_workers.tools.fs.FilesystemToolkit
-    prefix: ''
-    require_confirmation_for: ['write*']
+shared:
+  tools:
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: ''
+      require_confirmation_for: ['write*']
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -974,15 +998,16 @@ mcp:
     args: []
     auto_import_scope: none
 
-tools:
-  - import_tools: mcp:props_server
-    prefix: 'mcp_'
-    filter:
-      - '*'
-      - '!write*'
-    ui_hints_for: ['*']
-    ui_hints_args: ['input_str']
-    require_confirmation_for: ['list*']
+shared:
+  tools:
+    - import_tools: mcp:props_server
+      prefix: 'mcp_'
+      filter:
+        - '*'
+        - '!write*'
+      ui_hints_for: ['*']
+      ui_hints_args: ['input_str']
+      require_confirmation_for: ['list*']
 """
         context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
 
@@ -1011,9 +1036,10 @@ class TestSingleImportProperties(BaseToolImportTest):
     def test_single_tool_import_with_name_override(self):
         """Test single tool import with name: custom_name."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.fs.ReadFileTool
-    name: my_read_tool
+shared:
+  tools:
+    - import_tool: llm_workers.tools.fs.ReadFileTool
+      name: my_read_tool
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -1027,10 +1053,11 @@ tools:
     def test_single_tool_import_with_description_override(self):
         """Test single tool import with description: Custom desc."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.fs.ReadFileTool
-    name: read_tool
-    description: Custom description for reading files
+shared:
+  tools:
+    - import_tool: llm_workers.tools.fs.ReadFileTool
+      name: read_tool
+      description: Custom description for reading files
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -1041,10 +1068,11 @@ tools:
     def test_single_tool_import_with_ui_hint_string(self):
         """Test single tool import with ui_hint: 'Doing {action}'."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.fs.ReadFileTool
-    name: read_tool
-    ui_hint: "Reading file ${path}"
+shared:
+  tools:
+    - import_tool: llm_workers.tools.fs.ReadFileTool
+      name: read_tool
+      ui_hint: "Reading file ${path}"
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -1057,10 +1085,11 @@ tools:
         """Test single tool import with ui_hint: true or false."""
         # Test with ui_hint: true
         yaml_config_true = """
-tools:
-  - import_tool: llm_workers.tools.fs.ReadFileTool
-    name: read_tool_true
-    ui_hint: true
+shared:
+  tools:
+    - import_tool: llm_workers.tools.fs.ReadFileTool
+      name: read_tool_true
+      ui_hint: true
 """
         context = self.create_and_initialize_context(yaml_config_true)
         tool = context._tools['read_tool_true']
@@ -1069,10 +1098,11 @@ tools:
 
         # Test with ui_hint: false
         yaml_config_false = """
-tools:
-  - import_tool: llm_workers.tools.fs.ReadFileTool
-    name: read_tool_false
-    ui_hint: false
+shared:
+  tools:
+    - import_tool: llm_workers.tools.fs.ReadFileTool
+      name: read_tool_false
+      ui_hint: false
 """
         context = self.create_and_initialize_context(yaml_config_false)
         tool = context._tools['read_tool_false']
@@ -1082,10 +1112,11 @@ tools:
     def test_single_tool_import_with_require_confirmation(self):
         """Test single tool import with require_confirmation: true."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.fs.ReadFileTool
-    name: read_tool
-    require_confirmation: true
+shared:
+  tools:
+    - import_tool: llm_workers.tools.fs.ReadFileTool
+      name: read_tool
+      require_confirmation: true
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -1097,10 +1128,11 @@ tools:
     def test_single_tool_import_with_return_direct(self):
         """Test single tool import with return_direct: true."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.fs.ReadFileTool
-    name: read_tool
-    return_direct: true
+shared:
+  tools:
+    - import_tool: llm_workers.tools.fs.ReadFileTool
+      name: read_tool
+      return_direct: true
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -1111,10 +1143,11 @@ tools:
     def test_single_tool_import_with_confidential(self):
         """Test single tool import with confidential: true (implies return_direct)."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.fs.ReadFileTool
-    name: read_tool
-    confidential: true
+shared:
+  tools:
+    - import_tool: llm_workers.tools.fs.ReadFileTool
+      name: read_tool
+      confidential: true
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -1128,16 +1161,17 @@ tools:
 # Test Category 7: Shared Tool Referencing
 
 class TestSharedToolReferencing(BaseToolImportTest):
-    """Test pattern matching when referencing shared tools."""
+    """Test pattern matching when referencing shared."""
 
     def test_reference_shared_tool_by_exact_name(self):
         """Test referencing shared tool by exact name: tools: ['search_web']."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.fs.ReadFileTool
-    name: read_file
-  - import_tool: llm_workers.tools.fs.WriteFileTool
-    name: write_file
+shared:
+  tools:
+    - import_tool: llm_workers.tools.fs.ReadFileTool
+      name: read_file
+    - import_tool: llm_workers.tools.fs.WriteFileTool
+      name: write_file
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -1149,13 +1183,14 @@ tools:
     def test_reference_shared_tool_by_wildcard_pattern(self):
         """Test referencing shared tool by wildcard: tools: ['search_*']."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.fs.ReadFileTool
-    name: search_files
-  - import_tool: llm_workers.tools.fs.WriteFileTool
-    name: search_text
-  - import_tool: llm_workers.tools.fs.EditFileTool
-    name: edit_file
+shared:
+  tools:
+    - import_tool: llm_workers.tools.fs.ReadFileTool
+      name: search_files
+    - import_tool: llm_workers.tools.fs.WriteFileTool
+      name: search_text
+    - import_tool: llm_workers.tools.fs.EditFileTool
+      name: edit_file
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -1167,15 +1202,16 @@ tools:
         self.assertNotIn('edit_file', tool_names)
 
     def test_reference_shared_tool_by_multiple_patterns(self):
-        """Test referencing shared tools by multiple patterns: tools: ['search_*', 'read_*']."""
+        """Test referencing shared by multiple patterns: tools: ['search_*', 'read_*']."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.fs.ReadFileTool
-    name: search_files
-  - import_tool: llm_workers.tools.fs.WriteFileTool
-    name: read_files
-  - import_tool: llm_workers.tools.fs.EditFileTool
-    name: edit_file
+shared:
+  tools:
+    - import_tool: llm_workers.tools.fs.ReadFileTool
+      name: search_files
+    - import_tool: llm_workers.tools.fs.WriteFileTool
+      name: read_files
+    - import_tool: llm_workers.tools.fs.EditFileTool
+      name: edit_file
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -1187,15 +1223,16 @@ tools:
         self.assertNotIn('edit_file', tool_names)
 
     def test_reference_shared_tool_with_exclusion_pattern(self):
-        """Test referencing shared tools with exclusion: tools: ['*', '!write_*']."""
+        """Test referencing shared with exclusion: tools: ['*', '!write_*']."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.fs.ReadFileTool
-    name: read_file
-  - import_tool: llm_workers.tools.fs.WriteFileTool
-    name: write_file
-  - import_tool: llm_workers.tools.fs.EditFileTool
-    name: edit_file
+shared:
+  tools:
+    - import_tool: llm_workers.tools.fs.ReadFileTool
+      name: read_file
+    - import_tool: llm_workers.tools.fs.WriteFileTool
+      name: write_file
+    - import_tool: llm_workers.tools.fs.EditFileTool
+      name: edit_file
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -1209,11 +1246,12 @@ tools:
     def test_reference_nonexistent_shared_tool_fails(self):
         """Test that referencing non-existent shared tool raises error."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.fs.ReadFileTool
-    name: read_file
-  - import_tool: llm_workers.tools.fs.WriteFileTool
-    name: write_file
+shared:
+  tools:
+    - import_tool: llm_workers.tools.fs.ReadFileTool
+      name: read_file
+    - import_tool: llm_workers.tools.fs.WriteFileTool
+      name: write_file
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -1267,11 +1305,12 @@ tools:
     def test_duplicate_tool_name_fails(self):
         """Test that importing tool with duplicate name raises WorkerException."""
         yaml_config = """
-tools:
-  - import_tool: llm_workers.tools.fs.ReadFileTool
-    name: my_tool
-  - import_tool: llm_workers.tools.fs.WriteFileTool
-    name: my_tool
+shared:
+  tools:
+    - import_tool: llm_workers.tools.fs.ReadFileTool
+      name: my_tool
+    - import_tool: llm_workers.tools.fs.WriteFileTool
+      name: my_tool
 """
         # Verify that duplicate tool names raise error
         with self.assertRaises(Exception) as context:
@@ -1284,10 +1323,11 @@ tools:
     def test_empty_pattern_matches_nothing(self):
         """Test that empty tool filter patterns match no tools."""
         yaml_config = """
-tools:
-  - import_tools: llm_workers.tools.fs.FilesystemToolkit
-    prefix: ''
-    filter: []
+shared:
+  tools:
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: ''
+      filter: []
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -1314,11 +1354,12 @@ mcp:
     args: []
     auto_import_scope: none
 
-tools:
-  - import_tools: mcp:test_server
-    prefix: ''
-    filter:
-      - '!unsafe*'
+shared:
+  tools:
+    - import_tools: mcp:test_server
+      prefix: ''
+      filter:
+        - '!unsafe*'
 """
         context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
 

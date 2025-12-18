@@ -75,40 +75,41 @@ mcp:
     url: <url> # For streamable_http
     headers: # Optional, for streamable_http
       <key>: <value>
-    auto_import_scope: none|shared tools|cli|chat
+    auto_import_scope: none|shared|chat
 
-# Tools configuration
-tools:
-  # Single tool import
-  - import_tool: <import_path>
-    name: <tool_name> # Optional
-    # ... other tool parameters
+# Shared configuration
+shared:
+  data: # Optional shared data accessible to all tools via ${shared['key']}
+    <key>: <value>
+    # Can contain any JSON-serializable data
 
-  # Mass import from toolkit or MCP server
-  - import_tools: <toolkit_or_mcp_server>
-    prefix: <prefix> # Mandatory
-    filter: [<pattern>, ...] # Optional
-    ui_hints_for: [<pattern>, ...] # Optional
-    ui_hints_args: [<arg>, ...] # Optional
-    require_confirmation_for: [<pattern>, ...] # Optional
+  tools: # Optional shared tools that can be referenced from chat/cli
+    # Single tool import
+    - import_tool: <import_path>
+      name: <tool_name> # Optional
+      # ... other tool parameters
 
-  # Custom tool definition
-  - name: <tool_name>
-    description: <description> # Optional
-    input: # Required for custom tools
-      - name: <param_name>
-        description: <description>
-        type: <type>
-        default: <default_value> # Optional
-    confidential: <boolean> # Optional
-    return_direct: <boolean> # Optional
-    ui_hint: <template_string> # Optional
-    body: # Required for custom tools
-      <statement(s)> # List of statements for more complex flows
+    # Mass import from toolkit or MCP server
+    - import_tools: <toolkit_or_mcp_server>
+      prefix: <prefix> # Mandatory
+      filter: [<pattern>, ...] # Optional
+      ui_hints_for: [<pattern>, ...] # Optional
+      ui_hints_args: [<arg>, ...] # Optional
+      require_confirmation_for: [<pattern>, ...] # Optional
 
-shared: # Optional shared configuration accessible to all tools
-  <key>: <value>
-  # Can contain any JSON-serializable data
+    # Custom tool definition
+    - name: <tool_name>
+      description: <description> # Optional
+      input: # Required for custom tools
+        - name: <param_name>
+          description: <description>
+          type: <type>
+          default: <default_value> # Optional
+      confidential: <boolean> # Optional
+      return_direct: <boolean> # Optional
+      ui_hint: <template_string> # Optional
+      body: # Required for custom tools
+        <statement(s)> # List of statements for more complex flows
 
 chat: # For interactive chat mode
   model_ref: <model_name> # Optional, references model by name (fast/default/thinking). If not defined, uses "default".
@@ -201,7 +202,7 @@ mcp:
 
     # Auto-import scope (optional, default: "none")
     # Controls where tools from this server are automatically imported
-    auto_import_scope: none | shared tools | chat
+    auto_import_scope: none | shared | chat
 ```
 
 ### Auto-Import Scope
@@ -209,7 +210,7 @@ mcp:
 The `auto_import_scope` field controls where tools from an MCP server are automatically imported:
 
 - `none` (default): Tools are not automatically imported. You must explicitly import them using `import_tool` or `import_tools` statements.
-- `shared tools`: Tools are automatically imported to the `tools` section, making them accessible across all agents.
+- `shared`: Tools are automatically imported to the `shared.tools` section, making them accessible across all agents.
 - `chat`: Tools are automatically imported to the `chat.tools` section, making them available only in chat mode.
 
 **Example with auto-import:**
@@ -390,101 +391,103 @@ chat:
 - If a tool name conflicts with an existing tool, the MCP tool is skipped with a warning
 - Environment variables that don't exist will raise an error during initialization
 
-## Tools Section
+## Shared Tools Section
 
-The `tools` section defines shared tools that can be used across agents and other tools. Tools can be:
+The `shared.tools` section defines shared tools that can be used across agents and other tools. Tools can be:
 - Imported from Python classes or functions (`import_tool`)
 - Mass imported from toolkits or MCP servers (`import_tools`)
 - Custom tools defined using statement composition (custom tool definition)
 
 **Structure:**
 ```yaml
-tools:
-  # Import single tool from Python class/function
-  - import_tool: <import_path>
-    name: <tool_name>  # Optional, can override the default name
-    description: <description>  # Optional
-    # ... other tool parameters
+shared:
+  tools:
+    # Import single tool from Python class/function
+    - import_tool: <import_path>
+      name: <tool_name>  # Optional, can override the default name
+      description: <description>  # Optional
+      # ... other tool parameters
 
-  # Import single tool from toolkit
-  - import_tool: <toolkit_class>/<tool_name>
-    # ... tool parameters
+    # Import single tool from toolkit
+    - import_tool: <toolkit_class>/<tool_name>
+      # ... tool parameters
 
-  # Import single tool from MCP server
-  - import_tool: mcp:<server_name>/<tool_name>
-    # ... tool parameters
+    # Import single tool from MCP server
+    - import_tool: mcp:<server_name>/<tool_name>
+      # ... tool parameters
 
-  # Mass import from toolkit or MCP server
-  - import_tools: <toolkit_class_or_mcp_server>
-    prefix: <prefix>  # Mandatory, can be empty ""
-    filter: [<pattern>, ...]  # Optional, default: ["*"]
-    ui_hints_for: [<pattern>, ...]  # Optional, default: ["*"]
-    ui_hints_args: [<arg>, ...]  # Optional, default: []
-    require_confirmation_for: [<pattern>, ...]  # Optional, default: []
+    # Mass import from toolkit or MCP server
+    - import_tools: <toolkit_class_or_mcp_server>
+      prefix: <prefix>  # Mandatory, can be empty ""
+      filter: [<pattern>, ...]  # Optional, default: ["*"]
+      ui_hints_for: [<pattern>, ...]  # Optional, default: ["*"]
+      ui_hints_args: [<arg>, ...]  # Optional, default: []
+      require_confirmation_for: [<pattern>, ...]  # Optional, default: []
 
-  # Custom tool definition
-  - name: <tool_name>
-    description: <description>
-    input:
-      - name: <param_name>
-        description: <param_description>
-        type: <type>
-    body:
-      # ... statements
+    # Custom tool definition
+    - name: <tool_name>
+      description: <description>
+      input:
+        - name: <param_name>
+          description: <param_description>
+          type: <type>
+      body:
+        # ... statements
 ```
 
 **Example:**
 ```yaml
-tools:
-  # Single tool import from Python class
-  - import_tool: llm_workers.tools.fetch.FetchPageTextTool
-    name: _fetch_page_text
+shared:
+  tools:
+    # Single tool import from Python class
+    - import_tool: llm_workers.tools.fetch.FetchPageTextTool
+      name: _fetch_page_text
 
-  # Single tool import from Python function
-  - import_tool: llm_workers.tools.llm_tool.build_llm_tool
-    name: _LLM
+    # Single tool import from Python function
+    - import_tool: llm_workers.tools.llm_tool.build_llm_tool
+      name: _LLM
 
-  # Mass import from toolkit with filtering
-  - import_tools: llm_workers.tools.fs.FilesystemToolkit
-    prefix: fs_
-    filter:
-      - "read_*"  # Include read operations
-      - "!write_*"  # Exclude write operations
-    ui_hints_for: ["*"]
-    ui_hints_args: ["path"]
-    require_confirmation_for: []
+    # Mass import from toolkit with filtering
+    - import_tools: llm_workers.tools.fs.FilesystemToolkit
+      prefix: fs_
+      filter:
+        - "read_*"  # Include read operations
+        - "!write_*"  # Exclude write operations
+      ui_hints_for: ["*"]
+      ui_hints_args: ["path"]
+      require_confirmation_for: []
 
-  # Custom tool definition
-  - name: metacritic_monkey
-    description: >
-      Finds the Metacritic score for a given movie title and year. Returns either a single number or "N/A" if the movie is not found.
-    input:
-      - name: movie_title
-        description: Movie title
-        type: str
-      - name: movie_year
-        description: Movie release year
-        type: int
-    ui_hint: Looking up Metacritic score for movie "{movie_title}" ({movie_year})
-    body:
-      - call: _fetch_page_text
-        params:
-          url: "https://www.metacritic.com/search/{movie_title}/?page=1&category=2"
-          xpath: "//*[@class=\"c-pageSiteSearch-results\"]"
-      - call: _LLM
-        params:
-          prompt: >
-            Find Metacritic score for movie "{movie_title}" released in {movie_year}.
-            To do so:
-              - From the list of possible matches, chose the one matching movie title and year and return metacritic score as single number
-              - If no matching movie is found, respond with just "N/A" (without quotes)
-              - DO NOT provide any additional information in the response
+    # Custom tool definition
+    - name: metacritic_monkey
+      description: >
+        Finds the Metacritic score for a given movie title and year. Returns either a single number or "N/A" if the movie is not found.
+      input:
+        - name: movie_title
+          description: Movie title
+          type: str
+        - name: movie_year
+          description: Movie release year
+          type: int
+      ui_hint: Looking up Metacritic score for movie "{movie_title}" ({movie_year})
+      body:
+        - call: _fetch_page_text
+          params:
+            url: "https://www.metacritic.com/search/{movie_title}/?page=1&category=2"
+            xpath: "//*[@class=\"c-pageSiteSearch-results\"]"
+        - call: _LLM
+          params:
+            prompt: >
+              Find Metacritic score for movie "{movie_title}" released in {movie_year}.
+              To do so:
+                - From the list of possible matches, chose the one matching movie title and year and return metacritic score as single number
+                - If no matching movie is found, respond with just "N/A" (without quotes)
+                - DO NOT provide any additional information in the response
 
-            Possible matches:
-            {output0}
+              Possible matches:
+              {output0}
 ```
 
-In addition to defining tools in the `tools` section, you can define tools inline within `call` statements and within
+In addition to defining tools in the `shared.tools` section, you can define tools inline within `call` statements and within
 the `tools` configuration of LLMs. This provides flexibility for single-use tools or when you need to customize
 tool behavior for specific calls. See relevant sections below.
 
@@ -508,36 +511,36 @@ tool behavior for specific calls. See relevant sections below.
 See [Using Python Tools](#using-python-tools) and [Defining Custom Tools](#defining-custom-tools) sections below for
 more details on how to define and use tools.
 
-## Shared Section
+## Shared Data Section
 
-The `shared` section provides a way to define reusable configuration data that can be accessed by all custom tools in the script. This is useful for avoiding duplication of common values like API endpoints, prompts, or configuration settings.
+The `shared.data` section provides a way to define reusable configuration data that can be accessed by all custom tools in the script. This is useful for avoiding duplication of common values like API endpoints, prompts, or configuration settings.
 
 **Key Features:**
 - Must be a dictionary (key-value pairs)
 - Can contain any JSON-serializable data (strings, numbers, booleans, lists, nested objects)
-- Accessible in custom tools via the `{shared[key]}` template syntax
+- Accessible in custom tools via the `${shared['key']}` template syntax
 - Supports nested access using bracket notation
 
 **Example:**
 ```yaml
 shared:
-  prompts:
-    test: Yada-yada-yada
-
-tools:
-  - name: demo_shared_access
-    input:
-      - name: query
-        description: "Search query"
-        type: str
-    body:
-      result: "Query {query} returned {shared[prompts][test]}"
+  data:
+    prompts:
+      test: Yada-yada-yada
+  tools:
+    - name: demo_shared_access
+      input:
+        - name: query
+          description: "Search query"
+          type: str
+      body:
+        result: "Query ${query} returned ${shared['prompts']['test']}"
 ```
 
 **Usage Notes:**
-- The `shared` section is optional and defaults to an empty dictionary
+- The `shared.data` section is optional and defaults to an empty dictionary
 - All tools automatically have access to shared data through the `shared` template variable
-- Use bracket notation for accessing nested values: `{shared[category][subcategory]}`
+- Use bracket notation for accessing nested values: `${shared['category']['subcategory']}`
 - Shared data is read-only during tool execution
 - Changes to the shared section require reloading the script configuration
 
