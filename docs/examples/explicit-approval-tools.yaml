@@ -30,7 +30,7 @@ chat:
           description: Hint to show in UI when running the script
           type: str
       ui_hint: "${ui_hint}"
-      body:
+      do:
         # those tools are visible to LLM, no reason to care about fancy names
         - call:
             import_tool: llm_workers.tools.misc.ValidateApprovalTool

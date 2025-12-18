@@ -12,7 +12,7 @@ shared:
         - name: movie_title
           description: Movie title
           type: str
-      body:
+      do:
         match: "${movie_title}"
         matchers:
           - case: "Soul"
@@ -115,7 +115,7 @@ chat:
           description: Movie release year
           type: int
       ui_hint: Looking up Metacritic score for movie "${movie_title}" (${movie_year})
-      body:
+      do:
 #        - call:
 #            import_tool: llm_workers.tools.fetch.FetchPageTextTool
 #          params:

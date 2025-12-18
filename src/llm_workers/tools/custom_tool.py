@@ -227,7 +227,7 @@ def create_dynamic_schema(name: str, params: List[CustomToolParamsDefinition]) -
 
 
 def build_custom_tool(tool_def: CustomToolDefinition, context: WorkersContext) -> StructuredTool:
-    body = create_statement_from_model(tool_def.body, context)
+    body = create_statement_from_model(tool_def.do, context)
 
     return CustomTool(
         context=context,

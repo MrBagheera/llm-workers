@@ -217,7 +217,7 @@ shared:
         - name: query
           description: Search query
           type: str
-      body:
+      do:
         - eval: "Query result for {query}"
 """
         context = self.create_and_initialize_context(yaml_config)
@@ -418,7 +418,7 @@ chat:
         - name: query
           description: Search query
           type: str
-      body:
+      do:
         - eval: "Chat query result for {query}"
 """
         context = self.create_and_initialize_context(yaml_config)
@@ -538,7 +538,7 @@ shared:
         - name: filename
           description: File to read
           type: str
-      body:
+      do:
         - call:
             import_tool: llm_workers.tools.fs.ReadFileTool
           params:
@@ -569,7 +569,7 @@ shared:
         - name: content
           description: New content
           type: str
-      body:
+      do:
         - call:
             import_tool: llm_workers.tools.fs.FilesystemToolkit/edit_file
           params:
@@ -613,7 +613,7 @@ shared:
           - name: data
             description: Data to process
             type: str
-        body:
+        do:
           - call:
               import_tool: mcp:custom_server/mcp_process
             params:
@@ -735,7 +735,7 @@ shared:
               - name: input_text
                 description: Input text
                 type: str
-            body:
+            do:
               - eval: "Processed: {input_text}"
 """
         context = self.create_and_initialize_context(yaml_config)

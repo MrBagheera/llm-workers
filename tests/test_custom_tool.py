@@ -114,7 +114,7 @@ class TestSharedContentIntegration(unittest.TestCase):
             input=[
                 CustomToolParamsDefinition(name="query", description="Search query", type="str")
             ],
-            body=EvalDefinition(eval=JsonExpression("Query ${query} returned ${shared.prompts.test}"))
+            do=EvalDefinition(eval=JsonExpression("Query ${query} returned ${shared.prompts.test}"))
         )
 
         # Build the custom tool
@@ -251,7 +251,7 @@ class TestHierarchicalToolCalling(unittest.TestCase):
                 CustomToolParamsDefinition(name="value1", description="First value", type="int"),
                 CustomToolParamsDefinition(name="value2", description="Second value", type="int")
             ],
-            body=CallDefinition(
+            do=CallDefinition(
                 call="inner_sum_tool",
                 params=JsonExpression({"a": "${value1}", "b": "${value2}"})
             )

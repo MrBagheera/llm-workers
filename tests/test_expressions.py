@@ -133,7 +133,7 @@ class TestStringExpression(unittest.TestCase):
 
     def test_conditional_dict_access(self):
         """Tests accessing dict/list elements with default"""
-        expr = StringExpression("${get_with_default(x, 'a', 'failure!')}")
+        expr = StringExpression("${get(x, 'a', 'failure!')}")
         result = expr.evaluate({"x": {"a":"success!"}})
         self.assertEqual(result, "success!")
         result = expr.evaluate({"x": {}})

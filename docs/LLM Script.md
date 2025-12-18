@@ -107,7 +107,7 @@ shared:
       confidential: <boolean> # Optional
       return_direct: <boolean> # Optional
       ui_hint: <template_string> # Optional
-      body: # Required for custom tools
+      do: # Required for custom tools
         <statement(s)> # List of statements for more complex flows
 
 chat: # For interactive chat mode
@@ -430,7 +430,7 @@ shared:
         - name: <param_name>
           description: <param_description>
           type: <type>
-      body:
+      do:
         # ... statements
 ```
 
@@ -468,7 +468,7 @@ shared:
           description: Movie release year
           type: int
       ui_hint: Looking up Metacritic score for movie "{movie_title}" ({movie_year})
-      body:
+      do:
         - call: _fetch_page_text
           params:
             url: "https://www.metacritic.com/search/{movie_title}/?page=1&category=2"
@@ -532,7 +532,7 @@ shared:
         - name: query
           description: "Search query"
           type: str
-      body:
+      do:
         eval: "Query ${query} returned ${shared['prompts']['test']}"
 ```
 
@@ -592,7 +592,7 @@ Configuration for interactive chat mode:
        input:
          - name: data
            type: str
-       body:
+       do:
          - eval: "Processed: ${data}"
    ```
 
@@ -725,7 +725,7 @@ Tools can be referenced in different ways depending on the context:
 **In `call` statements** (single tool reference):
 - By name: `call: read_file`
 - Inline import: `call: {import_tool: llm_workers.tools.unsafe.ReadFileTool, name: read_file}`
-- Inline custom definition: `call: {name: my_tool, input: [...], body: [...]}`
+- Inline custom definition: `call: {name: my_tool, input: [...], do: [...]}`
 
 **In `chat.tools` and `build_llm_tool` config** (multiple tools):
 - By name: `- read_file`
@@ -850,7 +850,7 @@ tools:
       - name: movie_title
         description: Movie title
         type: str
-    body:
+    do:
       - call: fetch_page_text
         params:
           url: "https://www.metacritic.com/search/{movie_title}"
@@ -1169,7 +1169,7 @@ This tool is primarily intended for **prototyping new tools and prompt combinati
     - name: query
       description: "Search query"
       type: str
-  body:
+  do:
     - match: "${query}"
       matchers:
         - case: "common query 1"
@@ -1284,7 +1284,7 @@ tools:
         description: Python script to run
         type: str
     ui_hint: Running generated Python script...
-    body:
+    do:
       - call: _validate_approval
         params:
           approval_token: {approval_token}
@@ -1316,7 +1316,7 @@ tools:
         description: "Description of second parameter" 
         type: "int"
     return_direct: true  # Optional, returns result directly to user
-    body:
+    do:
       - call: some_tool
         params:
           tool_param: "${param1}"
@@ -1373,7 +1373,7 @@ Executes a specific tool with optional parameters. Tools can be referenced by na
       - name: data
         description: "Data to process"
         type: str
-    body:
+    do:
       - call: some_other_tool
         params:
           input: "${data}"
@@ -1499,7 +1499,7 @@ tools:
     input:
       - name: query
         type: str
-    body:
+    do:
       - call: normalize_input
         params:
           text: "{input.query}"
@@ -1555,7 +1555,7 @@ tools:
       - name: settings
         description: "User settings array"
         type: array
-    body:
+    do:
       - eval: "User ${user_profile['name']} has email ${user_profile['contact']['email']} and first setting is ${settings[0]}. ${shared['templates']['user_format']}"
 ```
 

@@ -278,7 +278,7 @@ class CustomToolDefinition(ToolDefinition):
     """Definition for a custom tool."""
     name: str
     input: List[CustomToolParamsDefinition] = []
-    body: BodyDefinition
+    do: BodyDefinition
 
     def __str__(self):
         return f"name: {self.name}"
@@ -312,7 +312,7 @@ ToolsDefinitionStatement = Annotated[
     Discriminator(create_discriminator({
         'import_tool': '<import_tool statement>',
         'import_tools': '<import_tools statement>',
-        'body': '<custom_tool definition>',
+        'do': '<custom_tool definition>',
     }))
 ]
 
@@ -328,7 +328,7 @@ ToolDefinitionOrReference = Annotated[
     Discriminator(create_discriminator({
         str: '<tool reference>',
         'import_tool': '<import_tools statement>',
-        'body': '<custom_tool definition>',
+        'do': '<custom_tool definition>',
     }))
 ]
 
@@ -352,7 +352,7 @@ ToolsDefinitionOrReference = Annotated[
         'match': '<tools references>',
         'import_tool': '<import_tool statement>',
         'import_tools': '<import_tools statement>',
-        'body': '<custom_tool definition>',
+        'do': '<custom_tool definition>',
     }))
 ]
 
