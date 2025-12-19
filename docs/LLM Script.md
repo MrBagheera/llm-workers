@@ -120,7 +120,10 @@ chat: # For interactive chat mode
     <default prompt>
 
 cli: # For command-line interface
-  <statement(s)> # List of statements for more complex flows
+  process_input: one_by_one | all_as_list # How to process input arguments
+  json_output: <boolean> # Optional, default: false - output results as JSON
+  do: # Required
+    <statement(s)> # List of statements for processing inputs
 ```
 
 ## Environment Variables Section
@@ -643,21 +646,43 @@ chat:
 
 ## CLI Section
 
-Configuration for command-line interface. Contains a list of statements that define the command-line flow.
-Flow is run for each command line parameter. Strings can reference "${input}" variable for value of command-line parameter.
+Configuration for command-line interface. Defines how to process command-line inputs using statement composition.
+
+**Structure:**
+```yaml
+cli:
+  process_input: one_by_one | all_as_list
+  json_output: false  # Optional, default: false
+  do:
+    <statement(s)>  # Statements to execute
+```
+
+**Parameters:**
+- `process_input`: (Required) How to process command-line inputs:
+  - `one_by_one`: Execute the flow once for each input argument. Each input is available as `${input}` variable.
+  - `all_as_list`: Execute the flow once with all inputs as a list. The list is available as `${input}` variable.
+- `json_output`: (Optional, default: `false`) If `true`, outputs results as JSON. If `false`, outputs as plain text.
+- `do`: (Required) Statements to execute for processing inputs. Can reference `${input}` variable.
+
+**Input Sources:**
+- Command-line arguments: `llm-workers-cli script.yaml input1 input2 input3`
+- Standard input: `echo -e "input1\ninput2" | llm-workers-cli script.yaml --`
 
 See "Custom Tools" section for details on statements.
 
-Example:
+**Example with `process_input: one_by_one`:**
 ```yaml
 cli:
-  - call: read_file
-    params:
-      filename: "${input}"
-  - call: llm
-    params:
-      prompt: |-
-        You are senior Scala developer. Your job is to reformat give file according to the rules below. 
+  process_input: one_by_one
+  json_output: false
+  do:
+    - call: read_file
+      params:
+        filename: "${input}"
+    - call: llm
+      params:
+        prompt: |-
+          You are senior Scala developer. Your job is to reformat give file according to the rules below. 
 
         Rules:
 
@@ -715,6 +740,23 @@ cli:
           content: "{_}"
       - eval: "${input}: FIXED"
 ```
+
+**Example with `process_input: all_as_list`:**
+```yaml
+cli:
+  process_input: all_as_list
+  json_output: true
+  do:
+    - call: llm
+      params:
+        prompt: |-
+          Analyze the following list of file names and categorize them by type.
+          Return a JSON object with categories as keys and lists of files as values.
+
+          Files: ${input}
+```
+
+In this example, all command-line inputs are passed as a list to the `${input}` variable, and the result is output as JSON.
 
 # Using Tools
 

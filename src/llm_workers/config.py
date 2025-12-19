@@ -382,6 +382,12 @@ class SharedConfig(BaseModel):
     data: JsonExpression = JsonExpression({})
     tools: list[ToolsDefinitionStatement] = []
 
+class CliConfig(BaseModel):
+    """Configuration for CLI workers."""
+    model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
+    process_input: Literal['one_by_one'] | Literal['all_as_list']
+    json_output: bool = False
+    do: BodyDefinition
 
 class WorkersConfig(BaseModel):
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
@@ -389,4 +395,4 @@ class WorkersConfig(BaseModel):
     shared: SharedConfig = SharedConfig()
     mcp: Dict[str, MCPServerDefinition] = {}
     chat: Optional[ChatConfig] = None
-    cli: Optional[BodyDefinition] = None
+    cli: Optional[CliConfig] = None

@@ -1,69 +1,71 @@
 # Demonstrates: CLI mode with complex file processing pipeline,
 # match statements with conditional file operations, file I/O tools, LLM tool integration for code transformation
 cli:
-  - call:
-      import_tool: llm_workers.tools.fs.ReadFileTool
-    params:
-      path: "${input}"
-  - call:
-      import_tool: llm_workers.tools.llm_tool.build_llm_tool
-    params:
-      prompt: |-
-        You are senior Scala developer. Your job is to reformat give file according to the rules below. 
-        
-        Rules:
-        
-        - Add types for local variables and method returns. Do not make assumptions about the type - if type cannot be 
-        inferred from the provided code alone, omit type definition.
-        
-        - Break long statements up in several lines, use intermediate variables
-        
-        - When dealing with Java code, handle null values explicitly and as soon as possible
-          - Don't add `null` checks unless they are really needed
-          - Don't wrap `null`-s to `Option` unless you pass it further to Scala code
-          - Handle the `null`-s immediately if possible, just wrapping them to `Option` pushes the responsibility to the receiver of the `Option`.
-        
-        - Get rid of Option-s as early as possible, prefer pattern matching over call chaining
-        
-        - Don't use infix or postfix notation, use dot notation with parenthesis everywhere: `obj.method(args)`
-        
-        - Chain method calls with dots on new line
-        
-        - Always use braces () in method definition and calls
-    
-        - Use curly braces {{}} in method definitions
-        
-        - Prefer code readability over complex pure functional code
-        
-        - Prefer for comprehension over chaining async method calls
-        
-        - Don't use curly braces for if-else with a single statement:
-        ```scala
-        if (playerContribution <= 2)
-          1 + Math.floor(titanStars / 2.0).toInt
-        else
-          1
-        ```
-        
-        - Don't use curly braces for if with return:
-        ```scala
-        if (playerContribution <= 2) return 1 + Math.floor(titanStars / 2.0).toInt
-        ```
+  process_input: one_by_one
+  do:
+    - call:
+        import_tool: llm_workers.tools.fs.ReadFileTool
+      params:
+        path: "${input}"
+    - call:
+        import_tool: llm_workers.tools.llm_tool.build_llm_tool
+      params:
+        prompt: |-
+          You are senior Scala developer. Your job is to reformat give file according to the rules below. 
+          
+          Rules:
+          
+          - Add types for local variables and method returns. Do not make assumptions about the type - if type cannot be 
+          inferred from the provided code alone, omit type definition.
+          
+          - Break long statements up in several lines, use intermediate variables
+          
+          - When dealing with Java code, handle null values explicitly and as soon as possible
+            - Don't add `null` checks unless they are really needed
+            - Don't wrap `null`-s to `Option` unless you pass it further to Scala code
+            - Handle the `null`-s immediately if possible, just wrapping them to `Option` pushes the responsibility to the receiver of the `Option`.
+          
+          - Get rid of Option-s as early as possible, prefer pattern matching over call chaining
+          
+          - Don't use infix or postfix notation, use dot notation with parenthesis everywhere: `obj.method(args)`
+          
+          - Chain method calls with dots on new line
+          
+          - Always use braces () in method definition and calls
       
-        After reformatting, output just the file content without any additional comments or formatting.      
-        If no changes are needed, respond with string "NO CHANGES" (without quotes).
+          - Use curly braces {{}} in method definitions
+          
+          - Prefer code readability over complex pure functional code
+          
+          - Prefer for comprehension over chaining async method calls
+          
+          - Don't use curly braces for if-else with a single statement:
+          ```scala
+          if (playerContribution <= 2)
+            1 + Math.floor(titanStars / 2.0).toInt
+          else
+            1
+          ```
+          
+          - Don't use curly braces for if with return:
+          ```scala
+          if (playerContribution <= 2) return 1 + Math.floor(titanStars / 2.0).toInt
+          ```
         
-        Input file:
-        ${_}
-  - match: "${_}"
-    matchers:
-      - case: "NO CHANGES"
-        then:
-          eval: "${input}: NO CHANGES"
-    default:
-      - call:
-          import_tool: llm_workers.tools.unsafe.WriteFileTool
-        params:
-          path: "${input}"
-          content: "${_}"
-      - eval: "${input}: FIXED"
+          After reformatting, output just the file content without any additional comments or formatting.      
+          If no changes are needed, respond with string "NO CHANGES" (without quotes).
+          
+          Input file:
+          ${_}
+    - match: "${_}"
+      matchers:
+        - case: "NO CHANGES"
+          then:
+            eval: "${input}: NO CHANGES"
+      default:
+        - call:
+            import_tool: llm_workers.tools.unsafe.WriteFileTool
+          params:
+            path: "${input}"
+            content: "${_}"
+        - eval: "${input}: FIXED"

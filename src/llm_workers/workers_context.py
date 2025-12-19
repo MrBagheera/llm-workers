@@ -4,7 +4,7 @@ import inspect
 import logging
 from asyncio import AbstractEventLoop
 from copy import copy
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Callable, Awaitable, Any
 
 import yaml
 from langchain_core.tools import BaseTool
@@ -98,6 +98,21 @@ class StandardWorkersContext(WorkersContext):
     def get_llm(self, llm_name: str):
         return self._user_context.get_llm(llm_name)
 
+    def run(self, func: Callable[..., Any], *args, **kwargs) -> Any:
+        """
+        Properly initializes this context, then runs provided function with parameters and shuts down the context.
+        """
+        loop = asyncio.new_event_loop()
+        try:
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(self._run(func, *args, **kwargs))
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
+
+    async def _run(self, func: Callable[..., Any], *args, **kwargs):
+        async with self: # this opens/closes sessions with MCP servers
+            return await asyncio.to_thread(func, *args, **kwargs)
 
     async def __aenter__(self):
         """

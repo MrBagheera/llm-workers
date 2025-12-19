@@ -1,31 +1,16 @@
 import unittest
-from typing import Any, Generator
 
 import yaml
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
-from llm_workers.api import WorkerNotification
 from llm_workers.config import CustomToolParamsDefinition, CallDefinition, EvalDefinition, \
     MatchDefinition, WorkersConfig, CustomToolDefinition
 from llm_workers.expressions import EvaluationContext, JsonExpression
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.tools.custom_tool import create_statement_from_model, build_custom_tool
-from llm_workers.utils import LazyFormatter
-from llm_workers.worker_utils import call_tool
+from llm_workers.worker_utils import call_tool, split_result_and_notifications
 from tests.mocks import StubWorkersContext
-
-
-def split_result_and_notifications(generator: Generator[WorkerNotification, None, Any]) -> tuple[Any, list[WorkerNotification]]:
-    notifications: list[WorkerNotification] = []
-    while True:
-        try:
-            chunk = next(generator)
-            if not isinstance(chunk, WorkerNotification):
-                raise ValueError(f"Statement yielded non-notification chunk: {LazyFormatter(chunk)}")
-            notifications.append(chunk)
-        except StopIteration as e:
-            return e.value, notifications
 
 
 @tool

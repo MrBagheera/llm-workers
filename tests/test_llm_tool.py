@@ -5,7 +5,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.tools.llm_tool import build_llm_tool
 from tests.mocks import MockInvokeLLM, StubWorkersContext
-from tests.test_custom_tool import split_result_and_notifications
+from llm_workers.worker_utils import split_result_and_notifications
 
 
 class TestLLMTool(unittest.TestCase):

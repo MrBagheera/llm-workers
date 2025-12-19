@@ -1,5 +1,4 @@
 import argparse
-import asyncio
 import sys
 from logging import getLogger
 from typing import Optional, Callable
@@ -123,25 +122,12 @@ class ChatSession:
         script = StandardWorkersContext.load_script(script_file)
         ensure_env_vars_defined(user_context.environment, script.env)
         workers_context = StandardWorkersContext(script, user_context)
-
-        loop = asyncio.new_event_loop()
-        try:
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(chat_session._run(script_file, user_context, workers_context))
-        finally:
-            loop.close()
-            asyncio.set_event_loop(None)
-
+        workers_context.run(chat_session._run_chat_loop, script_file, user_context, workers_context)
         return chat_session._token_tracker
 
-    async def _run(self, script_file: str, user_context: UserContext, workers_context: StandardWorkersContext):
-        async with workers_context: # this opens/closes sessions with MCP servers
-            self._chat_context = _ChatSessionContext(script_file, user_context, workers_context)
-            self._console_controller = ConsoleController(self._console, self._display_settings)
-            # running in a separate thread because it is blocking
-            await asyncio.to_thread(self._run_chat_loop)
-
-    def _run_chat_loop(self):
+    def _run_chat_loop(self, script_file: str, user_context: UserContext, workers_context: StandardWorkersContext):
+        self._chat_context = _ChatSessionContext(script_file, user_context, workers_context)
+        self._console_controller = ConsoleController(self._console, self._display_settings)
         # Display user banner if configured
         if self._chat_config.user_banner is not None:
             self._console.print(Markdown(self._chat_config.user_banner))

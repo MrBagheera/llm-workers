@@ -73,14 +73,16 @@ shared:
       return_direct: true
 
 cli:
-  call:
-    import_tool: llm_workers.tools.llm_tool.build_llm_tool
-    config:
-      tools:
-        - match: [ "*", "!_*"] # all tools that doesn't start with _
-  params:
-    prompt: >
-      Please fetch the page from ${input} and print navigation summary for this region, as well as for all bays and marinas in it.
+  process_input: one_by_one
+  do:
+    call:
+      import_tool: llm_workers.tools.llm_tool.build_llm_tool
+      config:
+        tools:
+          - match: [ "*", "!_*"] # all tools that doesn't start with _
+    params:
+      prompt: >
+        Please fetch the page from ${input} and print navigation summary for this region.
 
 chat:
   system_message: >

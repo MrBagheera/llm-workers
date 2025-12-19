@@ -193,3 +193,15 @@ def call_tool(
         yield WorkerNotification.tool_end(run_id)
 
     return result
+
+
+def split_result_and_notifications(generator: Generator[WorkerNotification, None, Any]) -> tuple[Any, list[WorkerNotification]]:
+    notifications: list[WorkerNotification] = []
+    while True:
+        try:
+            chunk = next(generator)
+            if not isinstance(chunk, WorkerNotification):
+                raise ValueError(f"Statement yielded non-notification chunk: {LazyFormatter(chunk)}")
+            notifications.append(chunk)
+        except StopIteration as e:
+            return e.value, notifications
