@@ -1,6 +1,6 @@
 import logging
 import uuid
-from typing import Any
+from typing import Any, Generator
 from typing import List, Optional, Dict, Iterator
 
 from langchain_core.runnables import RunnableConfig
@@ -11,7 +11,7 @@ from llm_workers.api import WorkerNotification, ExtendedBaseTool, ExtendedExecut
 from llm_workers.config import ToolDefinition, EnvVarDefinition
 from llm_workers.expressions import StringExpression, EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
-from llm_workers.utils import matches_patterns, ensure_environment_variable
+from llm_workers.utils import matches_patterns, ensure_environment_variable, LazyFormatter
 
 logger =  logging.getLogger(__name__)
 
@@ -131,6 +131,34 @@ def format_tool_args(inputs: Dict[str, Any], arg_patterns: List[str], max_length
 
     return result
 
+# noinspection PyUnreachableCode
+def validate_tool_results(logging_id: str, tool_results: Generator[WorkerNotification, None, Any]) -> Generator[WorkerNotification, None, Any]:
+    """
+    Yields WorkerNotification objects from the stream.
+    Returns the tool result (or None if stream ends before).
+    Logs warning if non-notification chunk occurs in stream.
+    """
+    while True:
+        try:
+            chunk = next(tool_results)
+            if not isinstance(chunk, WorkerNotification):
+                logger.warning("%s produced multiple results, skipping %r", logging_id, LazyFormatter(chunk))
+            yield chunk
+        except StopIteration as e:
+            return e.value
+
+def extract_tool_results(logging_id: str, tool_results: Generator[WorkerNotification, None, Any]) -> Generator[WorkerNotification, None, Any]:
+    """
+    Returns tools results, throws away all notifications.
+    Logs warning if non-notification chunk occur.
+    """
+    while True:
+        try:
+            chunk = next(tool_results)
+            if not isinstance(chunk, WorkerNotification):
+                logger.warning("%s produced multiple results, skipping %r", logging_id, LazyFormatter(chunk))
+        except StopIteration as e:
+            return e.value
 
 def call_tool(
         tool: BaseTool,
@@ -139,7 +167,7 @@ def call_tool(
         token_tracker: CompositeTokenUsageTracker,
         config: Optional[RunnableConfig],
         kwargs: dict[str, Any]
-) -> Iterator[WorkerNotification | Any]:
+) -> Generator[WorkerNotification, None, Any]:
     run_id = config.get("run_id", None) if config is not None else None
     child_config = config
 
@@ -151,14 +179,17 @@ def call_tool(
         child_config['run_id'] = run_id
         yield WorkerNotification.tool_start(tool_start_text, run_id, parent_run_id)
 
+    result = None
     try:
         if isinstance(tool, ExtendedExecutionTool):
-            yield from tool.stream_with_notifications(input, evaluation_context, token_tracker, child_config)
+            result = yield from validate_tool_results(tool.name, tool.run_with_notifications(input, evaluation_context, token_tracker, child_config))
         else:
-            yield tool.invoke(input, child_config, **kwargs)
+            result = tool.invoke(input, child_config, **kwargs)
     except ToolException as e:
         logger.warning("Failed to call tool %s", tool.name, exc_info=True)
-        yield f"Tool Error: {e}"
+        result = f"Tool Error: {e}"
 
     if tool_start_text:
         yield WorkerNotification.tool_end(run_id)
+
+    return result

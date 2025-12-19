@@ -60,7 +60,7 @@ shared:
             url: "${url}"
         - call: generate_navigation_summary
           params:
-            text: "${output0}"
+            text: "${_}"
             header_level: "${header_level}"
 #      tools:
 #        - fetch_page_markdown

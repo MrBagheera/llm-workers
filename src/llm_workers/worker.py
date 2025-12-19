@@ -10,6 +10,7 @@ from llm_workers.api import WorkersContext, ConfirmationRequest, ConfirmationRes
     ConfirmationRequestToolCallDescription, ConfirmationRequestParam, \
     ExtendedBaseTool, CONFIDENTIAL, WorkerNotification, WorkerException
 from llm_workers.config import BaseLLMConfig, ToolDefinition
+from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.utils import LazyFormatter
 from llm_workers.worker_utils import call_tool
@@ -287,14 +288,9 @@ class Worker(Runnable[In, Out]):
                 yield response
                 continue
 
-            tool_output: Any = None
             token_tracker = CompositeTokenUsageTracker()
-            evaluation_context = kwargs.get('evaluation_context', self._context.evaluation_context)
-            for e in call_tool(tool, args, evaluation_context, token_tracker, config, kwargs):
-                if isinstance(e, WorkerNotification):
-                    yield e
-                else:
-                    tool_output = e
+            evaluation_context: EvaluationContext = kwargs.get('evaluation_context', self._context.evaluation_context)
+            tool_output: Any = yield from call_tool(tool, args, evaluation_context, token_tracker, config, kwargs)
 
             tool_message: ToolMessage
             content: str

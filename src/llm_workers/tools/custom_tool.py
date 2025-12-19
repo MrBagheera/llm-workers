@@ -1,7 +1,7 @@
 import logging
 import re
 from copy import deepcopy, copy
-from typing import Type, Any, Optional, Dict, TypeAlias, List, Iterator, Union, Iterable
+from typing import Type, Any, Optional, Dict, TypeAlias, List, Iterator, Union, Iterable, Generator
 
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableConfig
@@ -20,27 +20,31 @@ from llm_workers.worker_utils import call_tool
 logger = logging.getLogger(__name__)
 
 
-Statement: TypeAlias = ExtendedRunnable[Dict[str, Json], Json]
+Statement: TypeAlias = ExtendedRunnable[Json]
 
 
-# noinspection PyTypeHints
-class EvalStatement(ExtendedRunnable[Dict[str, Json], Json]):
+class EvalStatement(ExtendedRunnable[Json]):
     def __init__(self, model: EvalDefinition):
         self._eval_expr = model.eval
+        self._store_as = model.store_as
 
-    def _stream(
+    def yield_notifications_and_result(
             self,
             evaluation_context: EvaluationContext,
             token_tracker: Optional[CompositeTokenUsageTracker],
             config: Optional[RunnableConfig],
             **kwargs: Any   # ignored
-    ) -> Iterable[Any]:
+    ) -> Generator[WorkerNotification, None, Json]:
         result = self._eval_expr.evaluate(evaluation_context)
-        yield result
+        if False:  # To make this function return generator, yield statement must exists in it's body
+            yield WorkerNotification()
+        if self._store_as:
+            evaluation_context.add(self._store_as, result)
+        return result # cannot use return here due to generator
 
 
 # noinspection PyTypeHints
-class CallStatement(ExtendedRunnable[Dict[str, Json], Json]):
+class CallStatement(ExtendedRunnable[Json]):
 
     def __init__(self, model: CallDefinition, context: WorkersContext):
         self._tool = context.get_tool(model.call)
@@ -51,26 +55,24 @@ class CallStatement(ExtendedRunnable[Dict[str, Json], Json]):
             self._catch = [model.catch]
         else:
             self._catch = None
+        self._store_as = model.store_as
 
-    def _stream(
-            self,
-            evaluation_context: EvaluationContext,
-            token_tracker: Optional[CompositeTokenUsageTracker],
-            config: Optional[RunnableConfig],
-            **kwargs: Any   # ignored
-    ) -> Iterable[Any]:
+    def yield_notifications_and_result(
+        self,
+        evaluation_context: EvaluationContext,
+        token_tracker: Optional[CompositeTokenUsageTracker],
+        config: Optional[RunnableConfig],
+        **kwargs: Any   # ignored
+    ) -> Generator[WorkerNotification, None, Json]:
         # Evaluate params expression
         target_params = self._params_expr.evaluate(evaluation_context) if self._params_expr else {}
         logger.debug("Calling tool %s with args:\n%r", self._tool.name, LazyFormatter(target_params))
         try:
-            result = None
-            for chunk in call_tool(self._tool, input=target_params, evaluation_context=evaluation_context, token_tracker=token_tracker, config=config, kwargs={}):
-                if isinstance(chunk, WorkerNotification):
-                    yield chunk
-                else:
-                    result = chunk
+            result = yield from call_tool(self._tool, target_params, evaluation_context, token_tracker, config, kwargs)
             logger.debug("Calling tool %s resulted:\n%r", self._tool.name, LazyFormatter(result, trim=False))
-            yield result
+            if self._store_as:
+                evaluation_context.add(self._store_as, result)
+            return result
         except BaseException as e:
             raise self._convert_error(e)
 
@@ -83,46 +85,35 @@ class CallStatement(ExtendedRunnable[Dict[str, Json], Json]):
         return e
 
 
-class FlowStatement(ExtendedRunnable[Dict[str, Json], Json]):
+class FlowStatement(ExtendedRunnable[Json]):
 
     def __init__(self, model: list[StatementDefinition], context: WorkersContext):
-        self._statements = []
-        i = 0
+        self._statements: List[Statement] = []
         for statement_model in model:
             statement = create_statement_from_model(statement_model, context)
             self._statements.append(statement)
-            i += 1
 
-    def _stream(
+    def yield_notifications_and_result(
             self,
             evaluation_context: EvaluationContext,
             token_tracker: Optional[CompositeTokenUsageTracker],
             config: Optional[RunnableConfig],
             **kwargs: Any   # ignored
-    ) -> Iterable[Any]:
-        i = 0
-        last = None
+    ) -> Generator[WorkerNotification, None, Json]:
+        result = None
         for statement in self._statements:
-            for chunk in statement._stream(evaluation_context, token_tracker, config):
-                if isinstance(chunk, WorkerNotification):
-                    yield chunk
-                else:
-                    last = chunk
-                    break
-            evaluation_context.add(f"output{i}", last)
-            evaluation_context.add("_", last)
-            i = i + 1
-        yield last
+            inner_context = EvaluationContext({"_": result}, parent=evaluation_context, mutable=False)
+            result = yield from statement.yield_notifications_and_result(inner_context, token_tracker, config)
+        return result
 
 
 # noinspection PyTypeHints
-class MatchStatement(ExtendedRunnable[Dict[str, Json], Json]):
-    match_key: str = 'match'
+class MatchStatement(ExtendedRunnable[Json]):
 
     def __init__(self, model: MatchDefinition, context: WorkersContext):
         self._match_expr = model.match
         self._trim = model.trim
-        self._clauses = []
+        self._clauses: List[tuple[Any, Statement]] = []
         for matcher in model.matchers:
             if matcher.case:
                 condition: str = matcher.case
@@ -133,8 +124,9 @@ class MatchStatement(ExtendedRunnable[Dict[str, Json], Json]):
                 statement = create_statement_from_model(matcher.then, context)
                 self._clauses.append((condition, statement))
         self._default = create_statement_from_model(model.default, context)
+        self._store_as = model.store_as
 
-    def _stream(
+    def yield_notifications_and_result(
             self,
             evaluation_context: EvaluationContext,
             token_tracker: Optional[CompositeTokenUsageTracker],
@@ -146,6 +138,7 @@ class MatchStatement(ExtendedRunnable[Dict[str, Json], Json]):
         if self._trim:
             probe = str(probe).strip()
             probe_str = probe
+        result = None
         for condition, statement in self._clauses:
             if isinstance(condition, re.Pattern):
                 if not probe_str:
@@ -153,31 +146,30 @@ class MatchStatement(ExtendedRunnable[Dict[str, Json], Json]):
                 match = condition.fullmatch(probe_str)
                 if match:
                     logger.debug("Probe [%s] matched regexp [%s]", probe_str, condition)
-                    evaluation_context.add('match', match.groups())
-                    yield from statement._stream(
-                        EvaluationContext({'match': match.groups()}, parent=evaluation_context),
-                        token_tracker,
-                        config)
-                    return
+                    inndex_context = EvaluationContext(
+                        {"_match_groups": match.groups()},
+                        parent=evaluation_context,
+                        mutable=False
+                    )
+                    result = yield from statement.yield_notifications_and_result(inndex_context, token_tracker, config)
+                    break
             elif probe == condition:
                 logger.debug("Probe [%s] matched condition [%s]", probe, condition)
-                yield from statement._stream(
-                    EvaluationContext({}, parent=evaluation_context),
-                    token_tracker,
-                    config)
-                return
-        logger.debug("Probe [%s] did not match anything", probe)
-        yield from self._default._stream(
-            EvaluationContext({}, parent=evaluation_context),
-            token_tracker,
-            config)
+                result = yield from statement.yield_notifications_and_result(evaluation_context, token_tracker, config)
+                break
+        if result is None:
+            logger.debug("Probe [%s] did not match anything", probe)
+            result = yield from self._default.yield_notifications_and_result(evaluation_context, token_tracker, config)
+        if self._store_as:
+            evaluation_context.add(self._store_as, result)
+        return result
 
 
 class CustomTool(ExtendedExecutionTool):
     _context: WorkersContext = PrivateAttr()
-    _body: ExtendedRunnable[dict[str, Any], Any] = PrivateAttr()
+    _body: Statement = PrivateAttr()
 
-    def __init__(self, context: WorkersContext, body: ExtendedRunnable[dict[str, Any], Any], **kwargs):
+    def __init__(self, context: WorkersContext, body: Statement, **kwargs):
         super().__init__(**kwargs)
         self._context = context
         self._body = body
@@ -185,17 +177,18 @@ class CustomTool(ExtendedExecutionTool):
     def default_evaluation_context(self) -> EvaluationContext:
         return self._context.evaluation_context
 
-    def _stream(
+    def yield_notifications_and_result(
         self,
         evaluation_context: EvaluationContext,
         token_tracker: Optional[CompositeTokenUsageTracker],
         config: Optional[RunnableConfig],
+        input: dict[str, Json],
         **kwargs: Any
-    ) -> Iterable[Any]:
-        validated_input = self.args_schema(**kwargs)
+    ) -> Generator[WorkerNotification, None, Any]:
+        validated_input = self.args_schema(**input)
         # starting new evaluation context
         evaluation_context = EvaluationContext(validated_input.model_dump(), parent=evaluation_context)
-        yield from self._body._stream(evaluation_context, token_tracker, config, **(validated_input.model_extra or {}))
+        return self._body.yield_notifications_and_result(evaluation_context, token_tracker, config)
 
 
 def create_statement_from_model(model: StatementDefinition, context: WorkersContext) -> Statement:

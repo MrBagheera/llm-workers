@@ -136,7 +136,7 @@ class EvaluationContext:
     def known_names(self) -> List[str]:
         result = list(self.variables.keys())
         if self.parent:
-            result += list(self.parent.variables.keys())
+            result.extend(self.parent.known_names)
         return result
 
     def resolve(self, node: Any) -> Any:
@@ -148,7 +148,12 @@ class EvaluationContext:
 
     def add(self, name: str, value: Any):
         if not self.mutable:
-            raise RuntimeError(f"Cannot add variable {name} to immutable EvaluationContext")
+            if name in self.variables:
+                raise RuntimeError(f"Cannot modify existing variable {name} in immutable EvaluationContext")
+            if self.parent is not None:
+                self.parent.add(name, value)
+            else:
+                raise RuntimeError(f"Cannot add variable {name} to immutable EvaluationContext")
         self.variables[name] = value
 
     @staticmethod
@@ -236,14 +241,7 @@ class StringExpression:
         result = []
         for kind, content in self.parts:
             if kind == 'code':
-                try:
-                    result.append(str(self._eval(content, context)))
-                except Exception as e:
-                    # Most likely calling LLM cannot do anything with this error,
-                    # so we log it as warning to simplify debugging
-                    message = f"Failed to evaluate ${{{content}}}: {e}"
-                    logger.warning(message)
-                    raise ToolException(message)
+                result.append(str(self._eval(content, context)))
             else:
                 result.append(content)
 

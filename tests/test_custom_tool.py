@@ -1,22 +1,31 @@
 import unittest
+from typing import Any, Generator
 
+import yaml
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
 from llm_workers.api import WorkerNotification
 from llm_workers.config import CustomToolParamsDefinition, CallDefinition, EvalDefinition, \
-    MatchDefinition, MatchClauseDefinition, WorkersConfig, CustomToolDefinition
-from llm_workers.expressions import EvaluationContext, JsonExpression, StringExpression
+    MatchDefinition, WorkersConfig, CustomToolDefinition
+from llm_workers.expressions import EvaluationContext, JsonExpression
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.tools.custom_tool import create_statement_from_model, build_custom_tool
+from llm_workers.utils import LazyFormatter
 from llm_workers.worker_utils import call_tool
 from tests.mocks import StubWorkersContext
 
 
-def get_stream_result(statement, context):
-    """Helper to extract non-notification result from statement._stream()"""
-    return next(chunk for chunk in statement._stream(EvaluationContext(context), None, {})
-                if not isinstance(chunk, WorkerNotification))
+def split_result_and_notifications(generator: Generator[WorkerNotification, None, Any]) -> tuple[Any, list[WorkerNotification]]:
+    notifications: list[WorkerNotification] = []
+    while True:
+        try:
+            chunk = next(generator)
+            if not isinstance(chunk, WorkerNotification):
+                raise ValueError(f"Statement yielded non-notification chunk: {LazyFormatter(chunk)}")
+            notifications.append(chunk)
+        except StopIteration as e:
+            return e.value, notifications
 
 
 @tool
@@ -32,7 +41,9 @@ class TestStatements(unittest.TestCase):
             model = EvalDefinition(eval=JsonExpression("${param1} is 42")),
             context=StubWorkersContext()
         )
-        result = get_stream_result(statement, {"param1": "Meaning of life"})
+        context = {"param1": "Meaning of life"}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        result = split_result_and_notifications(generator)[0]
         self.assertEqual("Meaning of life is 42", result)
 
     def test_return_json(self):
@@ -40,56 +51,71 @@ class TestStatements(unittest.TestCase):
             model = EvalDefinition(eval=JsonExpression({"inner": "${param1} is 42"})),
             context=StubWorkersContext()
         )
-        self.assertEqual({"inner": "Meaning of life is 42"}, get_stream_result(statement, {"param1": "Meaning of life"}))
+        context = {"param1": "Meaning of life"}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        self.assertEqual({"inner": "Meaning of life is 42"}, split_result_and_notifications(generator)[0])
 
     def test_simple_call(self):
         statement = create_statement_from_model(
             model = CallDefinition(call = "some_function", params = JsonExpression({"param1": "${param1}", "param2": 29})),
             context=StubWorkersContext(tools={"some_function": test_tool_logic})
         )
-        assert 42 == get_stream_result(statement, {"param1": 13})
+        context = {"param1": 13}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        assert 42 == split_result_and_notifications(generator)[0]
 
     def test_simple_flow(self):
         statement = create_statement_from_model(
             model = [
-                EvalDefinition(eval = JsonExpression(13)),
-                EvalDefinition(eval = JsonExpression(29)),
+                EvalDefinition(eval = JsonExpression(13), store_as="output0"),
+                EvalDefinition(eval = JsonExpression(29), store_as="output1"),
                 CallDefinition(call = "some_function", params = JsonExpression({"param1": "${output0}", "param2": "${output1}"})),
-                EvalDefinition(eval = JsonExpression("${param1} is ${output2}"))
+                EvalDefinition(eval = JsonExpression("${param1} is ${_}"))
             ],
             context=StubWorkersContext(tools={"some_function": test_tool_logic})
         )
-        assert "Meaning of live is 42" == get_stream_result(statement, {"param1": "Meaning of live"})
+        context = {"param1": "Meaning of live"}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        assert "Meaning of live is 42" == split_result_and_notifications(generator)[0]
 
     def test_match(self):
         statement = create_statement_from_model(
-            model = MatchDefinition(
-                match = StringExpression("${param1}"),
-                trim = True,
-                matchers = [
-                    MatchClauseDefinition(
-                        case = "Meaning of life",
-                        then = EvalDefinition(eval = JsonExpression(42))
-                    ),
-                    MatchClauseDefinition(
-                        pattern = "[0-9]+",
-                        then = EvalDefinition(eval = JsonExpression("number"))
-                    ),
-                    MatchClauseDefinition(
-                        pattern = "https?://([^/]+)/?.*",
-                        then = EvalDefinition(eval = JsonExpression("an URL pointing to ${match[0]}"))
-                    )
-                ],
-                default = EvalDefinition(eval = JsonExpression(-1))
-            ),
+            model = MatchDefinition.model_validate(yaml.safe_load("""
+            match: ${param1}
+            trim: true
+            matchers:
+              - case: Meaning of life
+                then:
+                  eval: 42
+              - pattern: '[0-9]+'
+                then:
+                  eval: 'number'
+              - pattern: 'https?://([^/]+)/?.*'
+                then:
+                  eval: 'an URL pointing to ${_match_groups[0]}'
+            default:
+              eval: -1
+            """)),
             context=StubWorkersContext()
         )
-        self.assertEqual(42, get_stream_result(statement, {"param1": "Meaning of life"}))
-        self.assertEqual("number", get_stream_result(statement, {"param1": "100"}))
-        self.assertEqual("an URL pointing to www.google.com", get_stream_result(statement, {"param1": "https://www.google.com/"}))
-        self.assertEqual(-1, get_stream_result(statement, {"param1": "Meaning of live is 42"}))
-        self.assertEqual(-1, get_stream_result(statement, {"param1": ""}))
-        self.assertEqual(-1, get_stream_result(statement, {"param1": {}}))
+        context = {"param1": "Meaning of life"}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        self.assertEqual(42, split_result_and_notifications(generator)[0])
+        context1 = {"param1": "100"}
+        generator1 = statement.yield_notifications_and_result(EvaluationContext(context1), token_tracker=None, config=None)
+        self.assertEqual("number", split_result_and_notifications(generator1)[0])
+        context2 = {"param1": "https://www.google.com/"}
+        generator2 = statement.yield_notifications_and_result(EvaluationContext(context2), token_tracker=None, config=None)
+        self.assertEqual("an URL pointing to www.google.com", split_result_and_notifications(generator2)[0])
+        context3 = {"param1": "Meaning of live is 42"}
+        generator3 = statement.yield_notifications_and_result(EvaluationContext(context3), token_tracker=None, config=None)
+        self.assertEqual(-1, split_result_and_notifications(generator3)[0])
+        context4 = {"param1": ""}
+        generator4 = statement.yield_notifications_and_result(EvaluationContext(context4), token_tracker=None, config=None)
+        self.assertEqual(-1, split_result_and_notifications(generator4)[0])
+        context5 = {"param1": {}}
+        generator5 = statement.yield_notifications_and_result(EvaluationContext(context5), token_tracker=None, config=None)
+        self.assertEqual(-1, split_result_and_notifications(generator5)[0])
 
 
 class TestSharedContentIntegration(unittest.TestCase):
@@ -140,15 +166,19 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
         )
 
         # Test with existing key
-        result = get_stream_result(statement, {
+        context = {
             "data": {"json_schema": "schema_value", "other": "other_value"}
-        })
+        }
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        result = split_result_and_notifications(generator)[0]
         self.assertEqual(result, "schema_value")
 
         # Test with missing key
-        result = get_stream_result(statement, {
+        context1 = {
             "data": {"other": "other_value"}
-        })
+        }
+        generator1 = statement.yield_notifications_and_result(EvaluationContext(context1), token_tracker=None, config=None)
+        result = split_result_and_notifications(generator1)[0]
         self.assertEqual(result, "default_value")
 
     def test_dynamic_key_from_variable(self):
@@ -161,10 +191,12 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
             ),
             context=StubWorkersContext()
         )
-        result = get_stream_result(statement, {
+        context = {
             "key_name": "target_key",
             "data": {"target_key": "found_value", "other": "other_value"}
-        })
+        }
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        result = split_result_and_notifications(generator)[0]
         self.assertEqual(result, "found_value")
 
     def test_list_index_with_bounds_check(self):
@@ -179,17 +211,21 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
         )
 
         # Test valid index
-        result = get_stream_result(statement, {
+        context = {
             "items": ["first", "second", "third"],
             "index": 1
-        })
+        }
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        result = split_result_and_notifications(generator)[0]
         self.assertEqual(result, "second")
 
         # Test out of bounds
-        result = get_stream_result(statement, {
+        context1 = {
             "items": ["first", "second"],
             "index": 5
-        })
+        }
+        generator1 = statement.yield_notifications_and_result(EvaluationContext(context1), token_tracker=None, config=None)
+        result = split_result_and_notifications(generator1)[0]
         self.assertEqual(result, "out_of_bounds")
 
     def test_simple_list_index(self):
@@ -202,7 +238,9 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
             ),
             context=StubWorkersContext()
         )
-        result = get_stream_result(statement, {"items": ["a", "b", "c"]})
+        context = {"items": ["a", "b", "c"]}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        result = split_result_and_notifications(generator)[0]
         self.assertEqual(result, "b")
 
     def test_bracket_notation_for_nested_access(self):
@@ -217,15 +255,19 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
         )
 
         # Test existing nested value
-        result = get_stream_result(statement, {
+        context = {
             "data": {"level1": {"level2": "found"}}
-        })
+        }
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        result = split_result_and_notifications(generator)[0]
         self.assertEqual(result, "found")
 
         # Test missing nested value
-        result = get_stream_result(statement, {
+        context1 = {
             "data": {"level1": {}}
-        })
+        }
+        generator1 = statement.yield_notifications_and_result(EvaluationContext(context1), token_tracker=None, config=None)
+        result = split_result_and_notifications(generator1)[0]
         self.assertEqual(result, "N/A")
 
 
@@ -263,22 +305,20 @@ class TestHierarchicalToolCalling(unittest.TestCase):
         token_tracker = CompositeTokenUsageTracker()
         config = RunnableConfig()
 
-        chunks = list(call_tool(
+        generator = call_tool(
             tool=custom_tool,
             input={"value1": 13, "value2": 29},
             evaluation_context=EvaluationContext(),
             token_tracker=token_tracker,
             config=config,
             kwargs={}
-        ))
+        )
 
         # Separate notifications from results
-        notifications = [c for c in chunks if isinstance(c, WorkerNotification)]
-        results = [c for c in chunks if not isinstance(c, WorkerNotification)]
+        result, notifications = split_result_and_notifications(generator)
 
         # Verify result
-        self.assertEqual(len(results), 1, f"Expected 1 result but got {len(results)}")
-        self.assertEqual(results[0], 42, f"Expected result 42 but got {results[0]}")
+        self.assertEqual(result, 42)
 
         # Verify notifications structure
         # Should have: outer_tool_start, inner_tool_start, inner_tool_end, outer_tool_end

@@ -1,6 +1,5 @@
-
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Callable, List, Literal, Iterable, TypeVar, Generic
+from typing import Any, Dict, Optional, Callable, List, Literal, TypeVar, Generic, Generator
 from uuid import UUID
 
 from langchain_core.language_models import BaseChatModel
@@ -12,6 +11,7 @@ from llm_workers.config import WorkersConfig, ToolDefinitionOrReference, ModelDe
     ToolsDefinitionOrReference
 from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
+from llm_workers.utils import LazyFormatter
 
 # Flag for confidential messages (not shown to LLM)
 CONFIDENTIAL: str = 'confidential'
@@ -124,51 +124,6 @@ class ExtendedBaseTool(ABC):
         pass
 
 
-Input = TypeVar('Input')
-Output = TypeVar('Output')
-
-
-class ExtendedRunnable(ABC, Generic[Input, Output]):
-    """Abstract base class for Runnable with extended properties."""
-
-    @abstractmethod
-    def _stream(
-            self,
-            evaluation_context: EvaluationContext,
-            token_tracker: Optional[CompositeTokenUsageTracker],
-            config: Optional[RunnableConfig],
-            **kwargs: Any
-    ) -> Iterable[Any]:
-        """Internal method to run the tool and optionally yield notifications."""
-        pass
-
-
-class ExtendedExecutionTool(BaseTool, ExtendedRunnable[dict[str, Any], Any], ABC):
-    """Base class for tools that support streaming and/or internal state notifications."""
-
-    @abstractmethod
-    def default_evaluation_context(self) -> EvaluationContext:
-        """Get the default evaluation context for the tool."""
-        pass
-
-    def _run(
-            self,
-            *args: Any,
-            config: Optional[RunnableConfig] = None,
-            **kwargs: Any,
-    ) -> Any:
-        # for tools called via this method, we cannot pass context or token tracker - use defaults
-        for chunk in self._stream(self.default_evaluation_context(), token_tracker=None, config=config, **kwargs):
-            if isinstance(chunk, WorkerNotification):
-                continue
-            return chunk
-        return None
-
-    def stream_with_notifications(self, input: dict[str, Any], evaluation_context: EvaluationContext,
-                                  token_tracker: CompositeTokenUsageTracker, config: Optional[RunnableConfig]):
-        return self._stream(evaluation_context, token_tracker, config, **input)
-
-
 class WorkerNotification:
     """Notifications about worker state changes."""
     type: Literal['thinking_start', 'thinking_end', 'tool_start', 'tool_end', 'ai_output_chunk', 'ai_reasoning_chunk']
@@ -223,3 +178,58 @@ class WorkerNotification:
         n.index=index
         n.text=text
         return n
+
+    def __str__(self):
+        return f"WorkerNotification(type={self.type}, run_id={self.run_id} text={self.text})"
+
+
+Output = TypeVar('Output')
+class ExtendedRunnable(ABC, Generic[Output]):
+    """Abstract base class for Runnable with extended properties."""
+
+    @abstractmethod
+    def yield_notifications_and_result(
+            self,
+            evaluation_context: EvaluationContext,
+            token_tracker: Optional[CompositeTokenUsageTracker],
+            config: Optional[RunnableConfig],
+            **kwargs: Any
+    ) -> Generator[WorkerNotification, None, Output]:
+        """Run the tool, (optionally) yields notifications, then result."""
+        pass
+
+
+class ExtendedExecutionTool(BaseTool, ExtendedRunnable[Any], ABC):
+    """Base class for tools that support streaming and/or internal state notifications."""
+
+    @abstractmethod
+    def default_evaluation_context(self) -> EvaluationContext:
+        """Get the default evaluation context for the tool."""
+        pass
+
+    def _run(
+        self,
+        *args: Any,
+        config: Optional[RunnableConfig] = None,
+        **kwargs: Any,  # this is tool input
+    ) -> Any:
+        from llm_workers.worker_utils import extract_tool_results
+        return extract_tool_results(
+            self.name,
+            # for tools called via this method, we cannot pass context or token tracker - use defaults
+            self.yield_notifications_and_result(
+                self.default_evaluation_context(),
+                token_tracker=None,
+                config=config,
+                **{'input': kwargs}
+            )
+        )
+
+    def run_with_notifications(self,
+        input: dict[str, Any],
+        evaluation_context: EvaluationContext,
+        token_tracker: CompositeTokenUsageTracker,
+        config: Optional[RunnableConfig],
+        **kwargs
+    ) -> Generator[WorkerNotification, None, Any]:
+        return self.yield_notifications_and_result(evaluation_context, token_tracker, config, **({**kwargs, 'input': input}))

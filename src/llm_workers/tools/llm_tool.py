@@ -2,13 +2,13 @@ import ast
 import json
 import logging
 import re
-from typing import Dict, Any, List, Union, Iterable, Optional
+from typing import Dict, Any, List, Union, Iterable, Optional, Generator
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import PrivateAttr, BaseModel, Field, ConfigDict
 
-from llm_workers.api import WorkersContext, WorkerNotification, ExtendedExecutionTool
+from llm_workers.api import WorkersContext, WorkerNotification, ExtendedExecutionTool, ConfirmationRequest
 from llm_workers.config import ToolLLMConfig
 from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
@@ -113,21 +113,17 @@ class LLMTool(ExtendedExecutionTool):
         else:
             return text
 
-    def _stream(
-            self,
-            evaluation_context: EvaluationContext,
-            token_tracker: Optional[CompositeTokenUsageTracker],
-            config: Optional[RunnableConfig],
-            **kwargs: Any
-    ) -> Iterable[Any]:
+    def yield_notifications_and_result(
+        self,
+        evaluation_context: EvaluationContext,
+        token_tracker: Optional[CompositeTokenUsageTracker],
+        config: Optional[RunnableConfig],
+        **kwargs: Any
+    ) -> Generator[WorkerNotification, None, Any]:
         """
         Calls LLM with given prompt, returns LLM output.
-
-        Args:
-            prompt: text prompt
-            system_message: optional system message to prepend to the conversation
         """
-        input = LLMToolInput(**kwargs)
+        input = LLMToolInput(**kwargs['input'])
 
         messages = []
         if input.system_message:
@@ -139,6 +135,9 @@ class LLMTool(ExtendedExecutionTool):
                **{**input.model_extra, 'evaluation_context': evaluation_context}):
             if isinstance(e, WorkerNotification):
                 yield e
+            elif isinstance(e, ConfirmationRequest):
+                # TODO handle confirmations
+                raise RuntimeError("LLM tries to use tools that require user confirmation, which are not supported in LLM tool.")
             else:
                 result.append(e)
 
@@ -148,7 +147,7 @@ class LLMTool(ExtendedExecutionTool):
             for message in result:
                 token_tracker.update_from_message(message, model_name)
 
-        yield self._extract_result(result)
+        return self._extract_result(result)
 
 
 def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> LLMTool:

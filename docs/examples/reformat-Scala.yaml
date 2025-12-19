@@ -4,7 +4,7 @@ cli:
   - call:
       import_tool: llm_workers.tools.fs.ReadFileTool
     params:
-      filename: "${input}"
+      path: "${input}"
   - call:
       import_tool: llm_workers.tools.llm_tool.build_llm_tool
     params:
@@ -54,17 +54,16 @@ cli:
         If no changes are needed, respond with string "NO CHANGES" (without quotes).
         
         Input file:
-        ${output0}
-  - match: "${output1}"
+        ${_}
+  - match: "${_}"
     matchers:
       - case: "NO CHANGES"
         then:
           eval: "${input}: NO CHANGES"
     default:
       - call:
-          name: write_file
           import_tool: llm_workers.tools.unsafe.WriteFileTool
         params:
-          filename: "${input}"
-          content: "${output1}"
+          path: "${input}"
+          content: "${_}"
       - eval: "${input}: FIXED"

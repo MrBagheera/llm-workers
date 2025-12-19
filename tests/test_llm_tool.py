@@ -2,10 +2,10 @@ import unittest
 
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
-from llm_workers.api import WorkerNotification
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.tools.llm_tool import build_llm_tool
 from tests.mocks import MockInvokeLLM, StubWorkersContext
+from tests.test_custom_tool import split_result_and_notifications
 
 
 class TestLLMTool(unittest.TestCase):
@@ -130,18 +130,12 @@ class TestLLMTool(unittest.TestCase):
 
         # Create token tracker and call _stream directly with it
         token_tracker = CompositeTokenUsageTracker()
-        chunks = list(tool.stream_with_notifications(
+        result, _ =  split_result_and_notifications(tool.run_with_notifications(
             input={"prompt": "What is the answer?"},
             evaluation_context=context.evaluation_context,
             token_tracker=token_tracker,
             config=None
         ))
-
-        # Find the result (last non-notification chunk)
-        result = None
-        for chunk in chunks:
-            if not isinstance(chunk, WorkerNotification):
-                result = chunk
 
         # Verify result
         self.assertEqual("The answer is 42", result)
@@ -172,16 +166,12 @@ class TestLLMTool(unittest.TestCase):
 
         # Collect all chunks including notifications
         token_tracker = CompositeTokenUsageTracker()
-        chunks = list(tool.stream_with_notifications(
+        result, notifications = split_result_and_notifications(tool.run_with_notifications(
             input={"prompt": "Test prompt"},
             evaluation_context=context.evaluation_context,
             token_tracker=token_tracker,
             config=None
         ))
-
-        # Separate notifications from result
-        notifications = [c for c in chunks if isinstance(c, WorkerNotification)]
-        results = [c for c in chunks if not isinstance(c, WorkerNotification)]
 
         # Verify we got notifications
         self.assertGreater(len(notifications), 0, "Should have received notifications")
@@ -197,8 +187,7 @@ class TestLLMTool(unittest.TestCase):
         self.assertLess(thinking_start_idx, thinking_end_idx, "thinking_start should come before thinking_end")
 
         # Verify we got the result
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0], "Test response")
+        self.assertEqual(result, "Test response")
 
         mock_llm.verify_all_called()
 

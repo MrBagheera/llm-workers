@@ -483,7 +483,7 @@ shared:
                 - DO NOT provide any additional information in the response
 
               Possible matches:
-              {output0}
+              {_}
 ```
 
 In addition to defining tools in the `shared.tools` section, you can define tools inline within `call` statements and within
@@ -702,8 +702,8 @@ cli:
         If no changes are needed, respond with string "NO CHANGES" (without quotes).
 
         Input file:
-        {output0}
-  - match: "{output1}"
+        ${_}
+  - match: "${_}"
     matchers:
       - case: "NO CHANGES"
         then:
@@ -711,8 +711,8 @@ cli:
     default:
       - call: write_file
         params:
-          filename: "${input}"
-          content: "{output1}"
+          path: "${input}"
+          content: "{_}"
       - eval: "${input}: FIXED"
 ```
 
@@ -1320,11 +1320,11 @@ tools:
       - call: some_tool
         params:
           tool_param: "${param1}"
-      - match: "${output0}"
+      - match: "${_}"
         matchers:
           - case: "success"
             then:
-              - eval: "Operation successful: ${param1}"
+              - eval: "Operation successful: ${_}"
         default:
           - eval: "Operation failed"
 ```
@@ -1377,7 +1377,7 @@ Executes a specific tool with optional parameters. Tools can be referenced by na
       - call: some_other_tool
         params:
           input: "${data}"
-      - eval: "Processed: ${output0}"
+      - eval: "Processed: ${_}"
   params:
     data: "input_value"
 ```
@@ -1502,17 +1502,17 @@ tools:
     do:
       - call: normalize_input
         params:
-          text: "{input.query}"
+          text: "{query}"
       - call: search_database
         params:
-          query: "${output0}"
-      - match: "${output1}"
+          query: "${_}"
+      - match: "${_}"
         matchers:
           - case: ""
             then:
               - eval: "No results found"
         default:
-          - eval: "${output1}"
+          - eval: "${_}"
 ```
 
 ## Template Variables

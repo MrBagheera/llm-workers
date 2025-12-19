@@ -163,12 +163,14 @@ MCPServerDefinition = Annotated[
 class EvalDefinition(BaseModel):
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     eval: JsonExpression
+    store_as: Optional[str] = None
 
 class CallDefinition(BaseModel):
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     call: ToolDefinitionOrReference
     params: Optional[JsonExpression[dict]] = None
     catch: Optional[str | list[str]] = None
+    store_as: Optional[str] = None
 
 class MatchClauseDefinition(BaseModel):
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
@@ -191,6 +193,7 @@ class MatchDefinition(BaseModel):
     trim: bool = False
     matchers: List[MatchClauseDefinition]
     default: 'BodyDefinition'
+    store_as: Optional[str] = None
 
 
 StatementDefinition = Annotated[
