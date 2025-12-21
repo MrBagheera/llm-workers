@@ -1,0 +1,120 @@
+# Demonstrates: Starlark statement for complex scripting within custom tools
+# This example shows how to use Starlark for flexible control flow and tool composition
+
+shared:
+  tools:
+    # Example 1: Simple Starlark with basic computation
+    - name: calculate_stats
+      description: Calculates statistics for a list of numbers
+      input:
+        - name: numbers
+          description: List of numbers
+          type: list
+      do:
+        starlark: |-
+          # Calculate sum
+          total = 0
+          for num in numbers:
+            total = total + num
+
+          # Calculate average
+          count = len(numbers)
+          average = total / count if count > 0 else 0
+
+          # Find min and max
+          min_val = numbers[0] if count > 0 else 0
+          max_val = numbers[0] if count > 0 else 0
+          for num in numbers:
+            if num < min_val:
+              min_val = num
+            if num > max_val:
+              max_val = num
+
+          # Return result as dict
+          result = {
+            "sum": total,
+            "average": average,
+            "min": min_val,
+            "max": max_val,
+            "count": count
+          }
+
+    # Example 2: Starlark with conditionals
+    - name: grade_calculator
+      description: Calculates letter grade from numeric score
+      input:
+        - name: score
+          description: Numeric score (0-100)
+          type: int
+      do:
+        starlark: |-
+          if score >= 90:
+            grade = "A"
+          elif score >= 80:
+            grade = "B"
+          elif score >= 70:
+            grade = "C"
+          elif score >= 60:
+            grade = "D"
+          else:
+            grade = "F"
+
+          result = {
+            "score": score,
+            "grade": grade,
+            "passed": score >= 60
+          }
+
+    # Example 3: Using run() function
+    - name: text_analyzer
+      description: Analyzes text and returns statistics
+      input:
+        - name: text
+          description: Text to analyze
+          type: str
+      do:
+        starlark: |-
+          def run():
+            # Count words
+            words = text.split()
+            word_count = len(words)
+
+            # Count characters (excluding spaces)
+            char_count = len(text.replace(" ", ""))
+
+            # Count lines
+            lines = text.split("\n")
+            line_count = len(lines)
+
+            return {
+              "words": word_count,
+              "characters": char_count,
+              "lines": line_count,
+              "average_word_length": char_count / word_count if word_count > 0 else 0
+            }
+
+cli:
+  process_input: one_by_one
+  tools:
+    - import_tool: llm_workers.tools.llm_tool.build_llm_tool
+      name: llm_tool
+      config:
+        tools:
+          - match: ["*"]
+  do:
+    call: llm_tool
+    params:
+      prompt: |
+        The user provided: ${input}
+
+        Please use the available tools to process this input.
+        If it's a list of numbers, use calculate_stats.
+        If it's a score, use grade_calculator.
+        If it's text, use text_analyzer.
+
+chat:
+  system_message: |
+    You are a helpful assistant that can analyze data using Starlark-powered tools.
+    Use the available tools to help users with calculations and text analysis.
+  tools:
+    - match: ["*"]

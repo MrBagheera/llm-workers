@@ -179,12 +179,18 @@ class IfDefinition(BaseModel):
     else_: Optional['BodyDefinition'] = Field(default=None, alias='else')
     store_as: Optional[str] = None
 
+class StarlarkDefinition(BaseModel):
+    model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
+    starlark: str  # The Starlark script as a string
+    store_as: Optional[str] = None
+
 
 StatementDefinition = Annotated[
     Union[
         Annotated[CallDefinition, Tag('<call statement>')],
         Annotated[IfDefinition, Tag('<if statement>')],
         Annotated[EvalDefinition, Tag('<eval statement>')],
+        Annotated[StarlarkDefinition, Tag('<starlark statement>')],
     ],
     Discriminator(create_discriminator({
         'call': '<call statement>',
@@ -193,6 +199,8 @@ StatementDefinition = Annotated[
         IfDefinition: '<if statement>',
         'eval': '<eval statement>',
         EvalDefinition: '<eval statement>',
+        'starlark': '<starlark statement>',
+        StarlarkDefinition: '<starlark statement>',
     }))
 ]
 
@@ -201,6 +209,7 @@ BodyDefinition = Annotated[
         Annotated[CallDefinition, Tag('<call statement>')],
         Annotated[IfDefinition, Tag('<if statement>')],
         Annotated[EvalDefinition, Tag('<eval statement>')],
+        Annotated[StarlarkDefinition, Tag('<starlark statement>')],
         Annotated[List[StatementDefinition], Tag('<statements>')],
     ],
     Discriminator(create_discriminator({
@@ -210,6 +219,8 @@ BodyDefinition = Annotated[
         IfDefinition: '<if statement>',
         'eval': '<eval statement>',
         EvalDefinition: '<eval statement>',
+        'starlark': '<starlark statement>',
+        StarlarkDefinition: '<starlark statement>',
         list: '<statements>'
     }))
 ]

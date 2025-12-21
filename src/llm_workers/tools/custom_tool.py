@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, create_model, PrivateAttr
 
 from llm_workers.api import WorkersContext, WorkerNotification, ExtendedRunnable, ExtendedExecutionTool
 from llm_workers.config import Json, CustomToolParamsDefinition, \
-    CallDefinition, EvalDefinition, StatementDefinition, IfDefinition, CustomToolDefinition
+    CallDefinition, EvalDefinition, StatementDefinition, IfDefinition, StarlarkDefinition, CustomToolDefinition
 from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.utils import LazyFormatter, parse_standard_type
@@ -156,6 +156,66 @@ class IfStatement(ExtendedRunnable[Json]):
         return result
 
 
+class StarlarkStatement(ExtendedRunnable[Json]):
+    """
+    Executes a Starlark script with access to tools and variables.
+
+    Tools from the custom tool's 'tools' field are available as callable functions.
+    Input variables and evaluation context are available as global variables.
+    Result is returned via 'result' variable or 'run()' function.
+    """
+
+    def __init__(self, model: StarlarkDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool]):
+        self._script = model.starlark
+        self._store_as = model.store_as
+        self._local_tools = local_tools
+
+        # Compile Starlark script once during initialization
+        from llm_workers.starlark import StarlarkExec
+        self._executor = StarlarkExec(self._script)
+
+    def yield_notifications_and_result(
+            self,
+            evaluation_context: EvaluationContext,
+            token_tracker: Optional[CompositeTokenUsageTracker],
+            config: Optional[RunnableConfig],
+            **kwargs: Any
+    ) -> Generator[WorkerNotification, None, Json]:
+        # Extract all variables from evaluation context (including parents)
+        global_vars = evaluation_context.extract_all_variables()
+
+        # Create wrapper functions for tools
+        # For MVP: execute tools synchronously and collect results
+        from llm_workers.worker_utils import split_result_and_notifications
+
+        global_funcs = {}
+        for tool_name, tool in self._local_tools.items():
+            # Use closure to capture the correct tool reference
+            def create_tool_wrapper(t):
+                def wrapper(**params):
+                    # Execute tool and collect result synchronously
+                    result_gen = call_tool(t, params, evaluation_context, token_tracker, config, kwargs)
+                    result, _ = split_result_and_notifications(result_gen)
+                    # Note: we lose notifications for MVP, but that's acceptable
+                    return result
+                return wrapper
+
+            global_funcs[tool_name] = create_tool_wrapper(tool)
+
+        # Execute Starlark script
+        result = self._executor.run(global_vars, global_funcs)
+
+        # Store result if requested
+        if self._store_as:
+            evaluation_context.add(self._store_as, result)
+
+        # Dummy yield to make this a generator
+        if False:
+            yield WorkerNotification()
+
+        return result
+
+
 class CustomTool(ExtendedExecutionTool):
     def __init__(self, context: WorkersContext, body: Statement, **kwargs):
         super().__init__(**kwargs)
@@ -188,6 +248,8 @@ def create_statement_from_model(model: StatementDefinition, context: WorkersCont
         return FlowStatement(model, context, local_tools)
     elif isinstance(model, IfDefinition):
         return IfStatement(model, context, local_tools)
+    elif isinstance(model, StarlarkDefinition):
+        return StarlarkStatement(model, context, local_tools)
     else:
         raise ValueError(f"Invalid statement model type {type(model)}")
 

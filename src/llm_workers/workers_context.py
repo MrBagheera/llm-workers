@@ -7,7 +7,6 @@ from copy import copy
 from typing import Dict, List, Optional, Callable, Any
 
 import yaml
-from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langchain_core.tools.base import BaseToolkit
 from langchain_mcp_adapters.client import MultiServerMCPClient

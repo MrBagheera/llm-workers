@@ -9,12 +9,11 @@ from pydantic import BaseModel
 
 from llm_workers.config import WorkersConfig, ModelDefinition, UserConfig, Json, \
     ToolsDefinitionOrReference
-from llm_workers.expressions import EvaluationContext
+from llm_workers.starlark import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 
 # Flag for confidential messages (not shown to LLM)
 CONFIDENTIAL: str = 'confidential'
-
 
 
 class UserContext(ABC):

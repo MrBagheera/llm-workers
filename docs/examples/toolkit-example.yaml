@@ -1,7 +1,5 @@
 # Example configuration demonstrating toolkit import functionality
 
-tools:
-
 # Chat configuration
 chat:
   system_message: |-

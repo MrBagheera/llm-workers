@@ -64,14 +64,11 @@ shared:
           params:
             text: "${_}"
             header_level: "${header_level}"
-#      tools:
-#        - fetch_page_markdown
-#        - generate_navigation_summary
-#      do: |-
-#        result = generate_navigation_summary(
-#          text = fetch_page_markdown(url = url),
-#          header_level = header_level
-#        )
+#        starlark: |-
+#          result = generate_navigation_summary(
+#            text = fetch_page_markdown(url = url),
+#            header_level = header_level
+#          )
       return_direct: true
 
 cli:

@@ -2,13 +2,16 @@
 # match statements with conditional file operations, file I/O tools, LLM tool integration for code transformation
 cli:
   process_input: one_by_one
+  tools:
+    - import_tool: llm_workers.tools.fs.ReadFileTool
+    - import_tool: llm_workers.tools.unsafe.WriteFileTool
+    - import_tool: llm_workers.tools.llm_tool.build_llm_tool
+      name: llm_tool
   do:
-    - call:
-        import_tool: llm_workers.tools.fs.ReadFileTool
+    - call: read_file
       params:
         path: "${input}"
-    - call:
-        import_tool: llm_workers.tools.llm_tool.build_llm_tool
+    - call: llm_tool
       params:
         prompt: |-
           You are senior Scala developer. Your job is to reformat give file according to the rules below. 
@@ -57,14 +60,11 @@ cli:
           
           Input file:
           ${_}
-    - match: "${_}"
-      matchers:
-        - case: "NO CHANGES"
-          then:
-            eval: "${input}: NO CHANGES"
-      default:
-        - call:
-            import_tool: llm_workers.tools.unsafe.WriteFileTool
+    - if: "${_ != ''}"
+      then:
+        eval: "${input}: NO CHANGES"
+      else:
+        - call: write_file
           params:
             path: "${input}"
             content: "${_}"

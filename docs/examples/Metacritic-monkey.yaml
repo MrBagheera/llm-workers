@@ -91,13 +91,18 @@ shared:
       tools:
         - import_tool: llm_workers.tools.misc.UserInputTool
       do:
-        if: "${movie_title in metacritic_stub_data}"
-        then:
-          eval: "${metacritic_stub_data[movie_title]}"
-        else:
-          - call: user_input
-            params:
-              prompt: "Movie '${movie_title}' not found in stub data. Please provide mock Metacritic search results (movie titles, years, and scores):"
+        starlark: |-
+          if movie_title in metacritic_stub_data:
+              result = metacritic_stub_data[movie_title]
+          else:
+              result = user_input(prompt = f"Movie '{movie_title}' not found in stub data. Please provide mock Metacritic search results (movie titles, years, and scores):")
+#        if: "${movie_title in metacritic_stub_data}"
+#        then:
+#          eval: "${metacritic_stub_data[movie_title]}"
+#        else:
+#          - call: user_input
+#            params:
+#              prompt: "Movie '${movie_title}' not found in stub data. Please provide mock Metacritic search results (movie titles, years, and scores):"
 
     - name: metacritic_monkey
       description: >

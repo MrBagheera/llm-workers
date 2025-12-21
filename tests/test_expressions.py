@@ -7,64 +7,6 @@ from pydantic import BaseModel, ValidationError
 from llm_workers.expressions import StringExpression, JsonExpression, EvaluationContext
 
 
-class TestFunctions(unittest.TestCase):
-
-    def test_merge(self):
-        """Test merge function."""
-        result = StringExpression("${merge(a, b)}").evaluate(EvaluationContext({'a': [1, 2], 'b': [2, 3]}))
-        self.assertEqual([1, 2, 2, 3], result)
-
-        result = StringExpression("${merge(a, b)}").evaluate(EvaluationContext({'a': {'k1': 2}, 'b': {'k2': 3}}))
-        self.assertEqual({'k1': 2, 'k2': 3}, result)
-
-        result = StringExpression("${merge(a, b)}").evaluate(EvaluationContext({'a': "Meaning of life is ", 'b': 42}))
-        self.assertEqual("Meaning of life is 42", result)
-
-    def test_split(self):
-        """Test split function."""
-        result = StringExpression("${split(text,',')}").evaluate(EvaluationContext({'text': "a,b,c"}))
-        self.assertEqual(['a', 'b', 'c'], result)
-
-        result = StringExpression("${split(text, ' ')}").evaluate(EvaluationContext({'text': "hello world"}))
-        self.assertEqual(['hello', 'world'], result)
-
-    def test_join(self):
-        """Test join function."""
-        result = StringExpression("${join(items, '')}").evaluate(EvaluationContext({'items': ['a', 'b', 'c']}))
-        self.assertEqual("abc", result)
-
-        result = StringExpression("${join(items, ', ')}").evaluate(EvaluationContext({'items': ['hello', 'world']}))
-        self.assertEqual("hello, world", result)
-
-    def test_flatten(self):
-        """Test flatten function."""
-        result = StringExpression("${flatten(nested)}").evaluate(EvaluationContext({'nested': [[1, 2], [3, 4]]}))
-        self.assertEqual([1, 2, 3, 4], result)
-
-        result = StringExpression("${flatten(nested)}").evaluate(EvaluationContext({'nested': [['a', 'b'], ['c']]}))
-        self.assertEqual(['a', 'b', 'c'], result)
-
-    def test_parse_and_print_json(self):
-        """Test parse_json and print_json functions."""
-        result = StringExpression("${parse_json(json_str)}").evaluate(
-            EvaluationContext({'json_str': '{"key": "value", "num": 42}'}))
-        self.assertEqual({'key': 'value', 'num': 42}, result)
-
-        # expect ToolException
-        with self.assertRaises(ToolException) as e:
-            StringExpression("${parse_json('json_str')}").evaluate(
-                EvaluationContext({}))
-        self.assertIn("Failed to parse JSON", str(e.exception))
-
-        result = StringExpression("${parse_json(\"json_str\", ignore_error=true)}").evaluate(
-            EvaluationContext({}))
-        self.assertEqual('json_str', result)
-
-        result = StringExpression("${print_json(data)}").evaluate(
-            EvaluationContext({'data': {'key': 'value', 'num': 42}}))
-        self.assertEqual('{"key": "value", "num": 42}', result)
-
-
 class TestStringExpression(unittest.TestCase):
 
     def test_static_string_optimization(self):
@@ -131,14 +73,6 @@ class TestStringExpression(unittest.TestCase):
         result = expr.evaluate({"x": {}})
         self.assertEqual(result, "failure!")
 
-    def test_conditional_dict_access(self):
-        """Tests accessing dict/list elements with default"""
-        expr = StringExpression("${get(x, 'a', 'failure!')}")
-        result = expr.evaluate({"x": {"a":"success!"}})
-        self.assertEqual(result, "success!")
-        result = expr.evaluate({"x": {}})
-        self.assertEqual(result, "failure!")
-
     def test_pydantic_integration(self):
         """Test that the class works as a Pydantic field."""
         class MyConfig(BaseModel):
@@ -162,7 +96,7 @@ class TestStringExpression(unittest.TestCase):
         # Expect ToolException with enough details
         with self.assertRaises(ToolException) as cm:
             expr.evaluate({"known": "value"})
-        self.assertIn("Failed to evaluate ${unknown}: 'unknown' is not defined, available names: ['known']", str(cm.exception))
+        self.assertIn("Failed to evaluate ${unknown}: name 'unknown' is not defined", str(cm.exception))
 
     def test_syntax_error(self):
         """Test behavior when the code block contains invalid python syntax."""

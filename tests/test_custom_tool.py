@@ -5,7 +5,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
 from llm_workers.config import CustomToolParamsDefinition, CallDefinition, EvalDefinition, \
-    IfDefinition, WorkersConfig, CustomToolDefinition
+    IfDefinition, StarlarkDefinition, WorkersConfig, CustomToolDefinition
 from llm_workers.expressions import EvaluationContext, JsonExpression
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.tools.custom_tool import create_statement_from_model, build_custom_tool
@@ -625,3 +625,143 @@ class TestHierarchicalToolCalling(unittest.TestCase):
                      "Outer tool name should appear in notification text")
         self.assertIn("inner_sum_tool", inner_start.text,
                      "Inner tool name should appear in notification text")
+
+
+class TestStarlarkStatement(unittest.TestCase):
+    """Test Starlark statement functionality."""
+
+    def test_simple_starlark_with_result_variable(self):
+        """Test Starlark script returning via result variable."""
+        statement = create_statement_from_model(
+            model=StarlarkDefinition(starlark="result = 1 + 2"),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(3, result)
+
+    def test_starlark_with_run_function(self):
+        """Test Starlark script returning via run() function."""
+        statement = create_statement_from_model(
+            model=StarlarkDefinition(starlark="""
+def run():
+    return 1 + 2
+"""),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(3, result)
+
+    def test_starlark_with_variable_access(self):
+        """Test accessing input variables from Starlark."""
+        statement = create_statement_from_model(
+            model=StarlarkDefinition(starlark="result = x + y"),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"x": 10, "y": 20}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(30, result)
+
+    def test_starlark_calling_tool(self):
+        """Test calling a tool from Starlark script."""
+        statement = create_statement_from_model(
+            model=StarlarkDefinition(starlark="result = test_tool_logic(param1=5, param2=10)"),
+            context=StubWorkersContext(tools={"test_tool_logic": test_tool_logic}),
+            local_tools={"test_tool_logic": test_tool_logic}
+        )
+        context = {}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(15, result)
+
+    def test_starlark_calling_multiple_tools(self):
+        """Test calling multiple tools in sequence."""
+        statement = create_statement_from_model(
+            model=StarlarkDefinition(starlark="""
+a = test_tool_logic(param1=5, param2=10)
+result = test_tool_logic(param1=a, param2=20)
+"""),
+            context=StubWorkersContext(tools={"test_tool_logic": test_tool_logic}),
+            local_tools={"test_tool_logic": test_tool_logic}
+        )
+        context = {}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(35, result)  # 5 + 10 = 15, 15 + 20 = 35
+
+    def test_starlark_with_conditionals(self):
+        """Test Starlark if/else logic."""
+        statement = create_statement_from_model(
+            model=StarlarkDefinition(starlark="""
+if x > 10:
+    result = "large"
+else:
+    result = "small"
+"""),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"x": 15}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual("large", result)
+
+    def test_starlark_with_loops(self):
+        """Test Starlark for loops."""
+        statement = create_statement_from_model(
+            model=StarlarkDefinition(starlark="""
+total = 0
+for i in [1, 2, 3, 4, 5]:
+    total = total + i
+result = total
+"""),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(15, result)
+
+    def test_starlark_with_store_as(self):
+        """Test storing Starlark result in variable."""
+        statement = create_statement_from_model(
+            model=StarlarkDefinition(starlark="result = 42", store_as="answer"),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context_obj = EvaluationContext({})
+        generator = statement.yield_notifications_and_result(context_obj, token_tracker=None, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(42, result)
+        self.assertEqual(42, context_obj.get("answer"))
+
+    def test_starlark_error_handling(self):
+        """Test error handling when Starlark script fails."""
+        # Invalid syntax should raise error during initialization
+        with self.assertRaises(SyntaxError):
+            create_statement_from_model(
+                model=StarlarkDefinition(starlark="while True: pass"),  # while loops not allowed
+                context=StubWorkersContext(),
+                local_tools={}
+            )
+
+    def test_starlark_with_parent_context(self):
+        """Test accessing variables from parent evaluation context."""
+        statement = create_statement_from_model(
+            model=StarlarkDefinition(starlark="result = parent_var + child_var"),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        parent_context = EvaluationContext({"parent_var": 100})
+        child_context = EvaluationContext({"child_var": 23}, parent=parent_context)
+        generator = statement.yield_notifications_and_result(child_context, token_tracker=None, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(123, result)

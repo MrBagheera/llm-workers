@@ -1,170 +1,15 @@
-import getpass
-import json
 import logging
-import os
-import platform
 import re
-from datetime import datetime
 from typing import Any, Dict, List, Tuple, TypeVar, Generic, get_args, Literal, Optional
 
-import simpleeval
-from langchain_core.tools import ToolException
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import core_schema
-from simpleeval import SimpleEval
 
-from llm_workers.utils import LazyFormatter
+from llm_workers.starlark import StarlarkEval, EvaluationContext
 
 logger =  logging.getLogger(__name__)
 
 
-def get_with_default(container, key, default):
-    if isinstance(container, list):
-        return container[key] if key <=0 and key < len(container) else default
-    if isinstance(container, dict):
-        return container.get(key, default)
-    raise ValueError(f"{type(container)} is not allowed container")
-
-def merge(arg1, arg2):
-    """Merge two arguments into one."""
-    if isinstance(arg1, list) and isinstance(arg2, list):
-        return arg1 + arg2
-    if isinstance(arg1, dict) and isinstance(arg2, dict):
-        result = arg1.copy()
-        result.update(arg2)
-        return result
-    return str(arg1) + str(arg2)
-
-def split(arg: str, delimiter: str) -> List[str]:
-    """Split a string into a list based on the given delimiter."""
-    return arg.split(delimiter)
-
-def join(arg: List[str], delimiter: str) -> str:
-    """Join a list of strings into a single string with the given delimiter."""
-    return delimiter.join(arg)
-
-def strip(arg: str) -> str:
-    """Strip whitespace from both ends of the string."""
-    return arg.strip()
-
-def flatten(arg: List[Any]) -> List[Any]:
-    """Flatten a nested list into a single list."""
-    result = []
-    for item in arg:
-        if isinstance(item, list):
-            result.extend(flatten(item))
-        else:
-            result.append(item)
-    return result
-
-def parse_json(arg: str, ignore_error: bool = False) -> Any:
-    """Parse a JSON string into a Python object."""
-    try:
-        return json.loads(arg)
-    except json.JSONDecodeError:
-        if ignore_error:
-            return arg
-        raise simpleeval.InvalidExpression(f'Failed to parse JSON from: {LazyFormatter(arg)}')
-
-def print_json(arg: Any) -> str:
-    """Convert a Python object into a JSON string."""
-    return json.dumps(arg)
-
-def is_string(value: Any) -> bool:
-    return isinstance(value, str)
-
-def is_number(value: Any) -> bool:
-    return isinstance(value, (int, float))
-
-def is_list(value: Any) -> bool:
-    return isinstance(value, list)
-
-def is_dict(value: Any) -> bool:
-    return isinstance(value, dict)
-
-def is_bool(value: Any) -> bool:
-    return isinstance(value, bool)
-
-DEFAULT_FUNCTIONS = simpleeval.DEFAULT_FUNCTIONS.copy()
-DEFAULT_FUNCTIONS['len'] = len  # Ensure len() is available
-DEFAULT_FUNCTIONS['get'] = get_with_default
-DEFAULT_FUNCTIONS['merge'] = merge
-DEFAULT_FUNCTIONS['split'] = split
-DEFAULT_FUNCTIONS['join'] = join
-DEFAULT_FUNCTIONS['strip'] = strip
-DEFAULT_FUNCTIONS['flatten'] = flatten
-DEFAULT_FUNCTIONS['parse_json'] = parse_json
-DEFAULT_FUNCTIONS['print_json'] = print_json
-DEFAULT_FUNCTIONS['is_string'] = is_string
-DEFAULT_FUNCTIONS['is_number'] = is_number
-DEFAULT_FUNCTIONS['is_list'] = is_list
-DEFAULT_FUNCTIONS['is_dict'] = is_dict
-DEFAULT_FUNCTIONS['is_bool'] = is_bool
-
-FIXED_NAMES = {
-    "True": True,
-    "true": True,
-    "False": False,
-    "false": False,
-    "None": None,
-}
-
-class EvaluationContext:
-    """
-    Context for evaluating expressions.
-    Holds variable bindings.
-    """
-    def __init__(self, variables: Dict[str, Any] = None, parent: 'EvaluationContext' = None, mutable: bool = True):
-        self.parent = parent
-        self.variables = variables or {}
-        self.mutable = mutable
-
-    def get(self, name: str) -> Any:
-        if name in FIXED_NAMES:
-            return FIXED_NAMES[name]
-        if name in self.variables:
-            return self.variables[name]
-        else:
-            p = self.parent
-            while p:
-                if name in p.variables:
-                    return p.variables[name]
-                p = p.parent
-            return None
-
-    @property
-    def known_names(self) -> List[str]:
-        result = list(self.variables.keys())
-        if self.parent:
-            result.extend(self.parent.known_names)
-        return result
-
-    def resolve(self, node: Any) -> Any:
-        name = node.id
-        value = self.get(name)
-        if value is not None:
-            return value
-        raise simpleeval.InvalidExpression(f"'{name}' is not defined, available names: {self.known_names}")
-
-    def add(self, name: str, value: Any):
-        if not self.mutable:
-            if name in self.variables:
-                raise RuntimeError(f"Cannot modify existing variable {name} in immutable EvaluationContext")
-            if self.parent is not None:
-                self.parent.add(name, value)
-            else:
-                raise RuntimeError(f"Cannot add variable {name} to immutable EvaluationContext")
-        self.variables[name] = value
-
-    @staticmethod
-    def default_environment() -> Dict[str, Any]:
-        os_name = platform.system()
-        return {
-            "UserName": getpass.getuser(),
-            "OS": os_name,
-            "CurrentDate": datetime.now().strftime('%Y-%m-%d'),
-            "WorkDir": os.getcwd(),
-        }
 
 class StringExpression:
     # noinspection RegExpUnnecessaryNonCapturingGroup,RegExpRedundantEscape
@@ -172,7 +17,7 @@ class StringExpression:
 
     def __init__(self, value: str):
         self.raw_value = value
-        self.parts: List[tuple[Literal['text'], str] | tuple[Literal['code'], tuple[str, any]]] = []
+        self.parts: List[tuple[Literal['text'], str] | tuple[Literal['code'], StarlarkEval]] = []
         self.is_dynamic = False
         self._static_value: Optional[str] = None    # may differ from raw_value due to un-escaping
         self._parse_value()
@@ -202,7 +47,7 @@ class StringExpression:
                 if current_text:
                     self.parts.append(('text', "".join(current_text)))
                     current_text = []
-                self.parts.append(('code', (code_chunk, SimpleEval.parse(code_chunk))))
+                self.parts.append(('code', StarlarkEval(code_chunk)))
                 self.is_dynamic = True
 
         # Flush trailing text
@@ -224,16 +69,21 @@ class StringExpression:
             return self._static_value
 
         # Accept both dict and EvaluationContext for convenience
+        script_vars: Dict[str, Any]
         if context is None:
-            context = EvaluationContext()
+            script_vars = {}
         elif isinstance(context, dict):
-            context = EvaluationContext(context)
+            script_vars = context
+        else:
+            script_vars = context.extract_all_variables()
 
         # --- OPTIMIZATION: Single Block Type Preservation ---
         # If the string is EXACTLY one code block with no surrounding text,
         # return the raw evaluation result (int, list, dict, etc.)
         if len(self.parts) == 1 and self.parts[0][0] == 'code':
-            return self._eval(self.parts[0][1], context)
+            # noinspection PyTypeChecker
+            script: StarlarkEval = self.parts[0][1]
+            return script.run(script_vars, {})
 
         # ----------------------------------------------------
 
@@ -241,24 +91,13 @@ class StringExpression:
         result = []
         for kind, content in self.parts:
             if kind == 'code':
-                result.append(str(self._eval(content, context)))
+                # noinspection PyTypeChecker
+                script: StarlarkEval = content
+                result.append(str(script.run(script_vars, {})))
             else:
                 result.append(content)
 
         return "".join(result)
-
-    @staticmethod
-    def _eval(code: tuple[str, any], context: EvaluationContext) -> Any:
-        expr, parsed = code
-        try:
-            s = SimpleEval(functions=DEFAULT_FUNCTIONS, names=context.resolve)
-            return s.eval(expr, parsed)
-        except Exception as e:
-            # Most likely calling LLM cannot do anything with this error,
-            # so we log it as warning to simplify debugging
-            message = f"Failed to evaluate ${{{expr}}}: {e}"
-            logger.warning(message)
-            raise ToolException(message)
 
     def __str__(self):
         return self.raw_value
