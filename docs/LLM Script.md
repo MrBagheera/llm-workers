@@ -78,11 +78,11 @@ mcp:
 
 # Shared configuration
 shared:
-  data: # Optional shared data accessible to all tools via ${shared['key']}
-    <key>: <value>
-    # Can contain any JSON-serializable data
+  data: # Optional shared variables accessible to all tools via ${key}
+    <key>: <value_expression>
+    # Each key becomes a top-level variable in the evaluation context
 
-  tools: # Optional shared tools that can be referenced from chat/cli
+  tools: # Optional shared tools that can be referenced from chat/cli/other tools
     # Single tool import
     - import_tool: <import_path>
       name: <tool_name> # Optional
@@ -104,6 +104,9 @@ shared:
           description: <description>
           type: <type>
           default: <default_value> # Optional
+      tools: # Optional, local tools available only within this custom tool
+        - import_tool: <import_path>
+        # ... or other tool definition statements
       confidential: <boolean> # Optional
       return_direct: <boolean> # Optional
       ui_hint: <template_string> # Optional
@@ -112,7 +115,10 @@ shared:
 
 chat: # For interactive chat mode
   model_ref: <model_name> # Optional, references model by name (fast/default/thinking). If not defined, uses "default".
-  user_banner: | # Optional, markdown-formatted text displayed at the beginning of chat
+  tools: # Optional, tools available for chat LLM. NOTE: shared tools are available unless listed here!!!
+    - import_tool: <import_path>
+      # ... or other tool definition statements
+user_banner: | # Optional, markdown-formatted text displayed at the beginning of chat
     <banner text>
   system_message: |
     <system prompt>
@@ -122,6 +128,9 @@ chat: # For interactive chat mode
 cli: # For command-line interface
   process_input: one_by_one | all_as_list # How to process input arguments
   json_output: <boolean> # Optional, default: false - output results as JSON
+  tools: # Optional, tools available for use in `do` section
+    - import_tool: <import_path>
+      # ... or other tool definition statements
   do: # Required
     <statement(s)> # List of statements for processing inputs
 ```
@@ -515,20 +524,23 @@ more details on how to define and use tools.
 
 ## Shared Data Section
 
-The `shared.data` section provides a way to define reusable configuration data that can be accessed by all custom tools in the script. This is useful for avoiding duplication of common values like API endpoints, prompts, or configuration settings.
+The `shared.data` section provides a way to define reusable variables that can be accessed by all custom tools in the script. This is useful for avoiding duplication of common values like API endpoints, prompts, or configuration settings.
 
 **Key Features:**
-- Must be a dictionary (key-value pairs)
-- Can contain any JSON-serializable data (strings, numbers, booleans, lists, nested objects)
-- Accessible in custom tools via the `${shared['key']}` template syntax
-- Supports nested access using bracket notation
+- Each key in `shared.data` becomes a top-level variable in the evaluation context
+- Values can be any JSON-serializable data
+- Variables can reference other variables defined earlier in the `data` section
+- Accessible in custom tools via the `${key}` template syntax
+- Variables are read-only after initialization
 
 **Example:**
 ```yaml
 shared:
   data:
     prompts:
-      test: Yada-yada-yada
+      test: "Yada-yada-yada"
+    api_base: "https://api.example.com"
+    api_version: "v1"
   tools:
     - name: demo_shared_access
       input:
@@ -536,14 +548,14 @@ shared:
           description: "Search query"
           type: str
       do:
-        eval: "Query ${query} returned ${shared['prompts']['test']}"
+        eval: "Query ${query} returned ${prompts['test']}"
 ```
 
 **Usage Notes:**
 - The `shared.data` section is optional and defaults to an empty dictionary
-- All tools automatically have access to shared data through the `shared` template variable
-- Use bracket notation for accessing nested values: `${shared['category']['subcategory']}`
-- Shared data is read-only during tool execution
+- Variables are accessible directly by their key name: `${api_base}`, `${prompts}`
+- Use bracket notation for accessing nested values: `${prompts['test']}`
+- Variables are evaluated in order, so later variables can reference earlier ones
 - Changes to the shared section require reloading the script configuration
 
 ## Chat Section
@@ -765,18 +777,20 @@ In this example, all command-line inputs are passed as a list to the `${input}` 
 Tools can be referenced in different ways depending on the context:
 
 **In `call` statements** (single tool reference):
-- By name: `call: read_file`
-- Inline import: `call: {import_tool: llm_workers.tools.unsafe.ReadFileTool, name: read_file}`
-- Inline custom definition: `call: {name: my_tool, input: [...], do: [...]}`
+- By name only: `call: read_file`
 
-**In `chat.tools` and `build_llm_tool` config** (multiple tools):
-- By name: `- read_file`
-- By pattern: `- match: ["fs_*", "!fs_write*"]`
-- Inline import_tool: `- import_tool: llm_workers.tools.unsafe.ReadFileTool`
-- Inline import_tools: `- import_tools: llm_workers.tools.fs.FilesystemToolkit`
-- Inline custom definition: `- name: my_tool ...`
+**Important:** As of recent versions, inline tool definitions in `call` statements are no longer supported. Tools must be defined in a `tools` section (either in `shared.tools`, `chat.tools`, custom tool's `tools`, or CLI's `tools`) before they can be referenced by name in `call` statements.
 
-For most simple projects, tools should be defined in the global `tools` section and referenced by name in `chat.tools`.
+**In `tools` sections** (tool definitions):
+- By name: `- read_file` (references a previously defined tool)
+- By pattern: `- match: ["fs_*", "!fs_write*"]` (matches multiple tools)
+- Import single tool: `- import_tool: llm_workers.tools.unsafe.ReadFileTool`
+- Import from toolkit: `- import_tool: llm_workers.tools.fs.FilesystemToolkit/read_file`
+- Import from MCP: `- import_tool: mcp:server_name/tool_name`
+- Mass import: `- import_tools: llm_workers.tools.fs.FilesystemToolkit`
+- Custom definition: `- name: my_tool ...`
+
+For most projects, tools should be defined in the `shared.tools` section and referenced by name in `call` statements.
 
 ## Importing Tools
 
@@ -1343,7 +1357,7 @@ This pattern allows LLMs to request approval for potentially dangerous operation
 
 # Defining Custom Tools
 
-To define custom tools, use the `input` and `body` sections of the tool definition:
+Custom tools allow you to compose existing tools and logic into reusable components. Use the `input`, `tools`, and `do` sections:
 
 ```yaml
 tools:
@@ -1355,13 +1369,16 @@ tools:
         type: "str"
         default: "default value"  # Optional
       - name: param2
-        description: "Description of second parameter" 
+        description: "Description of second parameter"
         type: "int"
+    tools:  # Optional, local tools available only within this custom tool
+      - import_tool: llm_workers.tools.fs.ReadFileTool
+      - import_tool: llm_workers.tools.fs.WriteFileTool
     return_direct: true  # Optional, returns result directly to user
     do:
-      - call: some_tool
+      - call: ReadFileTool  # References local tool
         params:
-          tool_param: "${param1}"
+          path: "${param1}"
       - match: "${_}"
         matchers:
           - case: "success"
@@ -1370,68 +1387,59 @@ tools:
         default:
           - eval: "Operation failed"
 ```
-Input section defines the parameters that the tool accepts. These parameters can
-later be referenced in the `body` section using the `${param_name}` syntax.
 
-The `body` section contains one or more statements that can be composed in various ways:
+**Key Sections:**
+- `input`: Defines the parameters that the tool accepts. These parameters can be referenced in the `do` section using the `${param_name}` syntax.
+- `tools`: Optional list of tools available only within this custom tool. These are "local tools" that don't pollute the global namespace.
+- `do`: Contains one or more statements that define the tool's behavior.
+
+**Tool Scoping:**
+Custom tools create their own tool scope. Tools defined in the `tools` field are only accessible within that custom tool's `do` section. Local tools can shadow global tools with the same name.
+
+The `do` section contains one or more statements that can be composed in various ways:
 
 ## call Statement
 
-Executes a specific tool with optional parameters. Tools can be referenced by name or defined inline for single-use scenarios.
+Executes a specific tool with optional parameters. Tools must be defined in a `tools` section before they can be called.
 
-**Call by name:**
+**Syntax:**
 ```yaml
 - call: tool_name
   params:
     param1: value1
     param2: value2
   catch: [error_type1, error_type2]  # Optional error handling
+  store_as: result_var  # Optional, stores result in a variable
 ```
 
-**Inline import_tool (recommended for single-use tool imports):**
+**Example:**
 ```yaml
-- call:
-    import_tool: module.path.ToolClass
-    name: tool_name  # Optional
-    description: "Tool description"  # Optional
-    config:  # Optional tool-specific configuration
-      key: value
-    return_direct: true  # Optional
-    confidential: false  # Optional
-    require_confirmation: true  # Optional
-    ui_hint: "Processing ${param1}..."  # Optional
-  params:
-    param1: value1
-    param2: value2
-  catch: [error_type1, error_type2]  # Optional error handling
+shared:
+  tools:
+    - import_tool: llm_workers.tools.fs.ReadFileTool
+    - name: process_file
+      input:
+        - name: path
+          type: str
+      tools:
+        - import_tool: llm_workers.tools.fs.ReadFileTool  # Local tool
+      do:
+        - call: ReadFileTool  # References local tool
+          params:
+            path: "${path}"
+        - eval: "Processed: ${_}"
 ```
 
-**Inline custom tool definition:**
-```yaml
-- call:
-    name: custom_processor
-    description: "Processes data with custom logic"
-    input:
-      - name: data
-        description: "Data to process"
-        type: str
-    do:
-      - call: some_other_tool
-        params:
-          input: "${data}"
-      - eval: "Processed: ${_}"
-  params:
-    data: "input_value"
-```
+**Important Changes:**
+As of recent versions, inline tool definitions in `call` statements are no longer supported. Tools must be defined in a `tools` section first:
+- For custom tools: Define local tools in the custom tool's `tools` field
+- For global access: Define tools in `shared.tools`
+- For chat/CLI: Define tools in `chat.tools` or `cli.tools`
 
-Inline tool definitions provide maximum flexibility by allowing you to:
-- Define tools exactly where they're needed
-- Avoid cluttering the global tools section with single-use tools  
-- Customize tool behavior for specific contexts
-- Create specialized tool configurations without affecting other usages
-
-Like regular tool definitions, inline tools also support the `config` option for flexible parameter configuration, 
-which is particularly useful when dealing with complex tool configurations or potential property conflicts.
+This separation provides:
+- Clearer distinction between tool definition and tool usage
+- Better tool scoping and encapsulation
+- Support for local tools that don't pollute the global namespace
 
 ## eval Statement
 
@@ -1568,37 +1576,38 @@ Custom tools support template variables using the `${...}` expression syntax (po
   - Dictionary keys (dot): `"${param_dict.key_name}"` - also works via simpleeval's "sweetener" feature
   - List indices: `"${param_list[0]}"` - accesses list elements by index
   - Nested structures: `"${param_dict['nested']['value']}"` or `"${param_dict.nested.value}"` - supports multiple levels of nesting
-- Shared data access: `"${shared['key']}"` or `"${shared.key}"` - accesses values from the shared configuration section
+- Shared data variables: `"${key}"` - accesses variables defined in the `shared.data` section
 - Tool input parameters: `"${param_name}"`
-- (inside the list of statements) Previous statement results: `"${outputN}"` where N is the 0-based index of a previous statement
-- (inside `match` statement) Regex capture groups: `"${matchN}"` when using regex patterns in match statements
+- (inside the list of statements) Previous statement results: `"${outputN}"` where N is the 0-based index of a previous statement, or `"${_}"` for the immediate previous result
+- (inside `match` statement) Regex capture groups: `"${_match_groups[N]}"` when using regex patterns in match statements
 - Python expressions: `"${a + b}"`, `"${len(items)}"`, `"${value if condition else default}"` - supports any safe Python expression via simpleeval
 
 **Type Preservation:** When a string contains only a single expression (e.g., `"${param}"`), the original type is preserved. When text or multiple expressions are present, the result is converted to a string.
 
 **Note:** Expressions are evaluated using simpleeval for safety, which supports standard Python operations but restricts potentially dangerous operations.
 
-**Example with nested element and shared access:**
+**Example with nested element and shared variables:**
 ```yaml
 shared:
-  app:
-    name: "MyApp"
-    version: "1.0"
-  templates:
-    user_format: "Welcome to ${shared.app.name}!"
+  data:
+    app:
+      name: "MyApp"
+      version: "1.0"
+    templates:
+      user_format: "Welcome to ${app['name']}!"
 
-tools:
-  - name: process_user_data
-    description: "Processes user data with nested access"
-    input:
-      - name: user_profile
-        description: "User profile object"
-        type: object
-      - name: settings
-        description: "User settings array"
-        type: array
-    do:
-      - eval: "User ${user_profile['name']} has email ${user_profile['contact']['email']} and first setting is ${settings[0]}. ${shared['templates']['user_format']}"
+  tools:
+    - name: process_user_data
+      description: "Processes user data with nested access"
+      input:
+        - name: user_profile
+          description: "User profile object"
+          type: object
+        - name: settings
+          description: "User settings array"
+          type: array
+      do:
+        - eval: "User ${user_profile['name']} has email ${user_profile['contact']['email']} and first setting is ${settings[0]}. ${templates['user_format']}"
 ```
 
 This would process input like:
@@ -1613,4 +1622,6 @@ This would process input like:
 ```
 
 And return: `"User John has email john@example.com and first setting is dark_mode. Welcome to MyApp!"`
+
+**Important:** Note that shared variables are accessed directly (e.g., `${app}`, `${templates}`) without a `shared.` prefix. This is different from earlier versions where you needed to use `${shared.app}` or `${shared['app']}`.
 

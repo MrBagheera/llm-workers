@@ -4,20 +4,20 @@ import inspect
 import logging
 from asyncio import AbstractEventLoop
 from copy import copy
-from typing import Dict, List, Optional, Callable, Awaitable, Any
+from typing import Dict, List, Optional, Callable, Any
 
 import yaml
+from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langchain_core.tools.base import BaseToolkit
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
 
 from llm_workers.api import WorkersContext, WorkerException, ExtendedBaseTool, UserContext
-from llm_workers.config import WorkersConfig, ToolDefinitionOrReference, ImportToolStatement, ImportToolsStatement, \
+from llm_workers.config import WorkersConfig, ImportToolStatement, ImportToolsStatement, \
     ToolDefinition, CustomToolDefinition, ToolsDefinitionStatement, MCPServerStdio, MCPServerHttp, \
     ToolsDefinitionOrReference, ToolsReference
 from llm_workers.expressions import EvaluationContext
-from llm_workers.tools.custom_tool import build_custom_tool
 from llm_workers.utils import matches_patterns
 
 logger = logging.getLogger(__name__)
@@ -62,13 +62,15 @@ class StandardWorkersContext(WorkersContext):
     def evaluation_context(self) -> EvaluationContext:
         return self._evaluation_context
 
-    def get_tool(self, tool_ref: ToolDefinitionOrReference) -> BaseTool:
-        if isinstance(tool_ref, ToolDefinition):
-            return self._create_tool(tool_ref)
+    def get_tool(self, tool_ref: str, extra_tools: Optional[Dict[str, BaseTool]] = None) -> BaseTool:
+        if extra_tools and tool_ref in extra_tools:
+            return extra_tools[tool_ref]
         if tool_ref in self._tools:
             return self._tools[tool_ref]
         else:
             available_tools = list(self._tools.keys())
+            if extra_tools:
+                available_tools.extend(extra_tools.keys())
             available_tools.sort()
             raise ValueError(f"Tool {tool_ref} not found, available tools: {available_tools}")
 
@@ -147,9 +149,9 @@ class StandardWorkersContext(WorkersContext):
             except Exception as e:
                 raise WorkerException(f"Failed to initialize MCP clients: {e}", e)
 
-        # resolve and expose "shared data"
-        if self._config.shared.data:
-            self._evaluation_context.add('shared', self._config.shared.data.evaluate(self._evaluation_context))
+        # resolve and expose "global data"
+        for key, expr in self._config.shared.data.items():
+            self._evaluation_context.add(key, expr.evaluate(self._evaluation_context))
         # lock the evaluation context to prevent further modifications
         self._evaluation_context.mutable = False
 
@@ -268,6 +270,7 @@ class StandardWorkersContext(WorkersContext):
                 logger.info(f"Registered tool '{tool.name}' in {scope}")
 
     def _create_tool(self, tool_def: ToolDefinition) -> BaseTool:
+        from llm_workers.tools.custom_tool import build_custom_tool
         try:
             if isinstance(tool_def, ImportToolStatement):
                 tool = self._import_tool(tool_def)

@@ -1,7 +1,5 @@
 import argparse
-import asyncio
 import json
-import logging
 import sys
 from typing import Any, Optional
 
@@ -64,7 +62,9 @@ def run_llm_script(
         print(token_tracker.format_total_usage(), file=sys.stderr)
 
 def _run(cli: CliConfig, context: StandardWorkersContext, inputs: list[str]):
-    worker: ExtendedRunnable[Any] = create_statement_from_model(cli.do, context)
+    tools = context.get_tools('cli', cli.tools)
+    local_tools = {tool.name: tool for tool in tools}
+    worker: ExtendedRunnable[Any] = create_statement_from_model(cli.do, context, local_tools)
     evaluation_context = context.evaluation_context
     token_tracker = CompositeTokenUsageTracker()
     for input in inputs:

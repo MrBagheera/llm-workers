@@ -538,9 +538,10 @@ shared:
         - name: filename
           description: File to read
           type: str
+      tools:
+        - import_tool: llm_workers.tools.fs.ReadFileTool
       do:
-        - call:
-            import_tool: llm_workers.tools.fs.ReadFileTool
+        - call: read_file
           params:
             path: "{filename}"
 """
@@ -569,9 +570,10 @@ shared:
         - name: content
           description: New content
           type: str
+      tools:
+        - import_tool: llm_workers.tools.fs.FilesystemToolkit/edit_file
       do:
-        - call:
-            import_tool: llm_workers.tools.fs.FilesystemToolkit/edit_file
+        - call: edit_file
           params:
             path: "{filename}"
             instructions: "{content}"
@@ -613,9 +615,10 @@ shared:
           - name: data
             description: Data to process
             type: str
+        tools:
+          - import_tool: mcp:custom_server/mcp_process
         do:
-          - call:
-              import_tool: mcp:custom_server/mcp_process
+          - call: mcp_process
             params:
               input_str: "{data}"
 """

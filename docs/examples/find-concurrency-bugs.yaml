@@ -3,15 +3,17 @@
 cli:
   process_input: one_by_one
   json_output: true
+  tools:
+    - import_tool: llm_workers.tools.fs.ReadFileTool
+    - import_tool: llm_workers.tools.llm_tool.build_llm_tool
+      name: llm_tool
+      config:
+        model_ref: thinking
   do:
-    - call:
-        import_tool: llm_workers.tools.fs.ReadFileTool
+    - call: ReadFileTool
       params:
         path: "${input}"
-    - call:
-        import_tool: llm_workers.tools.llm_tool.build_llm_tool
-        config:
-          model_ref: thinking
+    - call: llm_tool
       params:
         prompt: |-
           You are senior C# developer. Your job is to inspect given file looking for potential concurrency issues. 

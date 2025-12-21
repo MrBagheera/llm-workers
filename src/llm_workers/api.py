@@ -7,11 +7,10 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel
 
-from llm_workers.config import WorkersConfig, ToolDefinitionOrReference, ModelDefinition, UserConfig, Json, \
+from llm_workers.config import WorkersConfig, ModelDefinition, UserConfig, Json, \
     ToolsDefinitionOrReference
 from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
-from llm_workers.utils import LazyFormatter
 
 # Flag for confidential messages (not shown to LLM)
 CONFIDENTIAL: str = 'confidential'
@@ -56,7 +55,7 @@ class WorkersContext(ABC):
         pass
 
     @abstractmethod
-    def get_tool(self, tool_ref: ToolDefinitionOrReference) -> BaseTool:
+    def get_tool(self, tool_ref: str, extra_tools: Optional[Dict[str, BaseTool]] = None) -> BaseTool:
         pass
 
     @abstractmethod

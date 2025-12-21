@@ -24,7 +24,8 @@ class TestStatements(unittest.TestCase):
     def test_return_string(self):
         statement = create_statement_from_model(
             model = EvalDefinition(eval=JsonExpression("${param1} is 42")),
-            context=StubWorkersContext()
+            context=StubWorkersContext(),
+            local_tools={}
         )
         context = {"param1": "Meaning of life"}
         generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
@@ -34,7 +35,8 @@ class TestStatements(unittest.TestCase):
     def test_return_json(self):
         statement = create_statement_from_model(
             model = EvalDefinition(eval=JsonExpression({"inner": "${param1} is 42"})),
-            context=StubWorkersContext()
+            context=StubWorkersContext(),
+            local_tools={}
         )
         context = {"param1": "Meaning of life"}
         generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
@@ -43,7 +45,8 @@ class TestStatements(unittest.TestCase):
     def test_simple_call(self):
         statement = create_statement_from_model(
             model = CallDefinition(call = "some_function", params = JsonExpression({"param1": "${param1}", "param2": 29})),
-            context=StubWorkersContext(tools={"some_function": test_tool_logic})
+            context=StubWorkersContext(tools={"some_function": test_tool_logic}),
+            local_tools={}
         )
         context = {"param1": 13}
         generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
@@ -57,7 +60,8 @@ class TestStatements(unittest.TestCase):
                 CallDefinition(call = "some_function", params = JsonExpression({"param1": "${output0}", "param2": "${output1}"})),
                 EvalDefinition(eval = JsonExpression("${param1} is ${_}"))
             ],
-            context=StubWorkersContext(tools={"some_function": test_tool_logic})
+            context=StubWorkersContext(tools={"some_function": test_tool_logic}),
+            local_tools={}
         )
         context = {"param1": "Meaning of live"}
         generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
@@ -81,7 +85,8 @@ class TestStatements(unittest.TestCase):
             default:
               eval: -1
             """)),
-            context=StubWorkersContext()
+            context=StubWorkersContext(),
+            local_tools={}
         )
         context = {"param1": "Meaning of life"}
         generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
@@ -106,13 +111,13 @@ class TestStatements(unittest.TestCase):
 class TestSharedContentIntegration(unittest.TestCase):
     def test_custom_tool_with_shared_content(self):
         # Create a config with shared data
-        from llm_workers.config import SharedConfig
+        from llm_workers.config import SharedSectionConfig
         config = WorkersConfig(
-            shared=SharedConfig(data=JsonExpression({
-                "prompts": {
+            shared=SharedSectionConfig(data={
+                "prompts": JsonExpression({
                     "test": "Yada-yada-yada"
-                }
-            }))
+                })
+            })
         )
 
         # Create mock context
@@ -125,7 +130,7 @@ class TestSharedContentIntegration(unittest.TestCase):
             input=[
                 CustomToolParamsDefinition(name="query", description="Search query", type="str")
             ],
-            do=EvalDefinition(eval=JsonExpression("Query ${query} returned ${shared.prompts.test}"))
+            do=EvalDefinition(eval=JsonExpression("Query ${query} returned ${prompts.test}"))
         )
 
         # Build the custom tool
@@ -147,7 +152,8 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
             model=EvalDefinition(
                 eval=JsonExpression("${data.get('json_schema', 'default_value')}")
             ),
-            context=StubWorkersContext()
+            context=StubWorkersContext(),
+            local_tools={}
         )
 
         # Test with existing key
@@ -174,7 +180,8 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
             model=EvalDefinition(
                 eval=JsonExpression("${data.get(key_name, 'not_found')}")
             ),
-            context=StubWorkersContext()
+            context=StubWorkersContext(),
+            local_tools={}
         )
         context = {
             "key_name": "target_key",
@@ -192,7 +199,8 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
             model=EvalDefinition(
                 eval=JsonExpression("${items[index] if 0 <= index < len(items) else 'out_of_bounds'}")
             ),
-            context=StubWorkersContext()
+            context=StubWorkersContext(),
+            local_tools={}
         )
 
         # Test valid index
@@ -221,7 +229,8 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
             model=EvalDefinition(
                 eval=JsonExpression("${items[1]}")
             ),
-            context=StubWorkersContext()
+            context=StubWorkersContext(),
+            local_tools={}
         )
         context = {"items": ["a", "b", "c"]}
         generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
@@ -236,7 +245,8 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
             model=EvalDefinition(
                 eval=JsonExpression("${data['level1']['level2'] if 'level1' in data and 'level2' in data['level1'] else 'N/A'}")
             ),
-            context=StubWorkersContext()
+            context=StubWorkersContext(),
+            local_tools={}
         )
 
         # Test existing nested value

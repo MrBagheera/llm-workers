@@ -21,9 +21,11 @@ shared:
           type: int
           default: 3
       ui_hint: Generating navigation summary
+      tools:
+        - import_tool: llm_workers.tools.llm_tool.build_llm_tool
+          name: llm_tool
       do:
-        call:
-          import_tool: llm_workers.tools.llm_tool.build_llm_tool
+        call: llm_tool
         params:
           prompt: |
             You are an assistant to a sailing boat navigator.
@@ -74,12 +76,14 @@ shared:
 
 cli:
   process_input: one_by_one
-  do:
-    call:
-      import_tool: llm_workers.tools.llm_tool.build_llm_tool
+  tools:
+    - import_tool: llm_workers.tools.llm_tool.build_llm_tool
+      name: llm_tool
       config:
         tools:
           - match: [ "*", "!_*"] # all tools that doesn't start with _
+  do:
+    call: llm_tool
     params:
       prompt: >
         Please fetch the page from ${input} and print navigation summary for this region.

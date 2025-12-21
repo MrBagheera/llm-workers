@@ -154,8 +154,10 @@ class StubWorkersContext(WorkersContext):
         self._llm = llm
         self._config = config or WorkersConfig()
         self._tools = tools or {}
-        shared_data = self._config.shared.data if self._config.shared else JsonExpression({})
-        self._evaluation_context = EvaluationContext({'shared': shared_data.evaluate(EvaluationContext())})
+        self._evaluation_context = EvaluationContext()
+        for key, expr in self._config.shared.data.items():
+            self._evaluation_context.add(key, expr.evaluate(self._evaluation_context))
+        self._evaluation_context.mutable = False
 
     @property
     def config(self) -> WorkersConfig:
@@ -165,7 +167,9 @@ class StubWorkersContext(WorkersContext):
     def evaluation_context(self) -> EvaluationContext:
         return self._evaluation_context
 
-    def get_tool(self, tool_ref):
+    def get_tool(self, tool_ref, extra_tools: Optional[Dict[str, BaseTool]] = None):
+        if extra_tools and tool_ref in extra_tools:
+            return extra_tools[tool_ref]
         if tool_ref in self._tools:
             return self._tools[tool_ref]
         raise ValueError(f"Tool {tool_ref} not found in mock context")

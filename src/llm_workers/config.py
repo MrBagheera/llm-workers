@@ -167,7 +167,7 @@ class EvalDefinition(BaseModel):
 
 class CallDefinition(BaseModel):
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
-    call: ToolDefinitionOrReference
+    call: str
     params: Optional[JsonExpression[dict]] = None
     catch: Optional[str | list[str]] = None
     store_as: Optional[str] = None
@@ -281,6 +281,7 @@ class CustomToolDefinition(ToolDefinition):
     """Definition for a custom tool."""
     name: str
     input: List[CustomToolParamsDefinition] = []
+    tools: list[ToolsDefinitionStatement] = []
     do: BodyDefinition
 
     def __str__(self):
@@ -315,22 +316,6 @@ ToolsDefinitionStatement = Annotated[
     Discriminator(create_discriminator({
         'import_tool': '<import_tool statement>',
         'import_tools': '<import_tools statement>',
-        'do': '<custom_tool definition>',
-    }))
-]
-
-# For referencing single tools.
-# This incantation allows us to pick concrete Type based on field presence,
-# and get nicer error messages if validation fails (compared to using validators).
-ToolDefinitionOrReference = Annotated[
-    Union[
-        Annotated[str, Tag('<tool reference>')],
-        Annotated[ImportToolStatement, Tag('<import_tools statement>')],
-        Annotated[CustomToolDefinition, Tag('<custom_tool definition>')]
-    ],
-    Discriminator(create_discriminator({
-        str: '<tool reference>',
-        'import_tool': '<import_tools statement>',
         'do': '<custom_tool definition>',
     }))
 ]
@@ -371,28 +356,32 @@ class ToolLLMConfig(BaseLLMConfig):
     extract_json: Optional[Union[bool, str]] = None
 
 
+class SharedSectionConfig(BaseModel):
+    """Configuration for shared data and tools."""
+    model_config = ConfigDict(extra='forbid')
+    data: dict[str, JsonExpression] = {}
+    tools: list[ToolsDefinitionStatement] = []
+
+
 class ChatConfig(BaseLLMConfig):
+    model_config = ConfigDict(extra='forbid')
     default_prompt: Optional[str] = None
     user_banner: Optional[str] = None
 
-
-class SharedConfig(BaseModel):
-    """Configuration for shared data and tools."""
-    model_config = ConfigDict(extra='forbid')
-    data: JsonExpression = JsonExpression({})
-    tools: list[ToolsDefinitionStatement] = []
 
 class CliConfig(BaseModel):
     """Configuration for CLI workers."""
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     process_input: Literal['one_by_one'] | Literal['all_as_list']
+    tools: list[ToolsDefinitionStatement] = []
     json_output: bool = False
     do: BodyDefinition
+
 
 class WorkersConfig(BaseModel):
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     env: Optional[Dict[str, EnvVarDefinition]] = None
-    shared: SharedConfig = SharedConfig()
     mcp: Dict[str, MCPServerDefinition] = {}
+    shared: SharedSectionConfig = SharedSectionConfig()
     chat: Optional[ChatConfig] = None
     cli: Optional[CliConfig] = None

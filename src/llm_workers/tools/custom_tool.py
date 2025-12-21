@@ -5,7 +5,7 @@ from typing import Type, Any, Optional, Dict, TypeAlias, List, Iterator, Union, 
 
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import StructuredTool
+from langchain_core.tools import StructuredTool, BaseTool
 from langchain_core.tools.base import ToolException
 from pydantic import BaseModel, Field, create_model, PrivateAttr
 
@@ -46,8 +46,8 @@ class EvalStatement(ExtendedRunnable[Json]):
 # noinspection PyTypeHints
 class CallStatement(ExtendedRunnable[Json]):
 
-    def __init__(self, model: CallDefinition, context: WorkersContext):
-        self._tool = context.get_tool(model.call)
+    def __init__(self, model: CallDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool]):
+        self._tool = context.get_tool(model.call, local_tools)
         self._params_expr = model.params
         if isinstance(model.catch, list):
             self._catch = model.catch
@@ -87,10 +87,10 @@ class CallStatement(ExtendedRunnable[Json]):
 
 class FlowStatement(ExtendedRunnable[Json]):
 
-    def __init__(self, model: list[StatementDefinition], context: WorkersContext):
+    def __init__(self, model: list[StatementDefinition], context: WorkersContext, local_tools: Dict[str, BaseTool]):
         self._statements: List[Statement] = []
         for statement_model in model:
-            statement = create_statement_from_model(statement_model, context)
+            statement = create_statement_from_model(statement_model, context, local_tools)
             self._statements.append(statement)
 
     def yield_notifications_and_result(
@@ -110,20 +110,20 @@ class FlowStatement(ExtendedRunnable[Json]):
 # noinspection PyTypeHints
 class MatchStatement(ExtendedRunnable[Json]):
 
-    def __init__(self, model: MatchDefinition, context: WorkersContext):
+    def __init__(self, model: MatchDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool]):
         self._match_expr = model.match
         self._trim = model.trim
         self._clauses: List[tuple[Any, Statement]] = []
         for matcher in model.matchers:
             if matcher.case:
                 condition: str = matcher.case
-                statement = create_statement_from_model(matcher.then, context)
+                statement = create_statement_from_model(matcher.then, context, local_tools)
                 self._clauses.append((condition, statement))
             else:
                 condition: re.Pattern[str] = re.compile(matcher.pattern)
-                statement = create_statement_from_model(matcher.then, context)
+                statement = create_statement_from_model(matcher.then, context, local_tools)
                 self._clauses.append((condition, statement))
-        self._default = create_statement_from_model(model.default, context)
+        self._default = create_statement_from_model(model.default, context, local_tools)
         self._store_as = model.store_as
 
     def yield_notifications_and_result(
@@ -166,16 +166,13 @@ class MatchStatement(ExtendedRunnable[Json]):
 
 
 class CustomTool(ExtendedExecutionTool):
-    _context: WorkersContext = PrivateAttr()
-    _body: Statement = PrivateAttr()
-
     def __init__(self, context: WorkersContext, body: Statement, **kwargs):
         super().__init__(**kwargs)
-        self._context = context
+        self._default_evaluation_context = context.evaluation_context
         self._body = body
 
     def default_evaluation_context(self) -> EvaluationContext:
-        return self._context.evaluation_context
+        return self._default_evaluation_context
 
     def yield_notifications_and_result(
         self,
@@ -191,15 +188,15 @@ class CustomTool(ExtendedExecutionTool):
         return self._body.yield_notifications_and_result(evaluation_context, token_tracker, config)
 
 
-def create_statement_from_model(model: StatementDefinition, context: WorkersContext) -> Statement:
+def create_statement_from_model(model: StatementDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool]) -> Statement:
     if isinstance(model, EvalDefinition):
         return EvalStatement(model)
     elif isinstance(model, CallDefinition):
-        return CallStatement(model, context)
+        return CallStatement(model, context, local_tools)
     elif isinstance(model, list):
-        return FlowStatement(model, context)
+        return FlowStatement(model, context, local_tools)
     elif isinstance(model, MatchDefinition):
-        return MatchStatement(model, context)
+        return MatchStatement(model, context, local_tools)
     else:
         raise ValueError(f"Invalid statement model type {type(model)}")
 
@@ -220,7 +217,9 @@ def create_dynamic_schema(name: str, params: List[CustomToolParamsDefinition]) -
 
 
 def build_custom_tool(tool_def: CustomToolDefinition, context: WorkersContext) -> StructuredTool:
-    body = create_statement_from_model(tool_def.do, context)
+    tools = context.get_tools(tool_def.name, tool_def.tools)
+    local_tools = {tool.name: tool for tool in tools}
+    body = create_statement_from_model(tool_def.do, context, local_tools)
 
     return CustomTool(
         context=context,
