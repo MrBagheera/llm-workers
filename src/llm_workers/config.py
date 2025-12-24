@@ -172,41 +172,25 @@ class CallDefinition(BaseModel):
     catch: Optional[str | list[str]] = None
     store_as: Optional[str] = None
 
-class MatchClauseDefinition(BaseModel):
+class IfDefinition(BaseModel):
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
-    case: Optional[str] = None
-    pattern: Optional[str] = None
+    if_: StringExpression = Field(alias='if')
     then: 'BodyDefinition'
-
-    @classmethod
-    @model_validator(mode='after')
-    def validate(cls, value: Any) -> Self:
-        if value.case is None and value.pattern is None:
-            raise ValueError("Either 'case' or 'pattern' must be provided")
-        if value.case is not None and value.pattern is not None:
-            raise ValueError("Only one of 'case' or 'pattern' can be provided")
-        return value
-
-class MatchDefinition(BaseModel):
-    model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
-    match: StringExpression
-    trim: bool = False
-    matchers: List[MatchClauseDefinition]
-    default: 'BodyDefinition'
+    else_: Optional['BodyDefinition'] = Field(default=None, alias='else')
     store_as: Optional[str] = None
 
 
 StatementDefinition = Annotated[
     Union[
         Annotated[CallDefinition, Tag('<call statement>')],
-        Annotated[MatchDefinition, Tag('<match statement>')],
+        Annotated[IfDefinition, Tag('<if statement>')],
         Annotated[EvalDefinition, Tag('<eval statement>')],
     ],
     Discriminator(create_discriminator({
         'call': '<call statement>',
         CallDefinition: '<call statement>',
-        'match': '<match statement>',
-        MatchDefinition: '<match statement>',
+        'if': '<if statement>',
+        IfDefinition: '<if statement>',
         'eval': '<eval statement>',
         EvalDefinition: '<eval statement>',
     }))
@@ -215,15 +199,15 @@ StatementDefinition = Annotated[
 BodyDefinition = Annotated[
     Union[
         Annotated[CallDefinition, Tag('<call statement>')],
-        Annotated[MatchDefinition, Tag('<match statement>')],
+        Annotated[IfDefinition, Tag('<if statement>')],
         Annotated[EvalDefinition, Tag('<eval statement>')],
         Annotated[List[StatementDefinition], Tag('<statements>')],
     ],
     Discriminator(create_discriminator({
         'call': '<call statement>',
         CallDefinition: '<call statement>',
-        'match': '<match statement>',
-        MatchDefinition: '<match statement>',
+        'if': '<if statement>',
+        IfDefinition: '<if statement>',
         'eval': '<eval statement>',
         EvalDefinition: '<eval statement>',
         list: '<statements>'
@@ -373,7 +357,7 @@ class CliConfig(BaseModel):
     """Configuration for CLI workers."""
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     process_input: Literal['one_by_one'] | Literal['all_as_list']
-    tools: list[ToolsDefinitionStatement] = []
+    tools: list[ToolsDefinitionOrReference] = []
     json_output: bool = False
     do: BodyDefinition
 

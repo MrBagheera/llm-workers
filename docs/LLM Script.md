@@ -1516,27 +1516,98 @@ The `eval` statement evaluates an expression and returns the result. It supports
 - eval: "${[x * 2 for x in numbers]}"  # List comprehension
 ```
 
-## match Statement
+## if Statement
 
-Conditionally executes different actions based on matching patterns:
+Executes different actions based on a boolean condition:
 
 ```yaml
-- match: "${input}"
-  trim: true  # Optional, removes whitespace before matching
-  matchers:
-    - case: "help"  # Exact match
-      then:
-        - eval: "Available commands: help, status, search"
-
-    - pattern: "search (.+)"  # Regex pattern match
-      then:
-        - call: search_tool
-          params:
-            query: "${1}"  # Reference to captured group
-
-  default:  # Executed if no matches found
-    - eval: "Unknown command. Type 'help' for assistance."
+- if: "${condition}"
+  then:
+    <statement(s)>  # Executed if condition is truthy
+  else:  # Optional
+    <statement(s)>  # Executed if condition is falsy
+  store_as: result_var  # Optional
 ```
+
+### Basic Examples
+
+**Simple boolean check:**
+```yaml
+- if: "${user_authenticated}"
+  then:
+    call: fetch_user_data
+    params:
+      user_id: "${user_id}"
+  else:
+    eval: "Please log in first"
+```
+
+**Boolean expression with comparison:**
+```yaml
+- if: "${score >= 80 and status == 'active'}"
+  then:
+    eval: "Eligible for promotion"
+  else:
+    eval: "Not eligible"
+```
+
+**Membership test:**
+```yaml
+- if: "${movie_title in stub_data}"
+  then:
+    eval: "${stub_data[movie_title]}"
+  else:
+    call: fetch_from_api
+    params:
+      query: "${movie_title}"
+```
+
+**Optional else clause:**
+```yaml
+- if: "${debug_mode}"
+  then:
+    call: log_debug_info
+    params:
+      message: "Debug enabled"
+# If debug_mode is false, returns None and continues
+```
+
+**Multiple statements in branches:**
+```yaml
+- if: "${needs_preprocessing}"
+  then:
+    - call: normalize_data
+      params:
+        data: "${input}"
+    - call: validate_data
+      params:
+        data: "${_}"
+  else:
+    eval: "${input}"
+```
+
+**Nested if statements:**
+```yaml
+- if: "${user_role == 'admin'}"
+  then:
+    - if: "${action == 'delete'}"
+      then:
+        call: delete_resource
+        params:
+          id: "${resource_id}"
+      else:
+        eval: "Action not allowed"
+  else:
+    eval: "Admin access required"
+```
+
+### Truthiness Rules
+
+The condition uses Python truthiness rules:
+- **Truthy values:** Non-empty strings, non-zero numbers, non-empty lists/dicts, `True`
+- **Falsy values:** Empty string `""`, zero `0`, `False`, empty lists `[]`, empty dicts `{}`
+
+**Note:** Direct evaluation of `None` variables is not supported due to expression system limitations. Use explicit comparisons like `${value is not None}` when checking for `None`.
 
 ## Composing Statements
 
@@ -1556,13 +1627,11 @@ tools:
       - call: search_database
         params:
           query: "${_}"
-      - match: "${_}"
-        matchers:
-          - case: ""
-            then:
-              - eval: "No results found"
-        default:
-          - eval: "${_}"
+      - if: "${_ == ''}"
+        then:
+          eval: "No results found"
+        else:
+          eval: "${_}"
 ```
 
 ## Template Variables
@@ -1578,8 +1647,7 @@ Custom tools support template variables using the `${...}` expression syntax (po
   - Nested structures: `"${param_dict['nested']['value']}"` or `"${param_dict.nested.value}"` - supports multiple levels of nesting
 - Shared data variables: `"${key}"` - accesses variables defined in the `shared.data` section
 - Tool input parameters: `"${param_name}"`
-- (inside the list of statements) Previous statement results: `"${outputN}"` where N is the 0-based index of a previous statement, or `"${_}"` for the immediate previous result
-- (inside `match` statement) Regex capture groups: `"${_match_groups[N]}"` when using regex patterns in match statements
+- (inside the list of statements) Previous statement results: `"${_}"` for the immediate previous result
 - Python expressions: `"${a + b}"`, `"${len(items)}"`, `"${value if condition else default}"` - supports any safe Python expression via simpleeval
 
 **Type Preservation:** When a string contains only a single expression (e.g., `"${param}"`), the original type is preserved. When text or multiple expressions are present, the result is converted to a string.

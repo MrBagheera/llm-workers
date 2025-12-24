@@ -5,7 +5,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
 from llm_workers.config import CustomToolParamsDefinition, CallDefinition, EvalDefinition, \
-    MatchDefinition, WorkersConfig, CustomToolDefinition
+    IfDefinition, WorkersConfig, CustomToolDefinition
 from llm_workers.expressions import EvaluationContext, JsonExpression
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.tools.custom_tool import create_statement_from_model, build_custom_tool
@@ -67,45 +67,319 @@ class TestStatements(unittest.TestCase):
         generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
         assert "Meaning of live is 42" == split_result_and_notifications(generator)[0]
 
-    def test_match(self):
+class TestIfStatement(unittest.TestCase):
+    """Test if-then-else statement functionality."""
+
+    def test_if_true_with_then_only(self):
+        """Test if condition true, no else clause."""
         statement = create_statement_from_model(
-            model = MatchDefinition.model_validate(yaml.safe_load("""
-            match: ${param1}
-            trim: true
-            matchers:
-              - case: Meaning of life
-                then:
-                  eval: 42
-              - pattern: '[0-9]+'
-                then:
-                  eval: 'number'
-              - pattern: 'https?://([^/]+)/?.*'
-                then:
-                  eval: 'an URL pointing to ${_match_groups[0]}'
-            default:
-              eval: -1
+            model=IfDefinition.model_validate(yaml.safe_load("""
+            if: "${flag}"
+            then:
+              eval: "executed"
             """)),
             context=StubWorkersContext(),
             local_tools={}
         )
-        context = {"param1": "Meaning of life"}
+        context = {"flag": True}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        self.assertEqual("executed", split_result_and_notifications(generator)[0])
+
+    def test_if_false_with_then_only_returns_none(self):
+        """Test if condition false, no else clause (returns None)."""
+        statement = create_statement_from_model(
+            model=IfDefinition.model_validate(yaml.safe_load("""
+            if: "${flag}"
+            then:
+              eval: "executed"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"flag": False}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        self.assertIsNone(split_result_and_notifications(generator)[0])
+
+    def test_if_true_with_else(self):
+        """Test if condition true with else clause (else not executed)."""
+        statement = create_statement_from_model(
+            model=IfDefinition.model_validate(yaml.safe_load("""
+            if: "${flag}"
+            then:
+              eval: "then branch"
+            else:
+              eval: "else branch"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"flag": True}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        self.assertEqual("then branch", split_result_and_notifications(generator)[0])
+
+    def test_if_false_with_else(self):
+        """Test if condition false, else clause executed."""
+        statement = create_statement_from_model(
+            model=IfDefinition.model_validate(yaml.safe_load("""
+            if: "${flag}"
+            then:
+              eval: "then branch"
+            else:
+              eval: "else branch"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"flag": False}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        self.assertEqual("else branch", split_result_and_notifications(generator)[0])
+
+    def test_if_with_store_as(self):
+        """Test storing result in variable."""
+        statement = create_statement_from_model(
+            model=[
+                IfDefinition.model_validate(yaml.safe_load("""
+                if: "${flag}"
+                then:
+                  eval: "result_value"
+                store_as: result
+                """)),
+                EvalDefinition(eval=JsonExpression("Got: ${result}"))
+            ],
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"flag": True}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        self.assertEqual("Got: result_value", split_result_and_notifications(generator)[0])
+
+    def test_if_truthiness_empty_string(self):
+        """Test empty string evaluates to False."""
+        statement = create_statement_from_model(
+            model=IfDefinition.model_validate(yaml.safe_load("""
+            if: "${value}"
+            then:
+              eval: "truthy"
+            else:
+              eval: "falsy"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"value": ""}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        self.assertEqual("falsy", split_result_and_notifications(generator)[0])
+
+    def test_if_truthiness_non_empty_string(self):
+        """Test non-empty string evaluates to True."""
+        statement = create_statement_from_model(
+            model=IfDefinition.model_validate(yaml.safe_load("""
+            if: "${value}"
+            then:
+              eval: "truthy"
+            else:
+              eval: "falsy"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"value": "hello"}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        self.assertEqual("truthy", split_result_and_notifications(generator)[0])
+
+    def test_if_truthiness_zero(self):
+        """Test zero evaluates to False."""
+        statement = create_statement_from_model(
+            model=IfDefinition.model_validate(yaml.safe_load("""
+            if: "${value}"
+            then:
+              eval: "truthy"
+            else:
+              eval: "falsy"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"value": 0}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        self.assertEqual("falsy", split_result_and_notifications(generator)[0])
+
+    def test_if_truthiness_non_zero_number(self):
+        """Test non-zero number evaluates to True."""
+        statement = create_statement_from_model(
+            model=IfDefinition.model_validate(yaml.safe_load("""
+            if: "${value}"
+            then:
+              eval: "truthy"
+            else:
+              eval: "falsy"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"value": 42}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        self.assertEqual("truthy", split_result_and_notifications(generator)[0])
+
+    def test_if_truthiness_empty_list(self):
+        """Test empty list evaluates to False."""
+        statement = create_statement_from_model(
+            model=IfDefinition.model_validate(yaml.safe_load("""
+            if: "${value}"
+            then:
+              eval: "truthy"
+            else:
+              eval: "falsy"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"value": []}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        self.assertEqual("falsy", split_result_and_notifications(generator)[0])
+
+    def test_if_truthiness_non_empty_list(self):
+        """Test non-empty list evaluates to True."""
+        statement = create_statement_from_model(
+            model=IfDefinition.model_validate(yaml.safe_load("""
+            if: "${value}"
+            then:
+              eval: "truthy"
+            else:
+              eval: "falsy"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"value": [1, 2, 3]}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        self.assertEqual("truthy", split_result_and_notifications(generator)[0])
+
+    def test_if_with_boolean_expression(self):
+        """Test complex boolean expression: ${x > 5 and y < 10}"""
+        statement = create_statement_from_model(
+            model=IfDefinition.model_validate(yaml.safe_load("""
+            if: "${x > 5 and y < 10}"
+            then:
+              eval: "condition met"
+            else:
+              eval: "condition not met"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"x": 7, "y": 8}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        self.assertEqual("condition met", split_result_and_notifications(generator)[0])
+
+        context2 = {"x": 3, "y": 8}
+        generator2 = statement.yield_notifications_and_result(EvaluationContext(context2), token_tracker=None, config=None)
+        self.assertEqual("condition not met", split_result_and_notifications(generator2)[0])
+
+    def test_if_with_membership_test(self):
+        """Test membership: ${key in dict}"""
+        statement = create_statement_from_model(
+            model=IfDefinition.model_validate(yaml.safe_load("""
+            if: "${movie_title in metacritic_stub_data}"
+            then:
+              eval: "${metacritic_stub_data[movie_title]}"
+            else:
+              eval: "not found"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {
+            "movie_title": "Soul",
+            "metacritic_stub_data": {"Soul": "83", "The Incredibles": "90"}
+        }
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        self.assertEqual("83", split_result_and_notifications(generator)[0])
+
+        context2 = {
+            "movie_title": "Unknown Movie",
+            "metacritic_stub_data": {"Soul": "83", "The Incredibles": "90"}
+        }
+        generator2 = statement.yield_notifications_and_result(EvaluationContext(context2), token_tracker=None, config=None)
+        self.assertEqual("not found", split_result_and_notifications(generator2)[0])
+
+    def test_if_nested_statements(self):
+        """Test if with nested if-then-else in branches."""
+        statement = create_statement_from_model(
+            model=IfDefinition.model_validate(yaml.safe_load("""
+            if: "${level1}"
+            then:
+              if: "${level2}"
+              then:
+                eval: "both true"
+              else:
+                eval: "only level1 true"
+            else:
+              eval: "level1 false"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context1 = {"level1": True, "level2": True}
+        generator1 = statement.yield_notifications_and_result(EvaluationContext(context1), token_tracker=None, config=None)
+        self.assertEqual("both true", split_result_and_notifications(generator1)[0])
+
+        context2 = {"level1": True, "level2": False}
+        generator2 = statement.yield_notifications_and_result(EvaluationContext(context2), token_tracker=None, config=None)
+        self.assertEqual("only level1 true", split_result_and_notifications(generator2)[0])
+
+        context3 = {"level1": False, "level2": True}
+        generator3 = statement.yield_notifications_and_result(EvaluationContext(context3), token_tracker=None, config=None)
+        self.assertEqual("level1 false", split_result_and_notifications(generator3)[0])
+
+    def test_if_with_call_statement_in_branch(self):
+        """Test calling tools in then/else branches."""
+        statement = create_statement_from_model(
+            model=IfDefinition.model_validate(yaml.safe_load("""
+            if: "${should_call}"
+            then:
+              call: test_tool_logic
+              params:
+                param1: "${value1}"
+                param2: "${value2}"
+            else:
+              eval: "skipped"
+            """)),
+            context=StubWorkersContext(tools={"test_tool_logic": test_tool_logic}),
+            local_tools={}
+        )
+        context = {"should_call": True, "value1": 13, "value2": 29}
         generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
         self.assertEqual(42, split_result_and_notifications(generator)[0])
-        context1 = {"param1": "100"}
-        generator1 = statement.yield_notifications_and_result(EvaluationContext(context1), token_tracker=None, config=None)
-        self.assertEqual("number", split_result_and_notifications(generator1)[0])
-        context2 = {"param1": "https://www.google.com/"}
+
+        context2 = {"should_call": False, "value1": 13, "value2": 29}
         generator2 = statement.yield_notifications_and_result(EvaluationContext(context2), token_tracker=None, config=None)
-        self.assertEqual("an URL pointing to www.google.com", split_result_and_notifications(generator2)[0])
-        context3 = {"param1": "Meaning of live is 42"}
-        generator3 = statement.yield_notifications_and_result(EvaluationContext(context3), token_tracker=None, config=None)
-        self.assertEqual(-1, split_result_and_notifications(generator3)[0])
-        context4 = {"param1": ""}
-        generator4 = statement.yield_notifications_and_result(EvaluationContext(context4), token_tracker=None, config=None)
-        self.assertEqual(-1, split_result_and_notifications(generator4)[0])
-        context5 = {"param1": {}}
-        generator5 = statement.yield_notifications_and_result(EvaluationContext(context5), token_tracker=None, config=None)
-        self.assertEqual(-1, split_result_and_notifications(generator5)[0])
+        self.assertEqual("skipped", split_result_and_notifications(generator2)[0])
+
+    def test_if_with_flow_in_branch(self):
+        """Test multiple statements in then/else branches."""
+        statement = create_statement_from_model(
+            model=IfDefinition.model_validate(yaml.safe_load("""
+            if: "${execute_flow}"
+            then:
+              - eval: "${base}"
+                store_as: step1
+              - eval: "${step1 + 10}"
+                store_as: step2
+              - eval: "${step2}"
+            else:
+              eval: "flow skipped"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"execute_flow": True, "base": 5}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        self.assertEqual(15, split_result_and_notifications(generator)[0])
+
+        context2 = {"execute_flow": False, "base": 5}
+        generator2 = statement.yield_notifications_and_result(EvaluationContext(context2), token_tracker=None, config=None)
+        self.assertEqual("flow skipped", split_result_and_notifications(generator2)[0])
 
 
 class TestSharedContentIntegration(unittest.TestCase):

@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, create_model, PrivateAttr
 
 from llm_workers.api import WorkersContext, WorkerNotification, ExtendedRunnable, ExtendedExecutionTool
 from llm_workers.config import Json, CustomToolParamsDefinition, \
-    CallDefinition, EvalDefinition, StatementDefinition, MatchDefinition, CustomToolDefinition
+    CallDefinition, EvalDefinition, StatementDefinition, IfDefinition, CustomToolDefinition
 from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.utils import LazyFormatter, parse_standard_type
@@ -108,22 +108,20 @@ class FlowStatement(ExtendedRunnable[Json]):
 
 
 # noinspection PyTypeHints
-class MatchStatement(ExtendedRunnable[Json]):
+class IfStatement(ExtendedRunnable[Json]):
+    """
+    Executes conditional logic based on boolean expression evaluation.
 
-    def __init__(self, model: MatchDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool]):
-        self._match_expr = model.match
-        self._trim = model.trim
-        self._clauses: List[tuple[Any, Statement]] = []
-        for matcher in model.matchers:
-            if matcher.case:
-                condition: str = matcher.case
-                statement = create_statement_from_model(matcher.then, context, local_tools)
-                self._clauses.append((condition, statement))
-            else:
-                condition: re.Pattern[str] = re.compile(matcher.pattern)
-                statement = create_statement_from_model(matcher.then, context, local_tools)
-                self._clauses.append((condition, statement))
-        self._default = create_statement_from_model(model.default, context, local_tools)
+    If the condition evaluates to a truthy value, executes the 'then' branch.
+    Otherwise, executes the 'else' branch (if provided) or returns None.
+    """
+
+    def __init__(self, model: IfDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool]):
+        self._condition_expr = model.if_
+        self._then_statement = create_statement_from_model(model.then, context, local_tools)
+        self._else_statement = None
+        if model.else_ is not None:
+            self._else_statement = create_statement_from_model(model.else_, context, local_tools)
         self._store_as = model.store_as
 
     def yield_notifications_and_result(
@@ -131,37 +129,30 @@ class MatchStatement(ExtendedRunnable[Json]):
             evaluation_context: EvaluationContext,
             token_tracker: Optional[CompositeTokenUsageTracker],
             config: Optional[RunnableConfig],
-            **kwargs: Any   # ignored
-    ) -> Iterable[Any]:
-        probe = self._match_expr.evaluate(evaluation_context)
-        probe_str = None
-        if self._trim:
-            probe = str(probe).strip()
-            probe_str = probe
-        result = None
-        for condition, statement in self._clauses:
-            if isinstance(condition, re.Pattern):
-                if not probe_str:
-                    probe_str = str(probe)
-                match = condition.fullmatch(probe_str)
-                if match:
-                    logger.debug("Probe [%s] matched regexp [%s]", probe_str, condition)
-                    inndex_context = EvaluationContext(
-                        {"_match_groups": match.groups()},
-                        parent=evaluation_context,
-                        mutable=False
-                    )
-                    result = yield from statement.yield_notifications_and_result(inndex_context, token_tracker, config)
-                    break
-            elif probe == condition:
-                logger.debug("Probe [%s] matched condition [%s]", probe, condition)
-                result = yield from statement.yield_notifications_and_result(evaluation_context, token_tracker, config)
-                break
-        if result is None:
-            logger.debug("Probe [%s] did not match anything", probe)
-            result = yield from self._default.yield_notifications_and_result(evaluation_context, token_tracker, config)
+            **kwargs: Any
+    ) -> Generator[WorkerNotification, None, Json]:
+        # Evaluate the condition
+        condition_result = self._condition_expr.evaluate(evaluation_context)
+
+        # Use Python truthiness
+        if condition_result:
+            logger.debug("If condition [%s] evaluated to truthy, executing 'then' branch", condition_result)
+            result = yield from self._then_statement.yield_notifications_and_result(
+                evaluation_context, token_tracker, config
+            )
+        elif self._else_statement is not None:
+            logger.debug("If condition [%s] evaluated to falsy, executing 'else' branch", condition_result)
+            result = yield from self._else_statement.yield_notifications_and_result(
+                evaluation_context, token_tracker, config
+            )
+        else:
+            logger.debug("If condition [%s] evaluated to falsy, no 'else' branch, returning None", condition_result)
+            result = None
+
+        # Store result if requested
         if self._store_as:
             evaluation_context.add(self._store_as, result)
+
         return result
 
 
@@ -195,8 +186,8 @@ def create_statement_from_model(model: StatementDefinition, context: WorkersCont
         return CallStatement(model, context, local_tools)
     elif isinstance(model, list):
         return FlowStatement(model, context, local_tools)
-    elif isinstance(model, MatchDefinition):
-        return MatchStatement(model, context, local_tools)
+    elif isinstance(model, IfDefinition):
+        return IfStatement(model, context, local_tools)
     else:
         raise ValueError(f"Invalid statement model type {type(model)}")
 

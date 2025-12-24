@@ -46,16 +46,12 @@ def run_llm_script(
 
     # Determine the inputs
     inputs: list[str] = []
-    if '--' in sys.argv:
-        if args.inputs:
-            parser.error("Cannot use both command-line inputs and '--'.")
-        for line in sys.stdin:
-            inputs.extend(line.strip())
-    else:
-        if args.inputs:
-            inputs.extend(args.inputs)
+    for arg in args.inputs:
+        if arg == '-':
+            for line in sys.stdin:
+                inputs.append(line.strip())
         else:
-            parser.error(f"No inputs provided in {args.script_file}.")
+            inputs.append(arg)
 
     token_tracker: CompositeTokenUsageTracker = context.run(_run, cli, context, inputs)
     if not token_tracker.is_empty:
@@ -93,7 +89,7 @@ def main():
     # Positional argument for the script file
     parser.add_argument('script_file', type=str, help="Path to the script file.")
     # Optional arguments for prompts or stdin input
-    parser.add_argument('inputs', nargs='*', help="Inputs for the script (or use '--' to read from stdin).")
+    parser.add_argument('inputs', nargs='*', help="Inputs for the script (or use '-' to read from stdin).")
     args = parser.parse_args()
 
     setup_logging(debug_level = args.debug, verbosity = args.verbose, log_filename = "llm-workers.log")
