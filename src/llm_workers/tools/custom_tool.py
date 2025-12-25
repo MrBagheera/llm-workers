@@ -31,7 +31,7 @@ class EvalStatement(ExtendedRunnable[Json]):
     def yield_notifications_and_result(
             self,
             evaluation_context: EvaluationContext,
-            token_tracker: Optional[CompositeTokenUsageTracker],
+            token_tracker: CompositeTokenUsageTracker,
             config: Optional[RunnableConfig],
             **kwargs: Any   # ignored
     ) -> Generator[WorkerNotification, None, Json]:
@@ -60,7 +60,7 @@ class CallStatement(ExtendedRunnable[Json]):
     def yield_notifications_and_result(
         self,
         evaluation_context: EvaluationContext,
-        token_tracker: Optional[CompositeTokenUsageTracker],
+        token_tracker: CompositeTokenUsageTracker,
         config: Optional[RunnableConfig],
         **kwargs: Any   # ignored
     ) -> Generator[WorkerNotification, None, Json]:
@@ -96,7 +96,7 @@ class FlowStatement(ExtendedRunnable[Json]):
     def yield_notifications_and_result(
             self,
             evaluation_context: EvaluationContext,
-            token_tracker: Optional[CompositeTokenUsageTracker],
+            token_tracker: CompositeTokenUsageTracker,
             config: Optional[RunnableConfig],
             **kwargs: Any   # ignored
     ) -> Generator[WorkerNotification, None, Json]:
@@ -127,7 +127,7 @@ class IfStatement(ExtendedRunnable[Json]):
     def yield_notifications_and_result(
             self,
             evaluation_context: EvaluationContext,
-            token_tracker: Optional[CompositeTokenUsageTracker],
+            token_tracker: CompositeTokenUsageTracker,
             config: Optional[RunnableConfig],
             **kwargs: Any
     ) -> Generator[WorkerNotification, None, Json]:
@@ -177,7 +177,7 @@ class StarlarkStatement(ExtendedRunnable[Json]):
     def yield_notifications_and_result(
             self,
             evaluation_context: EvaluationContext,
-            token_tracker: Optional[CompositeTokenUsageTracker],
+            token_tracker: CompositeTokenUsageTracker,
             config: Optional[RunnableConfig],
             **kwargs: Any
     ) -> Generator[WorkerNotification, None, Json]:
@@ -228,7 +228,7 @@ class CustomTool(ExtendedExecutionTool):
     def yield_notifications_and_result(
         self,
         evaluation_context: EvaluationContext,
-        token_tracker: Optional[CompositeTokenUsageTracker],
+        token_tracker: CompositeTokenUsageTracker,
         config: Optional[RunnableConfig],
         input: dict[str, Json],
         **kwargs: Any

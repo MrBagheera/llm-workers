@@ -66,9 +66,9 @@ class ChatSession:
                 "description": "Rewinds chat session to input N (default to -1 = previous)",
                 "params": "[N]"
             },
-            "bye": {
-                "aliases": ["exit", "quit"],
-                "function": self._bye,
+            "exit": {
+                "aliases": ["bye", "quit"],
+                "function": self._exit,
                 "description": "Ends chat session"
             },
             "model": {
@@ -80,6 +80,11 @@ class ChatSession:
                 "function": self._display,
                 "description": "Show or modify display settings",
                 "params": "[<setting> [<value>]]"
+            },
+            "cost": {
+                "aliases": ["tokens", "usage"],
+                "function": self._cost,
+                "description": "Show token usage for current and total session"
             },
             "export": {
                 "function": self._export,
@@ -275,7 +280,7 @@ class ChatSession:
             i = i + 1
 
     # noinspection PyUnusedLocal
-    def _bye(self, params: list[str]):
+    def _exit(self, params: list[str]):
         """- Ends chat session"""
         self._finished = True
 
@@ -383,6 +388,15 @@ class ChatSession:
 
         # Too many parameters
         self._console.print("Usage: /display [<setting> [<value>]]", style="bold red")
+
+    # noinspection PyUnusedLocal
+    def _cost(self, params: list[str]):
+        """- Show token usage"""
+        total_usage = self._token_tracker.format_total_usage()
+        if total_usage is not None:
+            self._console.print(total_usage)
+        else:
+            self._console.print("  No tokens used in this session\n")
 
     def _export(self, params: list[str]):
         """<name> - Export chat history as <name>.md markdown file"""

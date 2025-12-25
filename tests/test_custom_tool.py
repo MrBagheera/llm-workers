@@ -18,6 +18,7 @@ def test_tool_logic(param1: int, param2: int) -> int:
     """Sum two parameters"""
     return param1 + param2
 
+_token_tracker = CompositeTokenUsageTracker()
 
 class TestStatements(unittest.TestCase):
 
@@ -28,7 +29,7 @@ class TestStatements(unittest.TestCase):
             local_tools={}
         )
         context = {"param1": "Meaning of life"}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual("Meaning of life is 42", result)
 
@@ -39,7 +40,7 @@ class TestStatements(unittest.TestCase):
             local_tools={}
         )
         context = {"param1": "Meaning of life"}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         self.assertEqual({"inner": "Meaning of life is 42"}, split_result_and_notifications(generator)[0])
 
     def test_simple_call(self):
@@ -49,7 +50,7 @@ class TestStatements(unittest.TestCase):
             local_tools={}
         )
         context = {"param1": 13}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         assert 42 == split_result_and_notifications(generator)[0]
 
     def test_simple_flow(self):
@@ -64,7 +65,7 @@ class TestStatements(unittest.TestCase):
             local_tools={}
         )
         context = {"param1": "Meaning of live"}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         assert "Meaning of live is 42" == split_result_and_notifications(generator)[0]
 
 class TestIfStatement(unittest.TestCase):
@@ -82,7 +83,7 @@ class TestIfStatement(unittest.TestCase):
             local_tools={}
         )
         context = {"flag": True}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         self.assertEqual("executed", split_result_and_notifications(generator)[0])
 
     def test_if_false_with_then_only_returns_none(self):
@@ -97,7 +98,7 @@ class TestIfStatement(unittest.TestCase):
             local_tools={}
         )
         context = {"flag": False}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         self.assertIsNone(split_result_and_notifications(generator)[0])
 
     def test_if_true_with_else(self):
@@ -114,7 +115,7 @@ class TestIfStatement(unittest.TestCase):
             local_tools={}
         )
         context = {"flag": True}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         self.assertEqual("then branch", split_result_and_notifications(generator)[0])
 
     def test_if_false_with_else(self):
@@ -131,7 +132,7 @@ class TestIfStatement(unittest.TestCase):
             local_tools={}
         )
         context = {"flag": False}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         self.assertEqual("else branch", split_result_and_notifications(generator)[0])
 
     def test_if_with_store_as(self):
@@ -150,7 +151,7 @@ class TestIfStatement(unittest.TestCase):
             local_tools={}
         )
         context = {"flag": True}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         self.assertEqual("Got: result_value", split_result_and_notifications(generator)[0])
 
     def test_if_truthiness_empty_string(self):
@@ -167,7 +168,7 @@ class TestIfStatement(unittest.TestCase):
             local_tools={}
         )
         context = {"value": ""}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         self.assertEqual("falsy", split_result_and_notifications(generator)[0])
 
     def test_if_truthiness_non_empty_string(self):
@@ -184,7 +185,7 @@ class TestIfStatement(unittest.TestCase):
             local_tools={}
         )
         context = {"value": "hello"}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         self.assertEqual("truthy", split_result_and_notifications(generator)[0])
 
     def test_if_truthiness_zero(self):
@@ -201,7 +202,7 @@ class TestIfStatement(unittest.TestCase):
             local_tools={}
         )
         context = {"value": 0}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         self.assertEqual("falsy", split_result_and_notifications(generator)[0])
 
     def test_if_truthiness_non_zero_number(self):
@@ -218,7 +219,7 @@ class TestIfStatement(unittest.TestCase):
             local_tools={}
         )
         context = {"value": 42}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         self.assertEqual("truthy", split_result_and_notifications(generator)[0])
 
     def test_if_truthiness_empty_list(self):
@@ -235,7 +236,7 @@ class TestIfStatement(unittest.TestCase):
             local_tools={}
         )
         context = {"value": []}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         self.assertEqual("falsy", split_result_and_notifications(generator)[0])
 
     def test_if_truthiness_non_empty_list(self):
@@ -252,7 +253,7 @@ class TestIfStatement(unittest.TestCase):
             local_tools={}
         )
         context = {"value": [1, 2, 3]}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         self.assertEqual("truthy", split_result_and_notifications(generator)[0])
 
     def test_if_with_boolean_expression(self):
@@ -269,11 +270,11 @@ class TestIfStatement(unittest.TestCase):
             local_tools={}
         )
         context = {"x": 7, "y": 8}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         self.assertEqual("condition met", split_result_and_notifications(generator)[0])
 
         context2 = {"x": 3, "y": 8}
-        generator2 = statement.yield_notifications_and_result(EvaluationContext(context2), token_tracker=None, config=None)
+        generator2 = statement.yield_notifications_and_result(EvaluationContext(context2), _token_tracker, config=None)
         self.assertEqual("condition not met", split_result_and_notifications(generator2)[0])
 
     def test_if_with_membership_test(self):
@@ -293,14 +294,14 @@ class TestIfStatement(unittest.TestCase):
             "movie_title": "Soul",
             "metacritic_stub_data": {"Soul": "83", "The Incredibles": "90"}
         }
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         self.assertEqual("83", split_result_and_notifications(generator)[0])
 
         context2 = {
             "movie_title": "Unknown Movie",
             "metacritic_stub_data": {"Soul": "83", "The Incredibles": "90"}
         }
-        generator2 = statement.yield_notifications_and_result(EvaluationContext(context2), token_tracker=None, config=None)
+        generator2 = statement.yield_notifications_and_result(EvaluationContext(context2), _token_tracker, config=None)
         self.assertEqual("not found", split_result_and_notifications(generator2)[0])
 
     def test_if_nested_statements(self):
@@ -321,15 +322,15 @@ class TestIfStatement(unittest.TestCase):
             local_tools={}
         )
         context1 = {"level1": True, "level2": True}
-        generator1 = statement.yield_notifications_and_result(EvaluationContext(context1), token_tracker=None, config=None)
+        generator1 = statement.yield_notifications_and_result(EvaluationContext(context1), _token_tracker, config=None)
         self.assertEqual("both true", split_result_and_notifications(generator1)[0])
 
         context2 = {"level1": True, "level2": False}
-        generator2 = statement.yield_notifications_and_result(EvaluationContext(context2), token_tracker=None, config=None)
+        generator2 = statement.yield_notifications_and_result(EvaluationContext(context2), _token_tracker, config=None)
         self.assertEqual("only level1 true", split_result_and_notifications(generator2)[0])
 
         context3 = {"level1": False, "level2": True}
-        generator3 = statement.yield_notifications_and_result(EvaluationContext(context3), token_tracker=None, config=None)
+        generator3 = statement.yield_notifications_and_result(EvaluationContext(context3), _token_tracker, config=None)
         self.assertEqual("level1 false", split_result_and_notifications(generator3)[0])
 
     def test_if_with_call_statement_in_branch(self):
@@ -349,11 +350,11 @@ class TestIfStatement(unittest.TestCase):
             local_tools={}
         )
         context = {"should_call": True, "value1": 13, "value2": 29}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         self.assertEqual(42, split_result_and_notifications(generator)[0])
 
         context2 = {"should_call": False, "value1": 13, "value2": 29}
-        generator2 = statement.yield_notifications_and_result(EvaluationContext(context2), token_tracker=None, config=None)
+        generator2 = statement.yield_notifications_and_result(EvaluationContext(context2), _token_tracker, config=None)
         self.assertEqual("skipped", split_result_and_notifications(generator2)[0])
 
     def test_if_with_flow_in_branch(self):
@@ -374,11 +375,11 @@ class TestIfStatement(unittest.TestCase):
             local_tools={}
         )
         context = {"execute_flow": True, "base": 5}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         self.assertEqual(15, split_result_and_notifications(generator)[0])
 
         context2 = {"execute_flow": False, "base": 5}
-        generator2 = statement.yield_notifications_and_result(EvaluationContext(context2), token_tracker=None, config=None)
+        generator2 = statement.yield_notifications_and_result(EvaluationContext(context2), _token_tracker, config=None)
         self.assertEqual("flow skipped", split_result_and_notifications(generator2)[0])
 
 
@@ -434,7 +435,7 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
         context = {
             "data": {"json_schema": "schema_value", "other": "other_value"}
         }
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual(result, "schema_value")
 
@@ -442,7 +443,7 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
         context1 = {
             "data": {"other": "other_value"}
         }
-        generator1 = statement.yield_notifications_and_result(EvaluationContext(context1), token_tracker=None, config=None)
+        generator1 = statement.yield_notifications_and_result(EvaluationContext(context1), _token_tracker, config=None)
         result = split_result_and_notifications(generator1)[0]
         self.assertEqual(result, "default_value")
 
@@ -461,7 +462,7 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
             "key_name": "target_key",
             "data": {"target_key": "found_value", "other": "other_value"}
         }
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual(result, "found_value")
 
@@ -482,7 +483,7 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
             "items": ["first", "second", "third"],
             "index": 1
         }
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual(result, "second")
 
@@ -491,7 +492,7 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
             "items": ["first", "second"],
             "index": 5
         }
-        generator1 = statement.yield_notifications_and_result(EvaluationContext(context1), token_tracker=None, config=None)
+        generator1 = statement.yield_notifications_and_result(EvaluationContext(context1), _token_tracker, config=None)
         result = split_result_and_notifications(generator1)[0]
         self.assertEqual(result, "out_of_bounds")
 
@@ -507,7 +508,7 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
             local_tools={}
         )
         context = {"items": ["a", "b", "c"]}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual(result, "b")
 
@@ -527,7 +528,7 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
         context = {
             "data": {"level1": {"level2": "found"}}
         }
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual(result, "found")
 
@@ -535,7 +536,7 @@ class TestEvalStatementMigrationPatterns(unittest.TestCase):
         context1 = {
             "data": {"level1": {}}
         }
-        generator1 = statement.yield_notifications_and_result(EvaluationContext(context1), token_tracker=None, config=None)
+        generator1 = statement.yield_notifications_and_result(EvaluationContext(context1), _token_tracker, config=None)
         result = split_result_and_notifications(generator1)[0]
         self.assertEqual(result, "N/A")
 
@@ -638,7 +639,7 @@ class TestStarlarkStatement(unittest.TestCase):
             local_tools={}
         )
         context = {}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual(3, result)
 
@@ -653,7 +654,7 @@ def run():
             local_tools={}
         )
         context = {}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual(3, result)
 
@@ -665,7 +666,7 @@ def run():
             local_tools={}
         )
         context = {"x": 10, "y": 20}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual(30, result)
 
@@ -677,7 +678,7 @@ def run():
             local_tools={"test_tool_logic": test_tool_logic}
         )
         context = {}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual(15, result)
 
@@ -692,7 +693,7 @@ result = test_tool_logic(param1=a, param2=20)
             local_tools={"test_tool_logic": test_tool_logic}
         )
         context = {}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual(35, result)  # 5 + 10 = 15, 15 + 20 = 35
 
@@ -709,7 +710,7 @@ else:
             local_tools={}
         )
         context = {"x": 15}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual("large", result)
 
@@ -726,7 +727,7 @@ result = total
             local_tools={}
         )
         context = {}
-        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual(15, result)
 
@@ -738,7 +739,7 @@ result = total
             local_tools={}
         )
         context_obj = EvaluationContext({})
-        generator = statement.yield_notifications_and_result(context_obj, token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(context_obj, _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual(42, result)
         self.assertEqual(42, context_obj.get("answer"))
@@ -762,6 +763,6 @@ result = total
         )
         parent_context = EvaluationContext({"parent_var": 100})
         child_context = EvaluationContext({"child_var": 23}, parent=parent_context)
-        generator = statement.yield_notifications_and_result(child_context, token_tracker=None, config=None)
+        generator = statement.yield_notifications_and_result(child_context, _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual(123, result)

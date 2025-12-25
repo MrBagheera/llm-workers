@@ -141,7 +141,7 @@ class CompositeTokenUsageTracker:
 
         if not hasattr(message, 'additional_kwargs'):
             message.additional_kwargs = {}
-        message.additional_kwargs['usage_metadata'] = usage_metadata
+        message.additional_kwargs['usage_metadata_per_model'] = usage_metadata
 
     def format_current_usage(self) -> str | None:
         """Format current session usage for display during conversation. Returns None if no tokens."""

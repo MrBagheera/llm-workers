@@ -189,7 +189,7 @@ class ExtendedRunnable(ABC, Generic[Output]):
     def yield_notifications_and_result(
             self,
             evaluation_context: EvaluationContext,
-            token_tracker: Optional[CompositeTokenUsageTracker],
+            token_tracker: CompositeTokenUsageTracker,
             config: Optional[RunnableConfig],
             **kwargs: Any
     ) -> Generator[WorkerNotification, None, Output]:
@@ -217,7 +217,7 @@ class ExtendedExecutionTool(BaseTool, ExtendedRunnable[Any], ABC):
             # for tools called via this method, we cannot pass context or token tracker - use defaults
             self.yield_notifications_and_result(
                 self.default_evaluation_context(),
-                token_tracker=None,
+                token_tracker=CompositeTokenUsageTracker(),
                 config=config,
                 **{'input': kwargs}
             )

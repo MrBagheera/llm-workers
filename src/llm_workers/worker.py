@@ -288,7 +288,7 @@ class Worker(Runnable[In, Out]):
                 yield response
                 continue
 
-            token_tracker = CompositeTokenUsageTracker()
+            token_tracker = kwargs.get('token_tracker', CompositeTokenUsageTracker())
             evaluation_context: EvaluationContext = kwargs.get('evaluation_context', self._context.evaluation_context)
             tool_output: Any = yield from call_tool(tool, args, evaluation_context, token_tracker, config, kwargs)
 
@@ -302,7 +302,9 @@ class Worker(Runnable[In, Out]):
             else:
                 content = tool_output if isinstance(tool_output, str) else json.dumps(tool_output)
                 tool_message = ToolMessage(content = content, tool_call_id = tool_call['id'], name = tool.name)
-            if not token_tracker.is_empty:
+
+            # if we used temporary token tracker, attach usage info to message
+            if 'token_tracker' not in kwargs and not token_tracker.is_empty:
                 token_tracker.attach_usage_to_message(tool_message)
 
             if tool.return_direct:

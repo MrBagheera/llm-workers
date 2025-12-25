@@ -116,7 +116,7 @@ class LLMTool(ExtendedExecutionTool):
     def yield_notifications_and_result(
         self,
         evaluation_context: EvaluationContext,
-        token_tracker: Optional[CompositeTokenUsageTracker],
+        token_tracker: CompositeTokenUsageTracker,
         config: Optional[RunnableConfig],
         **kwargs: Any
     ) -> Generator[WorkerNotification, None, Any]:
@@ -132,7 +132,7 @@ class LLMTool(ExtendedExecutionTool):
 
         result: List[BaseMessage] = list()
         for e in self._agent.stream_with_notifications(input=messages, config=config, stream=False,
-               **{**input.model_extra, 'evaluation_context': evaluation_context}):
+               **{**input.model_extra, 'evaluation_context': evaluation_context, 'token_tracker': token_tracker}):
             if isinstance(e, WorkerNotification):
                 yield e
             elif isinstance(e, ConfirmationRequest):
