@@ -6,6 +6,20 @@ nav_order: 90
 
 # Release notes
 
+## [1.0.0-rc5](https://github.com/MrBagheera/llm-workers/milestone/22?closed=1) (December 26, 2025)
+
+Core infrastructure improvements and model support expansion:
+- Completed basic agent harness implementation
+- Refactored tools importing for better extensibility
+- Fixed CLI functionality issues
+- Refactored statements set for cleaner architecture
+- Improved variable referencing system
+- Enhanced custom tool functionality with additional features
+- Reorganized script structure
+- Implemented comprehensive token usage tracking
+- Refreshed and expanded model support (including Google models)
+- Updated documentation
+
 ## [1.0.0-rc4](https://github.com/MrBagheera/llm-workers/milestone/21?closed=1) (December 5, 2025)
 
 UI polish and configuration improvements:
