@@ -4,21 +4,11 @@ title: Overview
 nav_order: 1
 ---
 
-# LLM Workers
-
-Simple library and command-line tools for experimenting with LLMs.
-
-## Key docs
-
-- [LLM Script format](llm-script.md)
-- [Example scripts](examples.md)
-
 ## Table of contents
 {: .no_toc }
 
 * TOC
 {:toc}
-
 
 # Project Overview
 

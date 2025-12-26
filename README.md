@@ -18,7 +18,7 @@ Table of Contents
 
 Simple library and command-line tools for experimenting with LLMs.
 
-See [docs/index.md](docs/index.md) for more detailed documentation.
+See [docs/index.md](https://mrbagheera.github.io/llm-workers/) for more detailed documentation.
 
 # Releases
 
