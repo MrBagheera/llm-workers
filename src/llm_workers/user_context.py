@@ -115,10 +115,11 @@ class StandardUserContext(UserContext):
         print("1. OpenAI (GPT-5 models, requires verified organization)")
         print("2. OpenAI Old (GPT-4o, o3 models)")
         print("3. Anthropic (Claude models)")
-        print("4. Custom configuration")
+        print("4. Google (Gemini models)")
+        print("5. Custom configuration")
 
         while True:
-            choice = input("\nEnter your choice (1-3): ").strip()
+            choice = input("\nEnter your choice (1-5): ").strip()
 
             if choice == "1":
                 cls._copy_default_models(config_path, "openai")
@@ -130,10 +131,13 @@ class StandardUserContext(UserContext):
                 cls._copy_default_models(config_path, "anthropic")
                 break
             elif choice == "4":
+                cls._copy_default_models(config_path, "google")
+                break
+            elif choice == "5":
                 cls._show_custom_example(config_path)
                 sys.exit(254)  # Exit to let user edit config
             else:
-                print("Invalid choice. Please enter 1, 2, or 3.")
+                print("Invalid choice. Please enter 1, 2, 3, 4, or 5.")
 
     @classmethod
     def _copy_default_models(cls, config_path: Path, provider: str):

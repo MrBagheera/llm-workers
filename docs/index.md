@@ -58,8 +58,9 @@ display_settings:
 ```
 
 On first launch, `llm-workers` CLI will guide you through initial setup. You can choose from:
-- **OpenAI presets**: Configure OpenAI models for the standard model slots
-- **Anthropic presets**: Configure Claude models for the standard model slots
+- **OpenAI presets**: Configure OpenAI GPT models for the standard model slots
+- **Anthropic preset**: Configure Claude models for the standard model slots
+- **Google preset**: Configure Google Gemini models for the standard model slots
 - **Manual configuration**: Set up custom model configurations
 
 ### Models Section
