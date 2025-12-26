@@ -1,3 +1,15 @@
+---
+layout: default
+title: LLM Script
+nav_order: 2
+---
+
+## Table of contents
+{: .no_toc }
+
+* TOC
+{:toc}
+
 LLM scripts are YAML configuration files that define how to interact with large language models (LLMs) and what 
 tools LLMs can use. You should treat them like a normal scripts. In particular - DO NOT run LLM scripts from
 unknown / untrusted sources. Scripts can easily download and run malicious code on your machine, or submit your secrets 
@@ -5,53 +17,6 @@ to some web site.
 
 For real examples, see [generic-assistant.yaml](src/llm_workers/generic-assistant.yaml)
 and files in [`examples`](examples/) directory.
-
-
-Table of Contents
-=================
-<!--ts-->
-* [Basic Structure](#basic-structure)
-   * [Environment Variables Section](#environment-variables-section)
-   * [MCP Servers Section](#mcp-servers-section)
-   * [Tools Section](#tools-section)
-      * [Common Tool Parameters](#common-tool-parameters)
-   * [Shared Section](#shared-section)
-   * [Chat Section](#chat-section)
-   * [CLI Section](#cli-section)
-* [Using Tools](#using-tools)
-   * [Importing Tools](#importing-tools)
-   * [Built-in Tools](#built-in-tools)
-      * [Web Fetching Tools](#web-fetching-tools)
-         * [fetch_content](#fetch_content)
-         * [fetch_page_markdown](#fetch_page_markdown)
-         * [fetch_page_text](#fetch_page_text)
-         * [fetch_page_links](#fetch_page_links)
-      * [LLM Tool](#llm-tool)
-         * [build_llm_tool](#build_llm_tool)
-      * [File and System Tools](#file-and-system-tools)
-         * [read_file](#read_file)
-         * [write_file](#write_file)
-         * [run_python_script](#run_python_script)
-         * [show_file](#show_file)
-         * [bash](#bash)
-         * [list_files](#list_files)
-         * [run_process](#run_process)
-      * [Miscellaneous Tools](#miscellaneous-tools)
-         * [user_input](#user_input)
-         * [request_approval](#request_approval)
-         * [validate_approval](#validate_approval)
-         * [consume_approval](#consume_approval)
-* [Defining Custom Tools](#defining-custom-tools)
-   * [call Statement](#call-statement)
-   * [eval Statement](#eval-statement)
-   * [match Statement](#match-statement)
-   * [Composing Statements](#composing-statements)
-   * [Template Variables](#template-variables)
-
-<!-- Created by https://github.com/ekalinin/github-markdown-toc -->
-<!-- Added by: dmikhaylov, at: Fri Sep 19 11:19:35 EEST 2025 -->
-
-<!--te-->
 
 # Basic Structure
 
@@ -299,8 +264,8 @@ mcp:
 **Key Features:**
 - The `${env.VAR_NAME}` references are replaced with actual environment variable values at runtime
 - Works in both `args` (list of arguments) and `env` (environment variables for the server process)
-- Supports embedded substitutions: `"prefix_${env.VAR}_suffix"` → `"prefix_value_suffix"`
-- Can use multiple variables in one string: `"${env.VAR1}_and_${env.VAR2}"`
+- Supports embedded substitutions: "prefix_${env.VAR}_suffix" → "prefix_value_suffix"
+- Can use multiple variables in one string: "${env.VAR1}_and_${env.VAR2}"
 
 ### Tool Naming and Import Control
 
@@ -323,7 +288,7 @@ mcp:
     transport: "stdio"
     command: "npx"
     args: ["-y", "@modelcontextprotocol/server-github"]
-    auto_import_scope: none  # Manual import required
+    auto_import_scope: none  # Must import manually
 
 chat:
   tools:
@@ -499,7 +464,7 @@ shared:
 ```
 
 In addition to defining tools in the `shared.tools` section, you can define tools inline within `call` statements and within
-the `tools` configuration of LLMs. This provides flexibility for single-use tools or when you need to customize
+the `tools` configuration of LMs. This provides flexibility for single-use tools or when you need to customize
 tool behavior for specific calls. See relevant sections below.
 
 ### Common Tool Parameters
@@ -1352,7 +1317,7 @@ tools:
           approval_token: {approval_token}
 ```
 
-This pattern allows LLMs to request approval for potentially dangerous operations, ensuring users explicitly consent before execution while preventing token reuse.
+This pattern allows LMs to request approval for potentially dangerous operations, ensuring users explicitly consent before execution while preventing token reuse.
 
 
 # Defining Custom Tools
@@ -1431,10 +1396,11 @@ shared:
 ```
 
 **Important Changes:**
-As of recent versions, inline tool definitions in `call` statements are no longer supported. Tools must be defined in a `tools` section first:
-- For custom tools: Define local tools in the custom tool's `tools` field
-- For global access: Define tools in `shared.tools`
-- For chat/CLI: Define tools in `chat.tools` or `cli.tools`
+As of recent versions, inline tool definitions in `call` statements are no longer supported. Tools must be defined in a `tools` section (either in `shared.tools`, `chat.tools`, custom tool's `tools`, or CLI's `tools`) before they can be referenced by name in `call` statements.
+
+**For custom tools:** Define local tools in the custom tool's `tools` field
+**For global access:** Define tools in `shared.tools`
+**For chat/CLI:** Define tools in `chat.tools` or `cli.tools`
 
 This separation provides:
 - Clearer distinction between tool definition and tool usage
@@ -1692,4 +1658,3 @@ This would process input like:
 And return: `"User John has email john@example.com and first setting is dark_mode. Welcome to MyApp!"`
 
 **Important:** Note that shared variables are accessed directly (e.g., `${app}`, `${templates}`) without a `shared.` prefix. This is different from earlier versions where you needed to use `${shared.app}` or `${shared['app']}`.
-

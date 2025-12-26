@@ -1,0 +1,28 @@
+title: LLM Workers
+description: "Python library and CLI tools for experimenting with LLMs"
+
+# Use Just the Docs via GitHub Pages-supported remote theme
+remote_theme: just-the-docs/just-the-docs
+
+# Basic UX
+color_scheme: dark
+search_enabled: true
+
+# Keep URLs tidy
+permalink: pretty
+
+# Markdown engine
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter_opts:
+    block:
+      line_numbers: false
+
+# Top-right / aux links
+aux_links:
+  "GitHub": "https://github.com/MrBagheera/llm-workers"
+
+# Footer
+footer_content: "Copyright © 2025 Dmitry Mikhaylov."
+

@@ -3,23 +3,14 @@ Table of Contents
 
 <!--ts-->
 * [Project Overview](#project-overview)
-   * [Goals](#goals)
-   * [What This Project Is <em>Not</em>](#what-this-project-is-not)
-* [Configuration](#configuration)
-   * [User-specific Configuration](#user-specific-configuration)
-   * [LLM Scripts](#llm-scripts)
-* [Example scripts](#example-scripts)
-* [Running](#running)
 * [Releases](#releases)
-   * [Next](#next)
-   * [Version 0.1.0](#version-010)
-   * [Version 0.1.1](#version-011)
-   * [Further Ideas](#further-ideas)
+  * [Past Releases](#past-releases)
+  * [Version 1.0.0](#version-100)
+  * [Further Ideas](#further-ideas)
 * [Development](#development)
-   * [Packaging for release](#packaging-for-release)
+  * [Packaging for release](#packaging-for-release)
 
 <!-- Created by https://github.com/ekalinin/github-markdown-toc -->
-<!-- Added by: dmikhaylov, at: Mon Sep 29 22:48:05 EEST 2025 -->
 
 <!--te-->
 
@@ -27,25 +18,13 @@ Table of Contents
 
 Simple library and command-line tools for experimenting with LLMs.
 
-See [docs/README.md](docs/README.md) for more detailed documentation.
+See [docs/index.md](docs/index.md) for more detailed documentation.
 
 # Releases
 
-- [0.1.0-alpha5](https://github.com/MrBagheera/llm-workers/milestone/1)
-- [0.1.0-rc1](https://github.com/MrBagheera/llm-workers/milestone/3)
-- [0.1.0-rc2](https://github.com/MrBagheera/llm-workers/milestone/4)
-- [0.1.0-rc3](https://github.com/MrBagheera/llm-workers/milestone/5)
-- [0.1.0-rc4](https://github.com/MrBagheera/llm-workers/milestone/6)
-- [0.1.0-rc5](https://github.com/MrBagheera/llm-workers/milestone/8)
-- [0.1.0-rc6](https://github.com/MrBagheera/llm-workers/milestone/9)
-- [0.1.0-rc7](https://github.com/MrBagheera/llm-workers/milestone/10)
-- [0.1.0-rc8](https://github.com/MrBagheera/llm-workers/milestone/11)
-- [0.1.0-rc9](https://github.com/MrBagheera/llm-workers/milestone/12)
-- [0.1.0-rc10](https://github.com/MrBagheera/llm-workers/milestone/13)
-- [0.1.0-rc11](https://github.com/MrBagheera/llm-workers/milestone/14?closed=1)
-- [0.1.0-rc12](https://github.com/MrBagheera/llm-workers/milestone/15?closed=1)
-- [0.1.0-rc13](https://github.com/MrBagheera/llm-workers/milestone/16?closed=1)
-- [1.0.0-rc1](https://github.com/MrBagheera/llm-workers/milestone/17?closed=1)
+## Past Releases
+
+See [docs/release-notes.md](docs/release-notes.md) for detailed release notes.
 
 ## Version 1.0.0
 

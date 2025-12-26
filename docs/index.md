@@ -1,27 +1,24 @@
-Table of Contents
-=================
+---
+layout: default
+title: Overview
+nav_order: 1
+---
 
-<!--ts-->
-* [Project Overview](#project-overview)
-   * [Goals](#goals)
-   * [What This Project Is <em>Not</em>](#what-this-project-is-not)
-* [Configuration](#configuration)
-   * [User-specific Configuration](#user-specific-configuration)
-   * [LLM Scripts](#llm-scripts)
-* [Example scripts](#example-scripts)
-* [Running](#running)
-* [Releases](#releases)
-   * [Next](#next)
-   * [Version 0.1.0](#version-010)
-   * [Version 0.1.1](#version-011)
-   * [Further Ideas](#further-ideas)
-* [Development](#development)
-   * [Packaging for release](#packaging-for-release)
+# LLM Workers
 
-<!-- Created by https://github.com/ekalinin/github-markdown-toc -->
-<!-- Added by: dmikhaylov, at: Mon Sep 29 22:48:05 EEST 2025 -->
+Simple library and command-line tools for experimenting with LLMs.
 
-<!--te-->
+## Key docs
+
+- [LLM Script format](llm-script.md)
+- [Example scripts](examples.md)
+
+## Table of contents
+{: .no_toc }
+
+* TOC
+{:toc}
+
 
 # Project Overview
 
@@ -61,7 +58,7 @@ display_settings:
 ```
 
 On first launch, `llm-workers` CLI will guide you through initial setup. You can choose from:
-- **OpenAI presets**: Configure GPT-4o, GPT-4o-mini for the standard model slots
+- **OpenAI presets**: Configure OpenAI models for the standard model slots
 - **Anthropic presets**: Configure Claude models for the standard model slots
 - **Manual configuration**: Set up custom model configurations
 
@@ -189,11 +186,11 @@ tools LLMs can use. You should treat them like a normal scripts. In particular -
 unknown / untrusted sources. Scripts can easily download and run malicious code on your machine, or submit your secrets
 to some web site.
 
-See [LLM Script.md](LLM%20Script.md) file for reference.
+See [LLM Script](llm-script.md) file for reference.
 
 # Example scripts
 
-The [`examples`](examples/) directory contains sample LLM scripts demonstrating various features:
+The [examples](examples.md) page contains sample LLM scripts demonstrating various features:
 
 - **[Metacritic-monkey.yaml](examples/Metacritic-monkey.yaml)** - Custom tools with statement composition, web fetching tools, inline tool definitions, match statements with stubbed data, LLM tool integration, template variables, UI hints
 - **[explicit-approval-tools.yaml](examples/explicit-approval-tools.yaml)** - Explicit approval workflow with token-based confirmation system, custom tool composition with inline imports, approval tools (request/validate/consume), safe execution of potentially dangerous operations
@@ -253,108 +250,12 @@ https://github.com/MrBagheera/llm-workers/milestone/17
 - support accessing nested JSON elements in templates
 - structured output
 - async versions for all built-in tools
+- async versions for all built-in tools
 - "safe" versions of "unsafe" tools
 - write trail
 - resume trail
 - support acting as MCP server (expose `custom_tools`)
 - support acting as MCP host (use tools from configured MCP servers)
-
-## Past
-
-### **1.0.0-rc4** (Closed: 2025-12-05)
-*Misc UI fixes*
-- Allow `${env.}` substitution in environment variable descriptions
-- Misc UI fixes: markdown streaming and left-aligned markdown headers
-
-### **1.0.0-rc3** (Closed: 2025-12-05)
-- Fix broken nested tool invocation UI hints
-- Fix issue with tool registration in build_llm_tool
-- Use Claude Sonnet 4.5 by default
-- Fix parallel tool use (closed as not planned)
-
-### **1.0.0-rc2** (Closed: 2025-12-03)
-- Allow selecting which tool call args to print in UI hint for MCP tools
-- Fix markdown streaming
-
-### **1.0.0-rc1** (Closed: 2025-12-02)
-- `/new` command support (reset chat session and clear screen)
-- Better configuration for environment variables
-- Basic MCP (Model Context Protocol) support
-- Fix LLM tool to return plain output
-- Replace callbacks with notifications via astream
-
-### **0.1.0-rc13** (Closed: 2025-10-04)
-- Reduce colorfulness of chat
-- Pass token usage from LLM-backed tools
-- @-triggered file name completion (like in Claude Code)
-- Fix reasoning display for OpenAI models
-- Improve handling of missing values from .env files
-- Change confirmation to normal line input
-- Move UX-related switches to user config
-- Improve token usage and cost reporting
-- Improve commands support (aliases, aligned descriptions)
-- Add "Thinking..." prompt when issuing request to LLM
-
-### **0.1.0-rc12** (Closed: 2025-09-20)
-- Add `/export <name>` command to export chat history as markdown
-- Improve caching
-- Keep run Python script for audit
-
-### **0.1.0-rc11** (Closed: 2025-09-11)
-- Simple management of models (standard models: default, fast, thinking)
-
-### **0.1.0-rc10** (Closed: 2025-08-20)
-- Support inline tool- and model- config
-- Inline tool definition
-- Support resolving using dynamic keys
-
-### **0.1.0-rc9** (Closed: 2025-07-01)
-- Handle tools returning non-string results
-- Add to LLM tool support to filter result to only JSON
-
-### **0.1.0-rc8** (Closed: 2025-07-01)
-- Add experimental markdown output support to chat functionality
-
-### **0.1.0-rc7** (Closed: 2025-06-19)
-- Allow specifying system prompt as LLM tool parameter
-
-### **0.1.0-rc6** (Closed: 2025-06-19)
-- "shared" section in LLM scripts
-- Support references to nested elements in templates (e.g., `{dict[key]}`, `{list[index]}`)
-
-### **0.1.0-rc5** (Closed: 2025-06-11)
-- RunPythonScriptTool runs sub-process using default executable (bug fix)
-
-### **0.1.0-rc4** (Closed: 2025-06-11)
-- Support generic lists and dicts as parameter types
-- Support missing intermediate tool UI hints
-
-### **0.1.0-rc3** (Closed: 2025-06-11)
-- Add approval tools (RequestApprovalTool, ValidateApprovalTool, ConsumeApprovalTool)
-- Support showing nested tool executions
-- Support not showing UI hints (if set to empty string)
-- Single-key confirmations
-
-### **0.1.0-rc2** (Closed: 2025-06-10)
-- User Input tool
-- Optional welcome banner for user
-
-### **0.1.0-rc1** (Closed: 2025-05-30)
-- Support literal types for custom tools
-- Add throttling config for AWS Bedrock models
-- Fix caching
-- Change tool error handling
-- Support `ui_label`-s (renamed to `ui_hint`)
-- Reconsider logging
-- Write documentation
-
-### **0.1.0-alpha5** (Closed: 2025-03-26)
-- Simplify tool run confirmations
-- Do not remove tool calls for `return_direct` tools
-- Auto open new or updated files in current working directory
-- Support Claude 3.7 thinking mode via AWS Bedrock
-- Support loading YAML files from resources
-- Add support for env-specific configuration
 
 
 # Development
