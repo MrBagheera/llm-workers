@@ -1,0 +1,40 @@
+env:
+  GOOGLE_API_KEY:
+    description: "API key for Google Gemini models. Visit https://aistudio.google.com/app/apikey to get one."
+    persistent: true
+    secret: true
+
+models:
+  - name: fast
+    provider: google_genai
+    model: gemini-3-flash-preview
+    config:
+      temperature: 0
+      max_tokens: 65536
+    pricing:
+      currency: USD
+      input_tokens_per_million: 0.50
+      output_tokens_per_million: 3.00
+      cache_read_tokens_per_million: 0.05
+  - name: default
+    provider: google_genai
+    model: gemini-3-flash-preview
+    config:
+      temperature: 0
+      max_tokens: 65536
+    pricing:
+      currency: USD
+      input_tokens_per_million: 0.50
+      output_tokens_per_million: 3.00
+      cache_read_tokens_per_million: 0.05
+  - name: thinking
+    provider: google_genai
+    model: gemini-3-pro-preview
+    config:
+      temperature: 1
+      max_tokens: 65536
+    pricing:
+      currency: USD
+      input_tokens_per_million: 2.00
+      output_tokens_per_million: 12.00
+      cache_read_tokens_per_million: 0.20
