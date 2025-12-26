@@ -9,7 +9,7 @@ models:
     provider: openai
     model: o4-mini
     config:
-      temperature: 0
+      temperature: 1
       max_tokens: 16384
   - name: default
     provider: openai
