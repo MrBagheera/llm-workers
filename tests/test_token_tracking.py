@@ -361,11 +361,11 @@ class TestTokenTrackingWithTools(unittest.TestCase):
         self.composite_tracker.attach_usage_to_message(tool_message)
 
         # Verify the metadata was attached with per-model format
-        self.assertIn('usage_metadata', tool_message.additional_kwargs)
-        self.assertIn('test-model', tool_message.additional_kwargs['usage_metadata'])
-        self.assertEqual(tool_message.additional_kwargs['usage_metadata']['test-model']['total_tokens'], 50)
-        self.assertEqual(tool_message.additional_kwargs['usage_metadata']['test-model']['input_tokens'], 30)
-        self.assertEqual(tool_message.additional_kwargs['usage_metadata']['test-model']['output_tokens'], 20)
+        self.assertIn('usage_metadata_per_model', tool_message.additional_kwargs)
+        self.assertIn('test-model', tool_message.additional_kwargs['usage_metadata_per_model'])
+        self.assertEqual(tool_message.additional_kwargs['usage_metadata_per_model']['test-model']['total_tokens'], 50)
+        self.assertEqual(tool_message.additional_kwargs['usage_metadata_per_model']['test-model']['input_tokens'], 30)
+        self.assertEqual(tool_message.additional_kwargs['usage_metadata_per_model']['test-model']['output_tokens'], 20)
 
     def test_message_without_metadata(self):
         """Test that messages without metadata are handled gracefully."""

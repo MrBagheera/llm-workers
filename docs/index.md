@@ -76,6 +76,7 @@ There are two types of model configurations:
 - `provider`: Service provider (e.g., `bedrock`, `bedrock_converse`, `openai`)
 - `model`: Model identifier
 - `rate_limiter`: Optional rate limiting configuration
+- `pricing`: Optional cost estimation configuration (see [Cost Estimation](#cost-estimation) below)
 - `config`: Optional model-specific parameters (overrides main section parameters if used)
 
 ```yaml
@@ -89,6 +90,12 @@ models:
     # model specific parameters defined inline
     temperature: 0.7
     max_tokens: 1500
+    # optional pricing for cost estimation
+    pricing:
+      currency: USD
+      input_tokens_per_million: 2.50
+      output_tokens_per_million: 10.00
+      cache_read_tokens_per_million: 1.25
 
   - name: thinking
     provider: bedrock_converse
@@ -100,6 +107,12 @@ models:
         thinking:
           type: enabled
           budget_tokens: 16000
+    pricing:
+      currency: USD
+      input_tokens_per_million: 15.00
+      output_tokens_per_million: 75.00
+      cache_read_tokens_per_million: 1.50
+      cache_write_tokens_per_million: 18.75
 ```
 
 #### Import Model Configuration
@@ -164,6 +177,44 @@ When `show_token_usage` is enabled (`true`), the chat interface will:
 - Include input, output, reasoning tokens (when available), and cache usage
 
 When disabled (`false`), no token usage information is displayed.
+
+#### Cost Estimation
+
+Cost estimation provides automatic calculation of API costs based on token usage. To enable cost estimation, add a `pricing` section to your model configuration:
+
+```yaml
+models:
+  - name: default
+    provider: anthropic
+    model: claude-sonnet-4-5
+    pricing:
+      currency: USD
+      input_tokens_per_million: 3.00
+      output_tokens_per_million: 15.00
+      cache_read_tokens_per_million: 0.30
+      cache_write_tokens_per_million: 3.75
+```
+
+**Pricing fields:**
+- `currency`: Currency code (e.g., "USD", "EUR", "GBP") - default: "USD"
+- `input_tokens_per_million`: Cost per million input tokens (optional)
+- `output_tokens_per_million`: Cost per million output tokens (optional)
+- `cache_read_tokens_per_million`: Cost per million cache read tokens (optional)
+- `cache_write_tokens_per_million`: Cost per million cache write tokens (optional)
+
+**Notes:**
+- All pricing fields are optional - costs are only calculated for configured token types
+- Reasoning tokens are counted as output tokens (no separate pricing)
+- Cost display appears alongside token usage when using the `/cost` command or on exit
+- Models without pricing configuration will show token usage only
+
+**Example output with cost estimation:**
+```
+Total Session Tokens: 1,234 total
+  fast: 500 (200 in, 300 out) → $0.0018 USD
+  default: 734 (334 in, 400 out) → $0.0036 USD
+Total Session Cost: $0.0054 USD
+```
 
 #### Reasoning Display
 

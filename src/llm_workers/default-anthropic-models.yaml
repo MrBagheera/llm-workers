@@ -8,18 +8,39 @@ models:
   - name: fast
     provider: anthropic
     model: claude-haiku-4-5
-    temperature: 0
-    max_tokens: 32768
+    config:
+      temperature: 0
+      max_tokens: 32768
+    pricing:
+      currency: USD
+      input_tokens_per_million: 1.00
+      output_tokens_per_million: 5.00
+      cache_read_tokens_per_million: 0.10
+      cache_write_tokens_per_million: 1.25
   - name: default
     provider: anthropic
     model: claude-sonnet-4-5
-    temperature: 0
-    max_tokens: 32768
+    config:
+      temperature: 0
+      max_tokens: 32768
+    pricing:
+      currency: USD
+      input_tokens_per_million: 3.00
+      output_tokens_per_million: 15.00
+      cache_read_tokens_per_million: 0.30
+      cache_write_tokens_per_million: 3.75
   - name: thinking
     provider: anthropic
     model: claude-opus-4-5
-    temperature: 1
-    max_tokens: 32768
-    thinking:
-      type: enabled
-      budget_tokens: 16000
+    config:
+      temperature: 1
+      max_tokens: 32768
+      thinking:
+        type: enabled
+        budget_tokens: 16000
+    pricing:
+      currency: USD
+      input_tokens_per_million: 3.00
+      output_tokens_per_million: 15.00
+      cache_read_tokens_per_million: 0.30
+      cache_write_tokens_per_million: 3.75

@@ -1,7 +1,10 @@
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
 
 from langchain_core.messages import BaseMessage
+
+if TYPE_CHECKING:
+    from llm_workers.config import ModelDefinition, PricingConfig
 
 
 def _extract_usage_metadata_from_message(message: BaseMessage, default_model_name: str) -> Dict[str, Dict[str, Any]] | None:
@@ -98,12 +101,19 @@ class CompositeTokenUsageTracker:
     - Current usage (all models combined) - reset by each call to format_current_usage
     """
 
-    def __init__(self):
+    def __init__(self, models: Optional[List['ModelDefinition']] = None):
         # Total usage (lifetime): per-model tracking, never reset
         self._total_per_model: Dict[str, SimpleTokenUsageTracker] = {}
 
         # Current usage (session): all models combined, reset by rewind
         self._current = SimpleTokenUsageTracker()
+
+        # Cache pricing config from models (to avoid repeated dict building at call sites)
+        self._model_pricing: Dict[str, 'PricingConfig'] = {}
+        if models:
+            for model_def in models:
+                if model_def.pricing is not None:
+                    self._model_pricing[model_def.name] = model_def.pricing
 
     def update_from_message(self, message: BaseMessage, model_name: str) -> None:
         """Update both total (per-model) and current (session) usage from BaseMessage metadata."""
@@ -160,6 +170,14 @@ class CompositeTokenUsageTracker:
 
         lines = [f"Total Session Tokens: {total_tokens:,} total"]
 
+        # Import cost calculation functions here to avoid circular dependency
+        from llm_workers.cost_calculation import calculate_cost, format_cost, ModelCost
+
+        # Track total session cost for summary line
+        total_session_cost = 0.0
+        session_currency = None
+        has_any_pricing = False
+
         # Show per-model breakdown of total usage
         for model_name, tracker in sorted(self._total_per_model.items()):
             if tracker.total_tokens > 0:
@@ -172,7 +190,30 @@ class CompositeTokenUsageTracker:
                 if tracker.cache_read_tokens > 0:
                     model_line += f" | Cache: {tracker.cache_read_tokens:,}"
 
+                # Calculate and append cost if pricing available
+                if model_name in self._model_pricing:
+                    pricing = self._model_pricing[model_name]
+                    cost = calculate_cost(tracker, pricing)
+                    if cost is not None:
+                        has_any_pricing = True
+                        model_line += f" → {format_cost(cost)}"
+                        total_session_cost += cost.total_cost
+                        if session_currency is None:
+                            session_currency = cost.currency
+                        elif session_currency != cost.currency:
+                            # Mixed currencies - mark as such
+                            session_currency = "MIXED"
+
                 lines.append(model_line)
+
+        # Add total session cost line if we have pricing for any models
+        if has_any_pricing and session_currency and session_currency != "MIXED":
+            total_cost_obj = ModelCost(
+                currency=session_currency,
+                total_cost=total_session_cost,
+                breakdown={}
+            )
+            lines.append(f"Total Session Cost: {format_cost(total_cost_obj)}")
 
         return '\n'.join(lines)
 

@@ -8,19 +8,37 @@ models:
   - name: fast
     provider: openai
     model: gpt-5-mini
-    temperature: 0
-    max_tokens: 16384
+    config:
+      temperature: 0
+      max_tokens: 16384
+    pricing:
+      currency: USD
+      input_tokens_per_million: 0.250
+      output_tokens_per_million: 2.00
+      cache_read_tokens_per_million: 0.025
   - name: default
     provider: openai
-    model: gpt-5
-    temperature: 0
-    max_tokens: 16384
+    model: gpt-5.2
+    config:
+      temperature: 0
+      max_tokens: 16384
+    pricing:
+      currency: USD
+      input_tokens_per_million: 1.750
+      output_tokens_per_million: 14.00
+      cache_read_tokens_per_million: 0.175
   - name: thinking
     provider: openai
-    model: gpt-5
-    temperature: 0
-    max_tokens: 32768
-    reasoning:
-      effort: medium
-      summary: detailed
-    output_version: "responses/v1"
+    model: gpt-5.2
+    config:
+      temperature: 0
+      max_tokens: 32768
+      reasoning:
+        effort: medium
+        summary: detailed
+      output_version: "responses/v1"
+    pricing:
+      currency: USD
+      input_tokens_per_million: 1.750
+      output_tokens_per_million: 14.00
+      cache_read_tokens_per_million: 0.175

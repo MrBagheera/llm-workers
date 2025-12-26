@@ -99,11 +99,21 @@ class RateLimiterConfig(BaseModel):
     check_every_n_seconds: float = 0.1
     max_bucket_size: float
 
+class PricingConfig(BaseModel):
+    """Pricing configuration for cost estimation based on token usage."""
+    model_config = ConfigDict(extra='forbid')
+    currency: str = "USD"
+    input_tokens_per_million: Optional[float] = None
+    output_tokens_per_million: Optional[float] = None
+    cache_read_tokens_per_million: Optional[float] = None
+    cache_write_tokens_per_million: Optional[float] = None
+
 class ModelDefinition(BaseModel, ABC):
     model_config = ConfigDict(extra='forbid')
     name: str
     config: Optional[JsonExpression[dict]] = None
     rate_limiter: Optional[RateLimiterConfig] = None
+    pricing: Optional[PricingConfig] = None
 
 class StandardModelDefinition(ModelDefinition):
     provider: str

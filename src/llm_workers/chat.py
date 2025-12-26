@@ -115,7 +115,6 @@ class ChatSession:
         self._completer = ChatCompleter(self.commands_config)
         self._finished = False
         self._pre_input = ""
-        self._token_tracker = CompositeTokenUsageTracker()
 
     @staticmethod
     def run(console: Console, script_file: str, user_context: UserContext) -> CompositeTokenUsageTracker:
@@ -131,6 +130,7 @@ class ChatSession:
         return chat_session._token_tracker
 
     def _run_chat_loop(self, script_file: str, user_context: UserContext, workers_context: StandardWorkersContext):
+        self._token_tracker = CompositeTokenUsageTracker(user_context.models)
         self._chat_context = _ChatSessionContext(script_file, user_context, workers_context)
         self._console_controller = ConsoleController(self._console, self._display_settings)
         # Display user banner if configured

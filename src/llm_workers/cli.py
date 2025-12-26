@@ -53,16 +53,16 @@ def run_llm_script(
         else:
             inputs.append(arg)
 
-    token_tracker: CompositeTokenUsageTracker = context.run(_run, cli, context, inputs)
+    token_tracker: CompositeTokenUsageTracker = context.run(_run, cli, context, user_context, inputs)
     if not token_tracker.is_empty:
         print(token_tracker.format_total_usage(), file=sys.stderr)
 
-def _run(cli: CliConfig, context: StandardWorkersContext, inputs: list[str]):
+def _run(cli: CliConfig, context: StandardWorkersContext, user_context: UserContext, inputs: list[str]):
     tools = context.get_tools('cli', cli.tools)
     local_tools = {tool.name: tool for tool in tools}
     worker: ExtendedRunnable[Any] = create_statement_from_model(cli.do, context, local_tools)
     evaluation_context = context.evaluation_context
-    token_tracker = CompositeTokenUsageTracker()
+    token_tracker = CompositeTokenUsageTracker(user_context.models)
     for input in inputs:
         evaluation_context = EvaluationContext({'input': input}, parent=evaluation_context)
         result, _ = split_result_and_notifications(worker.yield_notifications_and_result(
