@@ -28,6 +28,40 @@ Provide developers with a simple way to experiment with LLMs and LangChain:
 - **Not a complete automation system**: It relies on human oversight and guidance for optimal performance.
 
 
+# Running
+
+Library comes with two command-line tools that can be used to run LLM scripts: `llm-workers-cli` and `llm-workers-chat`.
+
+To run LLM script with default prompt:
+```shell
+llm-workers-cli [--verbose] [--debug] <script_file>
+```
+
+To run LLM script with prompt(s) as command-line arguments:
+```shell
+llm-workers-cli [--verbose] [--debug] <script_file> [<prompt1> ... <promptN>]
+```
+
+To run LLM script with prompt(s) read from `stdin`, each line as separate prompt:
+```shell
+llm-workers-cli [--verbose] [--debug] <script_file> -
+```
+
+Results of LLM script execution will be printed to the `stdout` without any
+extra formatting.
+
+To chat with LLM script:
+```shell
+llm-workers-chat [--verbose] [--debug] <script_file>
+```
+The tool provides terminal chat interface where user can interact with LLM script.
+
+Common flags:
+- `--verbose` - increases verbosity of stderr logging, can be used multiple times (info / debug)
+- `--debug` - increases amount of debug logging to file/stderr, can be used multiple times (debug only main worker /
+  debug whole `llm_workers` package / debug all)
+
+
 # Configuration
 
 ## User-specific Configuration
@@ -87,23 +121,6 @@ models:
       input_tokens_per_million: 2.50
       output_tokens_per_million: 10.00
       cache_read_tokens_per_million: 1.25
-
-  - name: thinking
-    provider: bedrock_converse
-    model: us.anthropic.claude-3-7-sonnet-20250219-v1:0
-    config: # model specific parameters defined in separate section
-      temperature: 1
-      max_tokens: 32768
-      additional_model_request_fields:
-        thinking:
-          type: enabled
-          budget_tokens: 16000
-    pricing:
-      currency: USD
-      input_tokens_per_million: 15.00
-      output_tokens_per_million: 75.00
-      cache_read_tokens_per_million: 1.50
-      cache_write_tokens_per_million: 18.75
 ```
 
 #### Import Model Configuration
@@ -131,11 +148,9 @@ models:
       timeout: 30
 ```
 
-#### Model Parameters
+#### Model-specific Configuration
 
-Any extra parameters not defined above will be passed to the model. If model requires
-specific parameters that conflict with standard parameters, those specific parameters can be defined in the `config` section.
-In this case no parameters from main section will be passed to the model, only those defined in `config`.
+Any parameters from the `config` section will be passed to the model.
 
 ### Display Settings
 
@@ -239,71 +254,3 @@ The [examples](examples.md) page contains sample LLM scripts demonstrating vario
 - **[find-concurrency-bugs.yaml](examples/find-concurrency-bugs.yaml)** - CLI mode with statement composition, file reading tool, thinking model via model_ref, structured JSON output (by instruction)
 - **[navigation-planning.yaml](examples/navigation-planning.yaml)** - Web fetching tools with markdown conversion, nested custom tools, tool composition with return_direct flag, CLI mode with tool restrictions, chat mode configuration
 - **[reformat-Scala.yaml](examples/reformat-Scala.yaml)** - CLI mode with complex file processing pipeline, match statements with conditional file operations, file I/O tools, LLM tool integration for code transformation
-
-# Running
-
-Library comes with two command-line tools that can be used to run LLM scripts: `llm-workers-cli` and `llm-workers-chat`.
-
-To run LLM script with default prompt:
-```shell
-llm-workers-cli [--verbose] [--debug] <script_file>
-```
-
-To run LLM script with prompt(s) as command-line arguments:
-```shell
-llm-workers-cli [--verbose] [--debug] <script_file> [<prompt1> ... <promptN>]
-```
-
-To run LLM script with prompt(s) read from `stdin`, each line as separate prompt:
-```shell
-llm-workers-cli [--verbose] [--debug] <script_file> --
-```
-
-Results of LLM script execution will be printed to the `stdout` without any
-extra formatting. 
-
-To chat with LLM script:
-```shell
-llm-workers-chat [--verbose] [--debug] <script_file>
-```
-The tool provides terminal chat interface where user can interact with LLM script.
-
-Common flags:
-- `--verbose` - increases verbosity of stderr logging, can be used multiple times (info / debug)
-- `--debug` - increases amount of debug logging to file/stderr, can be used multiple times (debug only main worker / 
-debug whole `llm_workers` package / debug all)
-
-
-# Releases
-
-## Current
-
-- [1.0.0](https://github.com/MrBagheera/llm-workers/milestone/7)
-
-## Further Ideas
-
-https://github.com/MrBagheera/llm-workers/milestone/17
-
-- basic assistant functionality
-- simplify result referencing in chains - `{last_result}` and `store_as`
-- `prompts` section
-- `for_each` statement
-- run as MCP client
-- support accessing nested JSON elements in templates
-- structured output
-- async versions for all built-in tools
-- async versions for all built-in tools
-- "safe" versions of "unsafe" tools
-- write trail
-- resume trail
-- support acting as MCP server (expose `custom_tools`)
-- support acting as MCP host (use tools from configured MCP servers)
-
-
-# Development
-
-## Packaging for release
-
-- Bump up version in `pyproject.toml`
-- Run `poetry build`
-- Run `poetry publish` to publish to PyPI
