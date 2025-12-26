@@ -61,12 +61,14 @@ llm-workers-cli <script_file> --
 - **Workers Context** (`src/llm_workers/workers_context.py`): Manages script configuration, tool loading, and MCP server connections
 - **Configuration** (`src/llm_workers/config.py`): Defines the YAML configuration schema for LLM scripts and user settings
 - **Expressions** (`src/llm_workers/expressions.py`): Expression evaluation system for dynamic values in YAML scripts
+- **Starlark** (`src/llm_workers/starlark.py`): Starlark-like expression evaluation for advanced scripting
 - **Utils** (`src/llm_workers/utils.py`): General utility functions and helpers
 - **CLI** (`src/llm_workers/cli.py`): Command-line interface for batch processing
 - **Chat** (`src/llm_workers/chat.py`): Interactive chat interface
 - **Chat Completer** (`src/llm_workers/chat_completer.py`): Chat completion logic
 - **Console** (`src/llm_workers/console.py`): Console output formatting and display
 - **Token Tracking** (`src/llm_workers/token_tracking.py`): Token usage tracking and reporting
+- **Cost Calculation** (`src/llm_workers/cost_calculation.py`): Cost estimation for LLM API calls
 
 ### Tool System (`src/llm_workers/tools/`)
 
@@ -120,26 +122,39 @@ The system supports:
 
 ```
 llm-workers/
-├── src/llm_workers/          # Main source code
-│   ├── worker.py             # Core worker implementation
-│   ├── workers_context.py    # Script context management
-│   ├── user_context.py       # User configuration management
-│   ├── config.py             # Configuration schemas
-│   ├── expressions.py        # Expression evaluation
-│   ├── api.py                # Abstract interfaces
-│   ├── cli.py                # CLI tool
-│   ├── chat.py               # Interactive chat interface
-│   └── tools/                # Tool implementations
-│       ├── custom_tool.py    # Custom tool builder
-│       ├── fetch.py          # Web fetching tools
-│       ├── fs.py             # File system tools
-│       ├── llm_tool.py       # Nested LLM tools
-│       ├── misc.py           # Utility tools
-│       └── unsafe.py         # Confirmed-action tools
-├── tests/                    # Unit and integration tests
-├── docs/                     # Documentation
-│   ├── README.md             # Main documentation
-│   ├── LLM Script.md         # Script format documentation
-│   └── examples/             # Example scripts and configurations
-└── workspace/                # Working directory for testing
+├── src/llm_workers/               # Main source code
+│   ├── worker.py                  # Core worker implementation
+│   ├── worker_utils.py            # Worker utility functions
+│   ├── workers_context.py         # Script context management
+│   ├── user_context.py            # User configuration management
+│   ├── config.py                  # Configuration schemas
+│   ├── expressions.py             # Expression evaluation
+│   ├── starlark.py                # Starlark-like evaluation
+│   ├── api.py                     # Abstract interfaces
+│   ├── cli.py                     # CLI tool
+│   ├── chat.py                    # Interactive chat interface
+│   ├── chat_completer.py          # Chat completion logic
+│   ├── console.py                 # Console output
+│   ├── utils.py                   # General utilities
+│   ├── token_tracking.py          # Token usage tracking
+│   ├── cost_calculation.py        # Cost estimation
+│   ├── generic-assistant.yaml     # Generic assistant LLM script
+│   ├── default-anthropic-models.yaml   # Default Anthropic models configuration
+│   ├── default-openai-models.yaml      # Default OpenAI models configuration
+│   ├── default-openai-old-models.yaml  # Default OpenAI old (4-series) models configuration
+│   └── tools/                     # Tool implementations
+│       ├── custom_tool.py         # Custom tool builder
+│       ├── fetch.py               # Web fetching tools
+│       ├── fs.py                  # File system tools
+│       ├── llm_tool.py            # Nested LLM tools
+│       ├── misc.py                # Utility tools
+│       └── unsafe.py              # Confirmed-action tools
+├── tests/                         # Unit and integration tests
+├── docs/                          # Documentation
+│   ├── index.md                   # Main documentation
+│   ├── llm-script.md              # Script format documentation
+│   ├── examples.md                # Examples documentation
+│   ├── release-notes.md           # Release notes
+│   └── examples/                  # Example scripts and configurations
+└── workspace/                     # Working directory for local tests
 ```
