@@ -1,13 +1,10 @@
 import logging
-import re
-from copy import deepcopy, copy
-from typing import Type, Any, Optional, Dict, TypeAlias, List, Iterator, Union, Iterable, Generator
+from typing import Type, Any, Optional, Dict, TypeAlias, List, Generator
 
-from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import StructuredTool, BaseTool
+from langchain_core.tools import BaseTool
 from langchain_core.tools.base import ToolException
-from pydantic import BaseModel, Field, create_model, PrivateAttr
+from pydantic import BaseModel, Field, create_model
 
 from llm_workers.api import WorkersContext, WorkerNotification, ExtendedRunnable, ExtendedExecutionTool
 from llm_workers.config import Json, CustomToolParamsDefinition, \
@@ -226,6 +223,7 @@ class CustomTool(ExtendedExecutionTool):
     def default_evaluation_context(self) -> EvaluationContext:
         return self._default_evaluation_context
 
+    # noinspection PyMethodOverriding
     def yield_notifications_and_result(
         self,
         evaluation_context: EvaluationContext,
@@ -270,7 +268,7 @@ def create_dynamic_schema(name: str, params: List[CustomToolParamsDefinition]) -
     return create_model(model_name, **fields)
 
 
-def build_custom_tool(tool_def: CustomToolDefinition, context: WorkersContext) -> StructuredTool:
+def build_custom_tool(tool_def: CustomToolDefinition, context: WorkersContext) -> CustomTool:
     tools = context.get_tools(tool_def.name, tool_def.tools)
     local_tools = {tool.name: tool for tool in tools}
     body = create_statement_from_model(tool_def.do, context, local_tools)

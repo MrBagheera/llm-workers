@@ -1,51 +1,35 @@
 [project]
-name = "llm-workers"
-version = "1.0.0-rc5"
-description = "Simple library and command-line tools for experimenting with LLMs"
+name = "llm-workers-dev"
+version = "1.0.0-rc6"
+description = "Development meta-project for LLM Workers monorepo"
 authors = [
     {name = "Dmitry Mikhaylov", email = "mikhailov.dmitry@gmail.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
 dependencies = [
-    "pydantic~=2.10.5",
-    "python-dotenv~=1.0.1",
-    "beautifulsoup4~=4.12.3",
-    "PyYAML~=6.0.2",
-    "prompt-toolkit (==3.0.50)",
-    "html-text (>=0.7.0,<0.8.0)",
-    "notebook (>=7.3.2,<8.0.0)",
-    "rich (>=14.1.0,<15.0.0)",
-    "RestrictedPython (>=6.0)",
-    "langchain (>=1.0.0,<2.0.0)",
-    "langchain-core (>=1.0.0,<2.0.0)",
-    "langchain-community (>=0.4.0,<2.0.0)",
-    "langchain-openai (>=1.0.0,<2.0.0)",
-    "langchain-anthropic (>=1.0.0,<2.0.0)",
-    "langchain-google-genai (>=4.0.0,<5.0.0)",
-    "langchain-mcp-adapters (>=0.1.0,<0.2.0)",
-]
-
-[project.optional-dependencies]
-html2text = [
-    "html2text (>=2025.4.15)",
+    "llm-workers",
+    "llm-workers-console",
+    "llm-workers-tools",
 ]
 
 [project.urls]
-Homepage = "https://github.com/MrBagheera/llm-workers"
+Homepage = "https://mrbagheera.github.io/llm-workers/"
 Issues = "https://github.com/MrBagheera/llm-workers/issues"
-
-[project.scripts]
-llm-workers-chat = "llm_workers.chat:main"
-llm-workers-cli = "llm_workers.cli:main"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-packages = [{include = "llm_workers", from = "src"}]
+packages = []
+package-mode = false
+
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.14.9"
 echo-mcp-server-for-testing = ">=0.1.5,<0.2.0"
 
+[tool.poetry.dependencies]
+llm-workers = {path = "packages/llm-workers", develop = true}
+llm-workers-console = {path = "packages/llm-workers-console", develop = true}
+llm-workers-tools = {path = "packages/llm-workers-tools", develop = true}

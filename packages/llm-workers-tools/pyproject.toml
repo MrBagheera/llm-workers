@@ -1,0 +1,28 @@
+[project]
+name = "llm-workers-tools"
+version = "1.0.0-rc6"
+description = "Command-line tools for LLM Workers - llm-workers-cli and llm-workers-chat"
+authors = [
+    {name = "Dmitry Mikhaylov", email = "mikhailov.dmitry@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+    "llm-workers (>=1.0.0-rc6)",
+    "llm-workers-console (>=1.0.0-rc6)",
+]
+
+[project.scripts]
+llm-workers-chat = "llm_workers_tools.chat_main:main"
+llm-workers-cli = "llm_workers_tools.cli_main:main"
+
+[project.urls]
+Homepage = "https://mrbagheera.github.io/llm-workers/"
+Issues = "https://github.com/MrBagheera/llm-workers/issues"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [{include = "llm_workers_tools", from = "src"}]

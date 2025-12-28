@@ -1,4 +1,5 @@
-import argparse
+"""Interactive chat session for LLM scripts (library functions only, no main entry point)."""
+
 import sys
 from logging import getLogger
 from typing import Optional, Callable
@@ -11,17 +12,18 @@ from rich.markdown import Markdown
 from rich.syntax import Syntax
 
 from llm_workers.api import ConfirmationRequest, ConfirmationResponse, UserContext, WorkerNotification
-from llm_workers.chat_completer import ChatCompleter
+from llm_workers.cache import prepare_cache
 from llm_workers.chat_history import ChatHistory
-from llm_workers.console import ConsoleController
 from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.user_context import StandardUserContext
-from llm_workers.utils import setup_logging, LazyFormatter, FileChangeDetector, \
-    open_file_in_default_app, is_safe_to_open, prepare_cache
+from llm_workers.utils import LazyFormatter, FileChangeDetector, \
+    open_file_in_default_app, is_safe_to_open
 from llm_workers.worker import Worker
 from llm_workers.worker_utils import ensure_env_vars_defined, set_max_start_tool_msg_length
 from llm_workers.workers_context import StandardWorkersContext
+from llm_workers_console.chat_completer import ChatCompleter
+from llm_workers_console.console import ConsoleController
 
 logger = getLogger(__name__)
 
@@ -326,17 +328,17 @@ class ChatSession:
             self._console.print("Usage: /model <model_name>")
             self._console.print(f"Available models: {', '.join(self._available_models)}")
             return
-        
+
         model_name = params[0]
         if model_name not in self._available_models:
             self._console.print(f"Unknown model: {model_name}", style="bold red")
             self._console.print(f"Available models: {', '.join(self._available_models)}")
             return
-        
+
         if model_name == self._chat_context.worker.model_ref:
             self._console.print(f"Already using model: {model_name}",)
             return
-        
+
         try:
             # Use the Worker's model_ref setter to switch models
             self._chat_context.worker.model_ref = model_name
@@ -424,11 +426,11 @@ class ChatSession:
         if len(params) != 1:
             self._console.print("Usage: /export <filename>", style="bold red")
             return
-        
+
         filename = params[0]
         if not filename.endswith('.md'):
             filename += '.md'
-        
+
         try:
             markdown_content = self._generate_markdown_export()
             with open(filename, 'w', encoding='utf-8') as f:
@@ -463,30 +465,30 @@ class ChatSession:
         """Generate markdown content from chat history"""
         if not self._messages:
             return "# Chat History\n\nNo messages to export.\n"
-        
+
         markdown_lines = []
         current_iteration = 0
         last_ai_iteration = 0
-        
+
         for i, message in enumerate(self._messages):
             # Skip tool messages (tool call responses)
             if isinstance(message, ToolMessage):
                 continue
-                
+
             # Add separator between messages (except before the first message)
             if len(markdown_lines) > 1:
                 markdown_lines.append("---\n")
-            
+
             if isinstance(message, HumanMessage):
                 current_iteration += 1
                 markdown_lines.append(f"# User #{current_iteration}\n")
                 markdown_lines.append(f"{message.content}\n")
-                
+
             elif isinstance(message, AIMessage):
                 if current_iteration != last_ai_iteration:
                     markdown_lines.append(f"# Assistant #{current_iteration}\n")
                     last_ai_iteration = current_iteration
-                
+
                 # Add message text content
                 if message.content:
                     if isinstance(message.content, list):
@@ -681,43 +683,3 @@ def chat_with_llm_script(script_name: str, user_context: Optional[UserContext] =
         session_summary = tokens_counts.format_total_usage()
         if session_summary is not None:
             print(f"{session_summary}", file=sys.stderr)
-
-
-_default_script_file = "llm_workers:generic-assistant.yaml"
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Interactive chat interface for LLM scripts."
-    )
-    parser.add_argument('--verbose', action='count', default=0, help="Enable verbose output. Can be used multiple times to increase verbosity.")
-    parser.add_argument('--debug', action='count', default=0, help="Enable debug mode. Can be used multiple times to increase verbosity.")
-    parser.add_argument('--resume', action='store_true', help="Resume from last auto-saved session (uses `.last.chat.yaml`)")
-    parser.add_argument('script_file', type=str, nargs='?', help="Path to the script file. Generic assistant script will be used if omitted.", default=_default_script_file)
-    args = parser.parse_args()
-
-    log_file = setup_logging(debug_level = args.debug, verbosity = args.verbose, log_filename = "llm-workers.log")
-    print(f"Logging to {log_file}", file=sys.stderr)
-
-    if args.resume:
-        try:
-            filename = '.last.chat.yaml' if args.script_file == _default_script_file else args.script_file
-            chat_history = ChatHistory.load_from_yaml(filename)
-        except FileNotFoundError as e:
-            parser.error(f"Resume file {e.filename} not found")
-            # exits
-        except Exception as e:
-            logger.error(f"Failed to load resume file", exc_info=True)
-            parser.error(f"Failed to load resume file: {e}")
-            # exits
-
-        script_file = chat_history.script_name
-        history = chat_history.messages
-    else:
-        script_file = args.script_file
-        history = []
-
-    chat_with_llm_script(script_file, history=history)
-
-
-if __name__ == "__main__":
-    main()

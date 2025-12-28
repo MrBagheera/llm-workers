@@ -6,7 +6,6 @@ from copy import copy
 from pathlib import Path
 from typing import Dict
 
-import yaml
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 from langchain_core.rate_limiters import InMemoryRateLimiter

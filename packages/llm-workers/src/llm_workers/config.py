@@ -4,11 +4,10 @@ from abc import ABC
 from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict, Literal
 
 from langchain_core.prompts import PromptTemplate
-from pydantic import BaseModel, model_validator, PrivateAttr, ConfigDict, Field, Discriminator, Tag
+from pydantic import BaseModel, PrivateAttr, ConfigDict, Field, Discriminator, Tag
 from pydantic import ValidationError, WrapValidator
 from pydantic_core import PydanticCustomError
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler, ValidationInfo
-from typing_extensions import Self
 
 from llm_workers.expressions import StringExpression, JsonExpression
 

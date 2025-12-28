@@ -1,6 +1,6 @@
 import argparse
 
-from llm_workers.chat import chat_with_llm_script
+from llm_workers_console.chat import chat_with_llm_script
 from llm_workers.utils import setup_logging
 
 if __name__ == "__main__":

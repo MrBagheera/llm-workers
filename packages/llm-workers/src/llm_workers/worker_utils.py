@@ -1,7 +1,7 @@
 import logging
 import uuid
 from typing import Any, Generator
-from typing import List, Optional, Dict, Iterator
+from typing import List, Optional, Dict
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool

@@ -1,3 +1,5 @@
+"""Library functions for CLI batch processing (without main entry point)."""
+
 import argparse
 import json
 import sys
@@ -10,7 +12,6 @@ from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.tools.custom_tool import create_statement_from_model
 from llm_workers.user_context import StandardUserContext
-from llm_workers.utils import setup_logging
 from llm_workers.worker_utils import ensure_env_vars_defined, split_result_and_notifications
 from llm_workers.workers_context import StandardWorkersContext
 
@@ -58,7 +59,9 @@ def run_llm_script(
     if not token_tracker.is_empty:
         print(token_tracker.format_total_usage(), file=sys.stderr)
 
+
 def _run(cli: CliConfig, context: StandardWorkersContext, user_context: UserContext, inputs: list[str]):
+    """Execute worker for each input and return token tracker."""
     tools = context.get_tools('cli', cli.tools)
     local_tools = {tool.name: tool for tool in tools}
     worker: ExtendedRunnable[Any] = create_statement_from_model(cli.do, context, local_tools)
@@ -78,25 +81,3 @@ def _run(cli: CliConfig, context: StandardWorkersContext, user_context: UserCont
         print('\n')
         sys.stdout.flush()
     return token_tracker
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="CLI tool to run LLM scripts with prompts from command-line or stdin."
-    )
-    # Optional arguments
-    parser.add_argument('--verbose', action='count', default=0, help="Enable verbose output. Can be used multiple times to increase verbosity.")
-    parser.add_argument('--debug', action='count', default=0, help="Enable debug mode. Can be used multiple times to increase verbosity.")
-    # Positional argument for the script file
-    parser.add_argument('script_file', type=str, help="Path to the script file.")
-    # Optional arguments for prompts or stdin input
-    parser.add_argument('inputs', nargs='*', help="Inputs for the script (or use '-' to read from stdin).")
-    args = parser.parse_args()
-
-    setup_logging(debug_level = args.debug, verbosity = args.verbose, log_filename = "llm-workers.log")
-
-    run_llm_script(args.script_file, parser, args)
-
-
-if __name__ == "__main__":
-    main()
