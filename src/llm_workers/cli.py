@@ -4,12 +4,13 @@ import sys
 from typing import Any, Optional
 
 from llm_workers.api import UserContext, ExtendedRunnable
+from llm_workers.cache import prepare_cache
 from llm_workers.config import CliConfig
 from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.tools.custom_tool import create_statement_from_model
 from llm_workers.user_context import StandardUserContext
-from llm_workers.utils import setup_logging, prepare_cache
+from llm_workers.utils import setup_logging
 from llm_workers.worker_utils import ensure_env_vars_defined, split_result_and_notifications
 from llm_workers.workers_context import StandardWorkersContext
 

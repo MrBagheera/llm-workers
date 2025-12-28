@@ -11,7 +11,8 @@ from pydantic import BaseModel, Field
 
 from llm_workers.api import ConfirmationRequestToolCallDescription, ConfirmationRequestParam
 from llm_workers.api import ExtendedBaseTool
-from llm_workers.utils import LazyFormatter, open_file_in_default_app, is_safe_to_open, get_cache_filename
+from llm_workers.cache import get_cache_filename
+from llm_workers.utils import LazyFormatter, open_file_in_default_app, is_safe_to_open
 
 logger = logging.getLogger(__name__)
 
