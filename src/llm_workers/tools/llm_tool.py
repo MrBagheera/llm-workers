@@ -91,10 +91,10 @@ class LLMTool(ExtendedExecutionTool):
 
         # Extract text content
         if len(result) == 1:
-            text = str(result[0].text())
+            text = str(result[0].text)
         elif len(result) > 1:
             # return only AI message(s)
-            text = "\n".join([message.text() for message in result if isinstance(message, AIMessage)])
+            text = "\n".join([message.text for message in result if isinstance(message, AIMessage)])
         else:
             text = ""
 

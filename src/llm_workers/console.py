@@ -117,9 +117,9 @@ class ConsoleController:
         if confidential:
             self._console.print("[Message below is confidential, not shown to AI Assistant]", style="bold red")
         if self._display_settings.markdown_output:
-            self._console.print(Markdown(message.text()))
+            self._console.print(Markdown(message.text))
         else:
-            self._console.print(message.text())
+            self._console.print(message.text)
         if confidential:
             self._console.print("[Message above is confidential, not shown to AI Assistant]", style="bold red")
 
