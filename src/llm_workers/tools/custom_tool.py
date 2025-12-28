@@ -100,7 +100,8 @@ class FlowStatement(ExtendedRunnable[Json]):
             config: Optional[RunnableConfig],
             **kwargs: Any   # ignored
     ) -> Generator[WorkerNotification, None, Json]:
-        result = None
+        # if we are inside another FlowStatement, inherit its '_' variable
+        result = evaluation_context.get('_') # returns None if not defined
         for statement in self._statements:
             inner_context = EvaluationContext({"_": result}, parent=evaluation_context, mutable=False)
             result = yield from statement.yield_notifications_and_result(inner_context, token_tracker, config)
