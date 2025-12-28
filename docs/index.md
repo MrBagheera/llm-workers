@@ -32,9 +32,14 @@ Provide developers with a simple way to experiment with LLMs and LangChain:
 
 Library comes with two command-line tools that can be used to run LLM scripts: `llm-workers-cli` and `llm-workers-chat`.
 
-To run LLM script with default prompt:
+To chat using LLM script:
 ```shell
 llm-workers-cli [--verbose] [--debug] <script_file>
+```
+
+To resume previous chat session:
+```shell
+llm-workers-cli [--verbose] [--debug] --resume .last <script_file>
 ```
 
 To run LLM script with prompt(s) as command-line arguments:

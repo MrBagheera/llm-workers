@@ -12,6 +12,7 @@ from rich.syntax import Syntax
 
 from llm_workers.api import ConfirmationRequest, ConfirmationResponse, UserContext, WorkerNotification
 from llm_workers.chat_completer import ChatCompleter
+from llm_workers.chat_history import ChatHistory
 from llm_workers.console import ConsoleController
 from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
@@ -96,6 +97,11 @@ class ChatSession:
                 "function": self._clear_command,
                 "description": "Reset chat session and clear screen"
             },
+            "save": {
+                "function": self._save,
+                "description": "Save chat session to <name>.chat.yaml file",
+                "params": "<name>"
+            },
         }
 
         # Build commands dict for backward compatibility
@@ -117,7 +123,8 @@ class ChatSession:
         self._pre_input = ""
 
     @staticmethod
-    def run(console: Console, script_file: str, user_context: UserContext) -> CompositeTokenUsageTracker:
+    def run(console: Console, script_file: str, user_context: UserContext,
+            history: Optional[list[BaseMessage]] = None) -> CompositeTokenUsageTracker:
         """Runs chat session in async loop."""
         # Changing from sync to async API is WIP - it is forced on us because of MCP server.
         # So we start async loop here using calling thread,
@@ -126,20 +133,25 @@ class ChatSession:
         script = StandardWorkersContext.load_script(script_file)
         ensure_env_vars_defined(user_context.environment, script.env)
         workers_context = StandardWorkersContext(script, user_context)
-        workers_context.run(chat_session._run_chat_loop, script_file, user_context, workers_context)
+        workers_context.run(chat_session._run_chat_loop, script_file, user_context, workers_context, history or [])
         return chat_session._token_tracker
 
-    def _run_chat_loop(self, script_file: str, user_context: UserContext, workers_context: StandardWorkersContext):
+    def _run_chat_loop(self, script_file: str, user_context: UserContext, workers_context: StandardWorkersContext, history: list[BaseMessage]):
         self._token_tracker = CompositeTokenUsageTracker(user_context.models)
         self._chat_context = _ChatSessionContext(script_file, user_context, workers_context)
         self._console_controller = ConsoleController(self._console, self._display_settings)
+
         # Display user banner if configured
         if self._chat_config.user_banner is not None:
             self._console.print(Markdown(self._chat_config.user_banner))
             self._console.print()
 
-        if self._chat_config.default_prompt is not None:
-            self._pre_input = self._chat_config.default_prompt
+        # Load and replay session if resuming
+        if history:
+            self._replay_session(history)
+        else:
+            if self._chat_config.default_prompt is not None:
+                self._pre_input = self._chat_config.default_prompt
 
         session = PromptSession(history=self._history, completer=self._completer, style=self._completer.style)
         try:
@@ -282,6 +294,15 @@ class ChatSession:
     # noinspection PyUnusedLocal
     def _exit(self, params: list[str]):
         """- Ends chat session"""
+        # Auto-save to .last.chat.yaml if messages exist
+        if len(self._messages) > 0:
+            try:
+                filename = self._save_session_to_file('.last.chat.yaml')
+                logger.info(f"Auto-saved session to {filename}")
+            except Exception as e:
+                # Log but don't interrupt exit
+                logger.warning("Failed to auto-save session on exit", exc_info=True)
+
         self._finished = True
 
     # noinspection PyUnusedLocal
@@ -417,6 +438,27 @@ class ChatSession:
             self._console.print(f"Failed to export chat history: {e}", style="bold red")
             logger.warning(f"Failed to export chat history to {filename}", exc_info=True)
 
+    def _save(self, params: list[str]):
+        """<name> - Save chat session to <name>.chat.yaml file"""
+        if len(params) != 1:
+            self._console.print("Usage: /save <filename>", style="bold red")
+            return
+
+        filename = params[0]
+        if not filename.endswith('.chat.yaml'):
+            filename += '.chat.yaml'
+
+        if len(self._messages) == 0:
+            self._console.print("No messages to save", style="bold yellow")
+            return
+
+        try:
+            filename = self._save_session_to_file(filename)
+            self._console.print(f"Session saved to {filename}", style="bold green")
+        except Exception as e:
+            self._console.print(f"Failed to save session: {e}", style="bold red")
+            logger.warning(f"Failed to save session to {filename}", exc_info=True)
+
     def _generate_markdown_export(self) -> str:
         """Generate markdown content from chat history"""
         if not self._messages:
@@ -480,6 +522,47 @@ class ChatSession:
                         markdown_lines.append("\n")
 
         return "\n".join(markdown_lines)
+
+    def _save_session_to_file(self, filename: str) -> str:
+        """Save session to a YAML file."""
+        history = ChatHistory(script_name= self._chat_context.script_name, messages = self._messages)
+        return history.save_to_yaml(filename)
+
+    def _replay_messages(self, messages: list[BaseMessage]) -> int:
+        """Replay messages to console using existing display code, returns iteration to continue from."""
+        iteration = 0
+        last_human_message = False
+
+        for i, message in enumerate(messages):
+            # Skip ToolMessages in display
+            if isinstance(message, ToolMessage):
+                continue
+
+            if isinstance(message, HumanMessage):
+                # Display user input
+                if not last_human_message:
+                    iteration += 1
+                    last_human_message = True
+                    self._console.print()
+                    self._console.print(f"#{iteration} Your input:", style="bold green")
+                self._console.print(message.content)
+                self._console.print()
+
+            elif isinstance(message, AIMessage):
+                # Display AI response
+                if last_human_message:
+                    last_human_message = False
+                    self._console.print(f"#{iteration} Assistant:", style="bold green")
+
+                # reuse existing display logic
+                self._console_controller.process_model_message(message)
+
+        return iteration + 1
+
+    def _replay_session(self, history: list[BaseMessage]) -> None:
+        """Replays all messages to console."""
+        self._iteration = self._replay_messages(history)
+        self._messages = history.copy()
 
     def _process_notification(self, notification: WorkerNotification):
         """Process a WorkerNotification based on its type."""
@@ -571,13 +654,15 @@ class ChatSession:
             open_file_in_default_app(filename)
 
 
-def chat_with_llm_script(script_name: str, user_context: Optional[UserContext] = None):
+def chat_with_llm_script(script_name: str, user_context: Optional[UserContext] = None,
+                         history: Optional[list[BaseMessage]] = None):
     """
     Load LLM script and chat with it.
 
     Args:
         :param script_name: The name of the script to run. Can be either file name or `module_name:resource.yaml`.
         :param user_context: custom implementation of UserContext if needed, defaults to StandardUserContext
+        :param history: Optional message history to resume from.
     """
     if user_context is None:
         user_config = StandardUserContext.load_config()
@@ -589,7 +674,7 @@ def chat_with_llm_script(script_name: str, user_context: Optional[UserContext] =
 
     console = Console()
 
-    tokens_counts = ChatSession.run(console, script_name, user_context)
+    tokens_counts = ChatSession.run(console, script_name, user_context, history)
 
     # Print detailed per-model session token summary
     if user_context.user_config.display_settings.show_token_usage:
@@ -598,19 +683,40 @@ def chat_with_llm_script(script_name: str, user_context: Optional[UserContext] =
             print(f"{session_summary}", file=sys.stderr)
 
 
+_default_script_file = "llm_workers:generic-assistant.yaml"
+
 def main():
     parser = argparse.ArgumentParser(
-        description="CLI tool to run LLM scripts with prompts from command-line or stdin."
+        description="Interactive chat interface for LLM scripts."
     )
     parser.add_argument('--verbose', action='count', default=0, help="Enable verbose output. Can be used multiple times to increase verbosity.")
     parser.add_argument('--debug', action='count', default=0, help="Enable debug mode. Can be used multiple times to increase verbosity.")
-    parser.add_argument('script_file', type=str, nargs='?', help="Path to the script file. Generic assistant script will be used if omitted.", default="llm_workers:generic-assistant.yaml")
+    parser.add_argument('--resume', action='store_true', help="Resume from last auto-saved session (uses `.last.chat.yaml`)")
+    parser.add_argument('script_file', type=str, nargs='?', help="Path to the script file. Generic assistant script will be used if omitted.", default=_default_script_file)
     args = parser.parse_args()
 
     log_file = setup_logging(debug_level = args.debug, verbosity = args.verbose, log_filename = "llm-workers.log")
     print(f"Logging to {log_file}", file=sys.stderr)
 
-    chat_with_llm_script(args.script_file)
+    if args.resume:
+        try:
+            filename = '.last.chat.yaml' if args.script_file == _default_script_file else args.script_file
+            chat_history = ChatHistory.load_from_yaml(filename)
+        except FileNotFoundError as e:
+            parser.error(f"Resume file {e.filename} not found")
+            # exits
+        except Exception as e:
+            logger.error(f"Failed to load resume file", exc_info=True)
+            parser.error(f"Failed to load resume file: {e}")
+            # exits
+
+        script_file = chat_history.script_name
+        history = chat_history.messages
+    else:
+        script_file = args.script_file
+        history = []
+
+    chat_with_llm_script(script_file, history=history)
 
 
 if __name__ == "__main__":
