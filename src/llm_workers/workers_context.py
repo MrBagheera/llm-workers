@@ -6,7 +6,6 @@ from asyncio import AbstractEventLoop
 from copy import copy
 from typing import Dict, List, Optional, Callable, Any
 
-import yaml
 from langchain_core.tools import BaseTool
 from langchain_core.tools.base import BaseToolkit
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -17,7 +16,7 @@ from llm_workers.config import WorkersConfig, ImportToolStatement, ImportToolsSt
     ToolDefinition, CustomToolDefinition, ToolsDefinitionStatement, MCPServerStdio, MCPServerHttp, \
     ToolsDefinitionOrReference, ToolsReference
 from llm_workers.expressions import EvaluationContext
-from llm_workers.utils import matches_patterns
+from llm_workers.utils import matches_patterns, load_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -40,18 +39,7 @@ class StandardWorkersContext(WorkersContext):
     @classmethod
     def load_script(cls, name: str) -> WorkersConfig:
         logger.info(f"Loading {name}")
-        # if name has module:resource format, load it as a module
-        if ':' in name:
-            module, resource = name.split(':', 1)
-            if len(module) > 1: # ignore volume names on windows
-                # noinspection PyUnresolvedReferences
-                with importlib.resources.files(module).joinpath(resource).open("r") as file:
-                    config_data = yaml.safe_load(file)
-                return WorkersConfig(**config_data)
-        # try loading as file
-        with open(name, 'r') as file:
-            config_data = yaml.safe_load(file)
-        return WorkersConfig(**config_data)
+        return WorkersConfig(**(load_yaml(name)))
 
     @property
     def config(self) -> WorkersConfig:

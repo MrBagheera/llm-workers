@@ -1,8 +1,12 @@
+import json
+import os
+import tempfile
 import unittest
+from pathlib import Path
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from llm_workers.utils import format_as_yaml, parse_standard_type, _split_type_parameters, matches_patterns
+from llm_workers.utils import format_as_yaml, parse_standard_type, _split_type_parameters, matches_patterns, load_yaml
 from llm_workers.worker_utils import format_tool_args
 
 
@@ -278,6 +282,240 @@ class TestMatchesPatterns(unittest.TestCase):
         self.assertTrue(matches_patterns("Foo", ["Foo"]))
         self.assertFalse(matches_patterns("foo", ["Foo"]))
         self.assertFalse(matches_patterns("FOO", ["foo"]))
+
+
+class TestLoadYaml(unittest.TestCase):
+    """Tests for load_yaml function and SmartLoader with !include and !require tags."""
+
+    def setUp(self):
+        """Create a temporary directory for test files."""
+        self.temp_dir = tempfile.mkdtemp()
+        self.original_cwd = os.getcwd()
+        os.chdir(self.temp_dir)
+
+    def tearDown(self):
+        """Clean up temporary directory."""
+        os.chdir(self.original_cwd)
+        import shutil
+        shutil.rmtree(self.temp_dir)
+
+    def test_basic_yaml_loading(self):
+        """Test basic YAML file loading."""
+        yaml_path = os.path.join(self.temp_dir, "basic.yaml")
+        with open(yaml_path, 'w') as f:
+            f.write("name: test\nvalue: 42\nlist:\n  - item1\n  - item2\n")
+
+        result = load_yaml(yaml_path)
+        self.assertEqual(result['name'], 'test')
+        self.assertEqual(result['value'], 42)
+        self.assertEqual(result['list'], ['item1', 'item2'])
+
+    def test_include_yaml_file(self):
+        """Test !include with a YAML file."""
+        # Create included file
+        included_path = os.path.join(self.temp_dir, "included.yaml")
+        with open(included_path, 'w') as f:
+            f.write("included_key: included_value\n")
+
+        # Create main file
+        main_path = os.path.join(self.temp_dir, "main.yaml")
+        with open(main_path, 'w') as f:
+            f.write("main_key: main_value\nincluded: !include included.yaml\n")
+
+        result = load_yaml(main_path)
+        self.assertEqual(result['main_key'], 'main_value')
+        self.assertEqual(result['included']['included_key'], 'included_value')
+
+    def test_include_json_file(self):
+        """Test !include with a JSON file."""
+        # Create JSON file
+        json_path = os.path.join(self.temp_dir, "data.json")
+        with open(json_path, 'w') as f:
+            json.dump({"json_key": "json_value", "number": 123}, f)
+
+        # Create main file
+        main_path = os.path.join(self.temp_dir, "main.yaml")
+        with open(main_path, 'w') as f:
+            f.write("data: !include data.json\n")
+
+        result = load_yaml(main_path)
+        self.assertEqual(result['data']['json_key'], 'json_value')
+        self.assertEqual(result['data']['number'], 123)
+
+    def test_include_text_file(self):
+        """Test !include with a plain text file."""
+        # Create text file
+        text_path = os.path.join(self.temp_dir, "content.txt")
+        with open(text_path, 'w') as f:
+            f.write("This is plain text content.\nWith multiple lines.")
+
+        # Create main file
+        main_path = os.path.join(self.temp_dir, "main.yaml")
+        with open(main_path, 'w') as f:
+            f.write("text: !include content.txt\n")
+
+        result = load_yaml(main_path)
+        self.assertEqual(result['text'], "This is plain text content.\nWith multiple lines.")
+
+    def test_include_missing_file_returns_empty_string(self):
+        """Test !include with a missing file returns empty string."""
+        main_path = os.path.join(self.temp_dir, "main.yaml")
+        with open(main_path, 'w') as f:
+            f.write("content: !include missing.yaml\n")
+
+        result = load_yaml(main_path)
+        self.assertEqual(result['content'], "")
+
+    def test_require_yaml_file(self):
+        """Test !require with an existing YAML file."""
+        # Create required file
+        required_path = os.path.join(self.temp_dir, "required.yaml")
+        with open(required_path, 'w') as f:
+            f.write("required_key: required_value\n")
+
+        # Create main file
+        main_path = os.path.join(self.temp_dir, "main.yaml")
+        with open(main_path, 'w') as f:
+            f.write("data: !require required.yaml\n")
+
+        result = load_yaml(main_path)
+        self.assertEqual(result['data']['required_key'], 'required_value')
+
+    def test_require_missing_file_raises_error(self):
+        """Test !require with a missing file raises FileNotFoundError."""
+        main_path = os.path.join(self.temp_dir, "main.yaml")
+        with open(main_path, 'w') as f:
+            f.write("data: !require missing.yaml\n")
+
+        with self.assertRaises(FileNotFoundError):
+            load_yaml(main_path)
+
+    def test_nested_includes(self):
+        """Test nested !include (YAML file including another YAML file)."""
+        # Create nested file
+        nested_path = os.path.join(self.temp_dir, "nested.yaml")
+        with open(nested_path, 'w') as f:
+            f.write("nested_value: deep\n")
+
+        # Create middle file that includes nested
+        middle_path = os.path.join(self.temp_dir, "middle.yaml")
+        with open(middle_path, 'w') as f:
+            f.write("middle_value: medium\nnested: !include nested.yaml\n")
+
+        # Create main file
+        main_path = os.path.join(self.temp_dir, "main.yaml")
+        with open(main_path, 'w') as f:
+            f.write("main_value: top\nmiddle: !include middle.yaml\n")
+
+        result = load_yaml(main_path)
+        self.assertEqual(result['main_value'], 'top')
+        self.assertEqual(result['middle']['middle_value'], 'medium')
+        self.assertEqual(result['middle']['nested']['nested_value'], 'deep')
+
+    def test_path_relative_to_yaml_file(self):
+        """Test that paths are resolved relative to the YAML file directory."""
+        # Create a subdirectory
+        sub_dir = os.path.join(self.temp_dir, "subdir")
+        os.makedirs(sub_dir)
+
+        # Create included file in subdirectory
+        included_path = os.path.join(sub_dir, "included.yaml")
+        with open(included_path, 'w') as f:
+            f.write("sub_key: sub_value\n")
+
+        # Create main file also in subdirectory
+        main_path = os.path.join(sub_dir, "main.yaml")
+        with open(main_path, 'w') as f:
+            f.write("data: !include included.yaml\n")
+
+        result = load_yaml(main_path)
+        self.assertEqual(result['data']['sub_key'], 'sub_value')
+
+    def test_path_relative_to_current_directory(self):
+        """Test paths with ./ prefix are resolved relative to current directory."""
+        # Create file in temp directory
+        included_path = os.path.join(self.temp_dir, "included.yaml")
+        with open(included_path, 'w') as f:
+            f.write("cwd_key: cwd_value\n")
+
+        # Create subdirectory and main file in it
+        sub_dir = os.path.join(self.temp_dir, "subdir")
+        os.makedirs(sub_dir)
+        main_path = os.path.join(sub_dir, "main.yaml")
+        with open(main_path, 'w') as f:
+            f.write("data: !include ./included.yaml\n")
+
+        result = load_yaml(main_path)
+        self.assertEqual(result['data']['cwd_key'], 'cwd_value')
+
+    def test_parent_directory_escape_blocked(self):
+        """Test that .. in paths is blocked for security."""
+        # Create file in parent directory
+        parent_file = os.path.join(self.temp_dir, "parent.yaml")
+        with open(parent_file, 'w') as f:
+            f.write("parent_key: parent_value\n")
+
+        # Create subdirectory and main file
+        sub_dir = os.path.join(self.temp_dir, "subdir")
+        os.makedirs(sub_dir)
+        main_path = os.path.join(sub_dir, "main.yaml")
+        with open(main_path, 'w') as f:
+            f.write("data: !include ../parent.yaml\n")
+
+        # Should raise ValueError due to security check
+        with self.assertRaises(ValueError) as context:
+            load_yaml(main_path)
+        self.assertIn("cannot escape current directory", str(context.exception))
+
+    def test_multiple_includes(self):
+        """Test multiple !include tags in one file."""
+        # Create multiple included files
+        file1_path = os.path.join(self.temp_dir, "file1.yaml")
+        with open(file1_path, 'w') as f:
+            f.write("key1: value1\n")
+
+        file2_path = os.path.join(self.temp_dir, "file2.json")
+        with open(file2_path, 'w') as f:
+            json.dump({"key2": "value2"}, f)
+
+        file3_path = os.path.join(self.temp_dir, "file3.txt")
+        with open(file3_path, 'w') as f:
+            f.write("plain text")
+
+        # Create main file
+        main_path = os.path.join(self.temp_dir, "main.yaml")
+        with open(main_path, 'w') as f:
+            f.write("data1: !include file1.yaml\ndata2: !include file2.json\ndata3: !include file3.txt\n")
+
+        result = load_yaml(main_path)
+        self.assertEqual(result['data1']['key1'], 'value1')
+        self.assertEqual(result['data2']['key2'], 'value2')
+        self.assertEqual(result['data3'], 'plain text')
+
+    def test_include_and_require_mixed(self):
+        """Test mixing !include and !require in one file."""
+        # Create files
+        existing_path = os.path.join(self.temp_dir, "existing.yaml")
+        with open(existing_path, 'w') as f:
+            f.write("exists: true\n")
+
+        # Main file with both tags
+        main_path = os.path.join(self.temp_dir, "main.yaml")
+        with open(main_path, 'w') as f:
+            f.write("required: !require existing.yaml\noptional: !include missing.yaml\n")
+
+        result = load_yaml(main_path)
+        self.assertEqual(result['required']['exists'], True)
+        self.assertEqual(result['optional'], "")
+
+    def test_load_yaml_with_path_object(self):
+        """Test load_yaml with Path object instead of string."""
+        yaml_path = Path(self.temp_dir) / "test.yaml"
+        with open(yaml_path, 'w') as f:
+            f.write("key: value\n")
+
+        result = load_yaml(yaml_path)
+        self.assertEqual(result['key'], 'value')
 
 
 if __name__ == "__main__":

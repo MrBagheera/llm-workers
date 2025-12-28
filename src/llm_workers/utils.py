@@ -1,12 +1,12 @@
 import fnmatch
-import hashlib
+import importlib.resources
+import json
 import logging
 import mimetypes
 import os
 import platform
 import subprocess
 import sys
-import time
 from pathlib import Path
 from typing import Any
 from typing import Callable, List, Optional, Dict
@@ -260,6 +260,85 @@ class LazyFormatter:
             else:
                 self.repr = format_as_yaml(self.target, self.trim)
         return self.repr
+
+
+## YAML Loader with !include and !require
+
+class SmartLoader(yaml.SafeLoader):
+    def __init__(self, stream):
+        try:
+            self._root = os.path.split(stream.name)[0]
+        except AttributeError:
+            self._root = os.getcwd()
+        super().__init__(stream)
+
+    def _load_file(self, filename):
+        """
+        Helper method that handles path resolution and
+        smart parsing (JSON/YAML vs Text).
+        """
+        # validate file does not escape current directory
+        if ".." in filename.split(os.path.sep):
+            raise ValueError(f"Relative paths cannot escape current directory: {filename}")
+        if filename.startswith("./"):
+            # Relative to current directory
+            filepath = os.path.join(os.getcwd(), filename[2:])
+        else:
+            # Relative to the YAML file directory
+            filepath = os.path.join(self._root, filename)
+
+        # Check extensions to decide how to load
+        extension = os.path.splitext(filename)[1].lower()
+
+        with open(filepath, 'r') as f:
+            if extension in ['.yaml', '.yml']:
+                return yaml.load(f, Loader=SmartLoader)
+            elif extension == '.json':
+                return json.load(f)
+            else:
+                return f.read()
+
+    def include(self, node):
+        """
+        Implementation of !include
+        Returns empty string if file is missing.
+        """
+        filename = self.construct_scalar(node)
+        try:
+            return self._load_file(filename)
+        except FileNotFoundError:
+            # Graceful failure: return empty string
+            return ""
+
+    def require(self, node):
+        """
+        Implementation of !require
+        Raises error if file is missing.
+        """
+        filename = self.construct_scalar(node)
+        # This will naturally raise FileNotFoundError if missing,
+        # which stops the loading process.
+        return self._load_file(filename)
+
+# Register both tags
+SmartLoader.add_constructor('!include', SmartLoader.include)
+SmartLoader.add_constructor('!require', SmartLoader.require)
+
+def load_yaml(file_path: str | Path) -> Any:
+    """Load YAML file using SmartLoader with !include and !require support.
+    Also supports loading from "module:file" syntax.
+
+    Args:
+        file_path: path to the YAML file"""
+    if isinstance(file_path, str) and ':' in file_path:
+        module, resource = file_path.split(':', 1)
+        if len(module) > 1: # ignore volume names on windows
+            # noinspection PyUnresolvedReferences
+            with importlib.resources.files(module).joinpath(resource).open("r") as file:
+                return yaml.load(file, Loader=SmartLoader)
+    # default - local file loading
+    with open(file_path, 'r') as file:
+        return yaml.load(file, Loader=SmartLoader)
 
 
 ####################################################

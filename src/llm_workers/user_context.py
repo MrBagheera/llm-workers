@@ -13,7 +13,7 @@ from langchain_core.rate_limiters import InMemoryRateLimiter
 
 from llm_workers.api import WorkerException, UserContext
 from llm_workers.config import UserConfig, StandardModelDefinition, ImportModelDefinition, ModelDefinition
-from llm_workers.utils import find_and_load_dotenv
+from llm_workers.utils import find_and_load_dotenv, load_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -98,8 +98,7 @@ class StandardUserContext(UserContext):
             cls._setup_initial_models(config_path, config_env_path)
 
         try:
-            with open(config_path, 'r') as file:
-                config_data = yaml.safe_load(file) or {}
+            config_data = load_yaml(config_path) or {}
             user_config = UserConfig(**config_data)
             logger.info(f"Loaded user config from {config_path}")
             return user_config
