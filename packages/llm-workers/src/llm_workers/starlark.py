@@ -185,7 +185,7 @@ class StarlarkBase:
         try:
             tree = ast.parse(self.code_string, mode=self.mode)
         except SyntaxError as e:
-            raise SyntaxError(f"Starlark Syntax Error: {e}")
+            raise SyntaxError(f"Starlark Syntax Error: {e.text}")
 
         # Check syntax restrictions
         StarlarkSyntaxValidator().visit(tree)

@@ -34,7 +34,7 @@ class StandardWorkersContext(WorkersContext):
         self._user_context = user_context
         self._tools: Dict[str, BaseTool] = {}
         self._mcp_tools_by_server: dict[str, list[BaseTool]] = {}
-        self._evaluation_context = EvaluationContext({"env": user_context.environment})
+        self._evaluation_context = EvaluationContext({"env": user_context.environment.copy()})
 
     @classmethod
     def load_script(cls, name: str) -> WorkersConfig:

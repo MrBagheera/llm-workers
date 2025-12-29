@@ -10,40 +10,40 @@ chat:
     3. Once the user approves, run the script and return the results.
   default_prompt: Calculate factorial of 10
   tools:
-    - name: show_plan_to_user
-      import_tool: llm_workers.tools.misc.RequestApprovalTool
-      description: |-
-        Show plan to user and asks for explicit confirmation; upon confirmation return 'approval_token' to be used in
-        the following call to 'run_script'.
+  - name: show_plan_to_user
+    import_tool: llm_workers.tools.misc.RequestApprovalTool
+    description: |-
+      Show plan to user and asks for explicit confirmation; upon confirmation return 'approval_token' to be used in
+      the following call to 'run_script'.
 
-    # custom wrapper around RunPythonScriptTool
-    - name: run_python_script
-      description: Consume approval_token and run given Python script
-      input:
-        - name: approval_token
-          description: "'approval_token' from 'show_plan_to_user' tool; upon successful tool completion is consumed and cannot be re-used"
-          type: str
-        - name: script
-          description: Python script to run
-          type: str
-        - name: ui_hint
-          description: Hint to show in UI when running the script
-          type: str
-      ui_hint: "${ui_hint}"
-      tools:
-        - import_tool: llm_workers.tools.misc.ValidateApprovalTool
-        - import_tool: llm_workers.tools.unsafe.RunPythonScriptTool
-          require_confirmation: false
-        - import_tool: llm_workers.tools.misc.ConsumeApprovalTool
-      do:
-        - call: validate_approval
-          params:
-            approval_token: "${approval_token}"
-        - call: run_python_script
-          params:
-            script: "${script}"
-          store_as: script_result
-        - call: consume_approval
-          params:
-            approval_token: "${approval_token}"
-        - eval: "${script_result}"
+  # custom wrapper around RunPythonScriptTool
+  - name: run_python_script
+    description: Consume approval_token and run given Python script
+    input:
+    - name: approval_token
+      description: "'approval_token' from 'show_plan_to_user' tool; upon successful tool completion is consumed and cannot be re-used"
+      type: str
+    - name: script
+      description: Python script to run
+      type: str
+    - name: ui_hint
+      description: Hint to show in UI when running the script
+      type: str
+    ui_hint: "${ui_hint}"
+    tools:
+    - import_tool: llm_workers.tools.misc.ValidateApprovalTool
+    - import_tool: llm_workers.tools.unsafe.RunPythonScriptTool
+      require_confirmation: false
+    - import_tool: llm_workers.tools.misc.ConsumeApprovalTool
+    do:
+    - call: validate_approval
+      params:
+        approval_token: "${approval_token}"
+    - call: run_python_script
+      params:
+        script: "${script}"
+      store_as: script_result
+    - call: consume_approval
+      params:
+        approval_token: "${approval_token}"
+    - eval: "${script_result}"

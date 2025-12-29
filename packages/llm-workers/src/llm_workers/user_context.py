@@ -12,6 +12,7 @@ from langchain_core.rate_limiters import InMemoryRateLimiter
 
 from llm_workers.api import WorkerException, UserContext
 from llm_workers.config import UserConfig, StandardModelDefinition, ImportModelDefinition, ModelDefinition
+from llm_workers.starlark import EvaluationContext
 from llm_workers.utils import find_and_load_dotenv, load_yaml
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,7 @@ class StandardUserContext(UserContext):
         self._user_config = user_config
         self._models = dict[str, BaseChatModel]()
         self._environment = environment
+        self._evaluation_context = EvaluationContext({"env": environment}, mutable=False)
         self._register_models()
 
     @property
@@ -43,7 +45,7 @@ class StandardUserContext(UserContext):
     def _register_models(self):
         # register models
         for model_def in self._user_config.models:
-            model_params = copy(model_def.config.evaluate(self._environment)) if model_def.config else {}
+            model_params = copy(model_def.config.evaluate(self._evaluation_context)) if model_def.config else {}
             if model_def.rate_limiter:
                 model_params['rate_limiter'] = InMemoryRateLimiter(
                     requests_per_second = model_def.rate_limiter.requests_per_second,
