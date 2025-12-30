@@ -287,9 +287,11 @@ class ImportToolsStatement(BaseModel):
     import_tools: str
     prefix: str  # mandatory prefix for tool names (can be empty "")
     filter: List[str] = ["*"]  # patterns to include/exclude tools
-    ui_hints_for: List[str] = ["*"]  # patterns for UI hints
+    force_ui_hints_for: List[str] = []  # patterns to force ui_hint=True
+    force_no_ui_hints_for: List[str] = []  # patterns to force ui_hint=False
     ui_hints_args: List[str] = []  # args to include in UI hints
-    require_confirmation_for: List[str] = []  # patterns requiring confirmation
+    force_require_confirmation_for: List[str] = []  # patterns to force require_confirmation=True
+    force_no_confirmation_for: List[str] = []  # patterns to force require_confirmation=False
 
     @property
     def import_tools_split(self) -> (str, str):

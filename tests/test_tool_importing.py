@@ -907,13 +907,13 @@ shared:
         self.assertIn('write_file', shared_tool_names)
 
     def test_toolkit_import_with_ui_hints_for_all(self):
-        """Test toolkit import with ui_hints_for: ['*']."""
+        """Test toolkit import with force_ui_hints_for: ['*']."""
         yaml_config = """
 shared:
   tools:
     - import_tools: llm_workers.tools.fs.FilesystemToolkit
       prefix: ''
-      ui_hints_for: ['*']
+      force_ui_hints_for: ['*']
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -926,13 +926,13 @@ shared:
                 self.assertIsNotNone(tool_def.ui_hint)
 
     def test_toolkit_import_with_ui_hints_for_pattern(self):
-        """Test toolkit import with ui_hints_for: ['read*']."""
+        """Test toolkit import with force_ui_hints_for: ['read*']."""
         yaml_config = """
 shared:
   tools:
     - import_tools: llm_workers.tools.fs.FilesystemToolkit
       prefix: ''
-      ui_hints_for: ['read*']
+      force_ui_hints_for: ['read*']
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -948,7 +948,7 @@ shared:
   tools:
     - import_tools: llm_workers.tools.fs.FilesystemToolkit
       prefix: ''
-      ui_hints_for: ['*']
+      force_ui_hints_for: ['*']
       ui_hints_args: ['path']
 """
         context = self.create_and_initialize_context(yaml_config)
@@ -962,13 +962,13 @@ shared:
                     self.assertEqual(['path'], tool_def.ui_hint_args)
 
     def test_toolkit_import_with_require_confirmation_for_pattern(self):
-        """Test toolkit import with require_confirmation_for: ['write*']."""
+        """Test toolkit import with force_require_confirmation_for: ['write*']."""
         yaml_config = """
 shared:
   tools:
     - import_tools: llm_workers.tools.fs.FilesystemToolkit
       prefix: ''
-      require_confirmation_for: ['write*']
+      force_require_confirmation_for: ['write*']
 """
         context = self.create_and_initialize_context(yaml_config)
 
@@ -977,10 +977,10 @@ shared:
         if write_tool and write_tool.metadata and 'tool_definition' in write_tool.metadata:
             self.assertTrue(write_tool.metadata['tool_definition'].require_confirmation)
 
-        # Verify read* tools don't require confirmation
+        # Verify read* tools have None require_confirmation (use built-in behavior)
         read_tool = context._tools.get('read_file')
         if read_tool and read_tool.metadata and 'tool_definition' in read_tool.metadata:
-            self.assertFalse(read_tool.metadata['tool_definition'].require_confirmation)
+            self.assertIsNone(read_tool.metadata['tool_definition'].require_confirmation)
 
     def test_mcp_import_with_combined_properties(self):
         """Test MCP import with filtering, prefix, UI hints, and confirmation."""
@@ -1008,9 +1008,9 @@ shared:
       filter:
         - '*'
         - '!write*'
-      ui_hints_for: ['*']
+      force_ui_hints_for: ['*']
       ui_hints_args: ['input_str']
-      require_confirmation_for: ['list*']
+      force_require_confirmation_for: ['list*']
 """
         context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
 

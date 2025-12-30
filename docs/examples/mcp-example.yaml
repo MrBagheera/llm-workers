@@ -45,10 +45,12 @@ chat:
         - "!*copilot*"
         - "!merge_*"
         - "!fork_*"
-      ui_hints_for: ["*"] # Show UI hints for all GitHub tools
-      ui_hints_args: ["owner", "repo"]  # Show only owner and repo tool call args
-      require_confirmation_for: ["*write*"] # Require confirmation for write operations
+      # MCP tools don't have ExtendedBaseTool, so we need to force UI hints
+      force_ui_hints_for: ["*"]  # Show UI hints for all GitHub tools
+      ui_hints_args: ["owner", "repo", "query", "filter"]  # Show only owner and repo tool call args
+      force_require_confirmation_for: ["*write*"]  # Require confirmation for write operations
 
     # Regular tools (work alongside MCP tools)
     - import_tools: llm_workers.tools.fs.FilesystemToolkit
       prefix: 'fs_'  # prefix all filesystem tools with 'fs_'
+      # No force_* fields needed - tools use their built-in behavior

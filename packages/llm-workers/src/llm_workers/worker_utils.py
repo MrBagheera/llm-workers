@@ -57,36 +57,41 @@ def set_max_start_tool_msg_length(length: int) -> None:
     MAX_START_TOOL_MSG_LENGTH = length
 
 def get_start_tool_message(tool_name: str, tool_meta: Optional[Dict[str, Any]], inputs: Dict[str, Any]) -> str | None:
-    try:
-        # check if ui_hint is defined in tool definition
-        if tool_meta and 'tool_definition' in tool_meta:
-            tool_def: ToolDefinition = tool_meta['tool_definition']
-            if isinstance(tool_def.ui_hint, StringExpression):
-                hint = tool_def.ui_hint.evaluate(EvaluationContext(inputs))
-                if hint.strip():  # only return if hint is not empty
-                    return hint
-                else:
-                    return None  # empty hint means no message should be shown
-            # Check if ui_hints_args is configured for this tool
-            if tool_def.ui_hint is not None:
-                if tool_def.ui_hint:
-                    prefix = f"Calling {tool_name}"
-                    max_args_length = MAX_START_TOOL_MSG_LENGTH - len(prefix) - 2  # account for parentheses
-                    args_str = format_tool_args(inputs, tool_def.ui_hint_args, max_args_length)
-                    return f"{prefix}({args_str})" if args_str else prefix
-                else:
-                    return None  # ui_hint is False means no message should be shown
+    if tool_meta:
+        try:
+            ui_hint = None
+            ui_hint_args = []
+            if 'tool_definition' in tool_meta:
+                tool_def = tool_meta['tool_definition']
+                ui_hint = tool_def.ui_hint
+                ui_hint_args = tool_def.ui_hint_args
 
-        # fallback to ExtendedBaseTool
-        if tool_meta and '__extension' in tool_meta:
-            extension: ExtendedBaseTool = tool_meta['__extension']
-            hint = extension.get_ui_hint(inputs)
-            if hint.strip():  # only return if hint is not empty
-                return hint
-            else:
-                return None  # empty hint means no message should be shown
-    except Exception:
-        logger.warning(f"Unexpected exception formating start message for tool {tool_name}", exc_info=True)
+            # Priority 1a: ui_hint is False
+            if ui_hint is False:
+                return None
+            # Priority 1b: ui_hint is non-empty StringExpression
+            elif isinstance(ui_hint, StringExpression):
+                hint = ui_hint.evaluate(EvaluationContext(inputs)).strip()
+                if hint:
+                    return hint
+
+            # Priority 2: Tool-specific hint from ExtendedBaseTool
+            if '__extension' in tool_meta:
+                extension: ExtendedBaseTool = tool_meta['__extension']
+                hint = extension.get_ui_hint(inputs).strip()
+                if hint:
+                    return hint
+
+            # Priority 3: Explicit True → message with args
+            if ui_hint:
+                prefix = f"Calling {tool_name}"
+                max_args_length = MAX_START_TOOL_MSG_LENGTH - len(prefix) - 2  # account for parentheses
+                args_str = format_tool_args(inputs, ui_hint_args, max_args_length)
+                return f"{prefix}({args_str})" if args_str else prefix
+
+        except Exception:
+            logger.warning(f"Unexpected exception formatting start message for tool {tool_name}", exc_info=True)
+
     # default
     return f"Running tool {tool_name}"
 

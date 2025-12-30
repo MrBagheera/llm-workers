@@ -246,9 +246,6 @@ class StandardWorkersContext(WorkersContext):
                 import_tools=toolkit_path,
                 prefix='',
                 filter=[tool_name],
-                ui_hints_for=[],
-                ui_hints_args=[],
-                require_confirmation_for=[]
             )
 
             # Use a temporary results dict to collect the tool
@@ -346,9 +343,11 @@ class StandardWorkersContext(WorkersContext):
                 tools,
                 import_def.prefix,
                 import_def.filter,
-                import_def.ui_hints_for,
+                import_def.force_ui_hints_for,
+                import_def.force_no_ui_hints_for,
                 import_def.ui_hints_args,
-                import_def.require_confirmation_for,
+                import_def.force_require_confirmation_for,
+                import_def.force_no_confirmation_for,
                 origin=f"toolkit {path}")
 
         except ImportError as e:
@@ -366,9 +365,11 @@ class StandardWorkersContext(WorkersContext):
                 self._mcp_tools_by_server[path],
                 import_def.prefix,
                 import_def.filter,
-                import_def.ui_hints_for,
+                import_def.force_ui_hints_for,
+                import_def.force_no_ui_hints_for,
                 import_def.ui_hints_args,
-                import_def.require_confirmation_for,
+                import_def.force_require_confirmation_for,
+                import_def.force_no_confirmation_for,
                 origin=f"MCP server '{path}'")
 
     def _auto_register_mcp_tools(self, scope: str, results: Dict[str, BaseTool]):
@@ -386,15 +387,18 @@ class StandardWorkersContext(WorkersContext):
                 tools,
                 tools_prefix= f"{server_name}_",
                 tools_filters=['*'],
-                ui_hints_filters=['*'],
+                force_ui_hints_for=['*'],
+                force_no_ui_hints_for=[],
                 ui_hint_args=[],
-                confirmation_filters=[],
+                force_require_confirmation_for=[],
+                force_no_confirmation_for=[],
                 origin=f"MCP server '{server_name}'")
 
     @staticmethod
     def _import_tools(scope: str, results: Dict[str, BaseTool], tools: List[BaseTool], tools_prefix: str,
-                      tools_filters: list[str], ui_hints_filters: list[str], ui_hint_args: list[str],
-                      confirmation_filters: list[str],
+                      tools_filters: list[str], force_ui_hints_for: list[str], force_no_ui_hints_for: list[str],
+                      ui_hint_args: list[str], force_require_confirmation_for: list[str],
+                      force_no_confirmation_for: list[str],
                       origin: str):
         registered = 0
         for tool in tools:
@@ -409,14 +413,27 @@ class StandardWorkersContext(WorkersContext):
             if prefixed_name in results:
                 raise WorkerException(f"Cannot register tool {prefixed_name} in {scope}: tool already defined")
 
-            ui_hint = matches_patterns(original_name, ui_hints_filters)
-            require_confirm = matches_patterns(original_name, confirmation_filters)
+            # Determine ui_hint value
+            ui_hint = None  # Default: let tool's built-in behavior apply
+            if matches_patterns(original_name, force_ui_hints_for):
+                ui_hint = True  # Force enable
+            elif matches_patterns(original_name, force_no_ui_hints_for):
+                ui_hint = False  # Force disable
+            # else: None → fallback to tool's ExtendedBaseTool.get_ui_hint()
+
+            # Determine require_confirmation value
+            require_confirm = None  # Default: let tool's built-in behavior apply
+            if matches_patterns(original_name, force_require_confirmation_for):
+                require_confirm = True  # Force enable
+            elif matches_patterns(original_name, force_no_confirmation_for):
+                require_confirm = False  # Force disable
+            # else: None → fallback to tool's ExtendedBaseTool.needs_confirmation()
 
             tool_def = ToolDefinition(
                 name=prefixed_name,
                 description=tool.description,
                 ui_hint=ui_hint,
-                ui_hint_args=ui_hint_args if ui_hint else [],
+                ui_hint_args=ui_hint_args if ui_hint is not False else [],
                 require_confirmation=require_confirm,
             )
 
@@ -425,6 +442,8 @@ class StandardWorkersContext(WorkersContext):
             tool.metadata = tool.metadata or {}
             tool.metadata['tool_definition'] = tool_def
             tool.metadata['original_name'] = original_name
+            if isinstance(tool, ExtendedBaseTool):
+                tool.metadata['__extension'] = tool # really hackish
 
             results[prefixed_name] = tool
             logger.info(f"Registered tool '{prefixed_name}' from {origin} in {scope}")

@@ -13,10 +13,10 @@ chat:
   default_prompt: "List all available tools and explain what each group does."
   tools:
     # Example 1: Import all filesystem tools with prefix
+    # Tools use their built-in ExtendedBaseTool behavior by default
     - import_tools: llm_workers.tools.fs.FilesystemToolkit
       prefix: fs_
-      ui_hints_args: ["path"]  # Show only 'path' argument in UI hints
-      require_confirmation_for: ["write_*", "edit_*"]  # Require confirmation for write operations
+      # No force_* fields needed - tools show their own UI hints and confirmations
 
     # Example 2: Import only specific tools with pattern matching
     - import_tools: llm_workers.tools.fs.FilesystemToolkit
@@ -25,14 +25,10 @@ chat:
         - "read_*"  # Include read operations
         - "list_*"  # Include list operations
         - "glob_*"  # Include glob operations
-        - "!*edit*"  # Exclude edit operations (already excluded by inclusion patterns, but shown for demonstration)
-      ui_hints_args: ["*"]
-      require_confirmation_for: []  # No confirmation needed for read-only operations
+      # No force_* fields needed - read operations use built-in behavior
 
-    # Example 3: Import with empty prefix (no prefix)
+    # Example 3: Import with empty prefix and explicit suppression of UI hints
     - import_tools: llm_workers.tools.fs.FilesystemToolkit
       prefix: ""  # Tools will have their original names
       filter: ["file_info"]  # Only import file_info tool
-      ui_hints_for: []  # No UI hints
-      ui_hints_args: []
-      require_confirmation_for: []
+      force_no_ui_hints_for: ["*"]  # Explicitly suppress UI hints for all tools
