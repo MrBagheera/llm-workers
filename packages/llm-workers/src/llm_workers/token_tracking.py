@@ -168,7 +168,7 @@ class CompositeTokenUsageTracker:
         if total_tokens == 0:
             return None
 
-        lines = [f"Total Session Tokens: {total_tokens:,} total"]
+        lines = [f"Total Session Tokens: {total_tokens:,} total", "Per-Model:"]
 
         # Import cost calculation functions here to avoid circular dependency
         from llm_workers.cost_calculation import calculate_cost, format_cost, ModelCost
