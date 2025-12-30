@@ -15,14 +15,9 @@ Last substantial changes before 1.0.0 code freeze, focusing on modularization an
 - Improved handling of multiple async MCP sessions
 - Streamlined project dependencies
 
-## [1.0.0-rc6](https://github.com/MrBagheera/llm-workers/compare/v1.0.0-rc5...v1.0.0-rc6) (December 27, 2025)
+## 1.0.0-rc6
 
-Internal stabilization and preparation for final 1.0.0 release:
-- Refined the agent harness and tool importing logic
-- Stabilized the new starlark-based evaluation engine
-- Fixed various CLI and UI streaming glitches
-- Improved token usage tracking with cost estimation
-- Expanded documentation and refined built-in examples
+_Accidentally skipped version._
 
 ## [1.0.0-rc5](https://github.com/MrBagheera/llm-workers/milestone/22?closed=1) (December 26, 2025)
 
