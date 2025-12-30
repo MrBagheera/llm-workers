@@ -4,7 +4,7 @@ from abc import ABC
 from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict, Literal
 
 from langchain_core.prompts import PromptTemplate
-from pydantic import BaseModel, PrivateAttr, ConfigDict, Field, Discriminator, Tag
+from pydantic import BaseModel, ConfigDict, Field, Discriminator, Tag
 from pydantic import ValidationError, WrapValidator
 from pydantic_core import PydanticCustomError
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler, ValidationInfo
@@ -245,16 +245,6 @@ class ToolDefinition(BaseModel):
     require_confirmation: Optional[bool] = None
     ui_hint: Optional[StringExpression | bool] = None
     ui_hint_args: List[str] = []
-    _ui_hint_template: Optional[PromptTemplate] = PrivateAttr(default=None)  # private field
-
-    def __init__(self, **data):
-        super().__init__(**data)
-        if isinstance(self.ui_hint, str):
-            self._ui_hint_template = PromptTemplate.from_template(self.ui_hint)
-
-    @property
-    def ui_hint_template(self) -> Optional[PromptTemplate]:
-        return self._ui_hint_template
 
 class ImportToolStatement(ToolDefinition):
     """Definition for an imported tool."""
