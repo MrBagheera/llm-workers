@@ -71,7 +71,7 @@ See [docs/release-notes.md](docs/release-notes.md) for detailed release notes.
 
 ## Version 1.0.0
 
-- [0.1.0](https://github.com/MrBagheera/llm-workers/milestone/7)
+- [1.0.0](https://github.com/MrBagheera/llm-workers/milestone/7)
 
 ## Further Ideas
 

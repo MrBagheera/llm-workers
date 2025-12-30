@@ -1,6 +1,6 @@
 [project]
 name = "llm-workers-console"
-version = "1.0.0-rc6"
+version = "1.0.0-rc7"
 description = "Console UI components for LLM Workers - interactive chat interface and rich terminal output"
 authors = [
     {name = "Dmitry Mikhaylov", email = "mikhailov.dmitry@gmail.com"}
@@ -8,7 +8,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
 dependencies = [
-    "llm-workers (>=1.0.0-rc6)",
+    "llm-workers (==1.0.0-rc7)",
     "rich (>=14.1.0,<15.0.0)",
     "prompt-toolkit (==3.0.50)",
 ]
