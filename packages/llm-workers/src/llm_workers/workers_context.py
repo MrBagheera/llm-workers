@@ -3,6 +3,7 @@ import importlib
 import inspect
 import logging
 from asyncio import AbstractEventLoop
+from contextlib import AsyncExitStack
 from copy import copy
 from typing import Dict, List, Optional, Callable, Any
 
@@ -100,74 +101,70 @@ class StandardWorkersContext(WorkersContext):
             asyncio.set_event_loop(None)
 
     async def _run(self, func: Callable[..., Any], *args, **kwargs):
-        async with self: # this opens/closes sessions with MCP servers
+        async with AsyncExitStack() as stack:
+            self._loop = asyncio.get_running_loop() # capture for sync wrappers
+
+            if len(self._config.mcp) > 0:
+                logger.info("Initializing MCP clients...")
+                mcp_client = MultiServerMCPClient(self._build_server_configs())
+                for server_name in self._config.mcp.keys():
+                    try:
+                        logger.info(f"Connecting to MCP server '{server_name}'...")
+                        session = await stack.enter_async_context(mcp_client.session(server_name))
+                        self._mcp_tools_by_server[server_name] = await self._load_mcp_tools(server_name, session)
+                    except Exception as e:
+                        raise WorkerException(f"Failed to load tools from MCP server '{server_name}': {e}")
+
+            # resolve and expose "global data"
+            for key, expr in self._config.shared.data.items():
+                self._evaluation_context.add(key, expr.evaluate(self._evaluation_context))
+            # lock the evaluation context to prevent further modifications
+            self._evaluation_context.mutable = False
+
+            # finally we can register all tools
+            self._create_tools('shared', self._tools, self._config.shared.tools)
+
+            # and run the business code
             return await asyncio.to_thread(func, *args, **kwargs)
 
-    async def __aenter__(self):
-        """
-        Initialize MCP clients and load tools asynchronously.
-        """
-        self._loop = asyncio.get_running_loop()
+    def _build_server_configs(self) -> Dict[str, dict]:
+        server_configs = {}
+        for server_name, server_def in self._config.mcp.items():
+            if isinstance(server_def, MCPServerStdio):
+                server_configs[server_name] = {
+                    "transport": "stdio",
+                    "command": server_def.command,
+                    "args": server_def.args.evaluate(self._evaluation_context),
+                    "env": server_def.env.evaluate(self._evaluation_context),
+                }
+            elif isinstance(server_def, MCPServerHttp):
+                server_configs[server_name] = {
+                    "transport": "streamable_http",
+                    "url": server_def.url,
+                    "headers": server_def.headers.evaluate(self._evaluation_context),
+                }
+            else:
+                raise WorkerException(f"Unsupported MCP definition: {type(server_def)}")
+        return server_configs
 
-        if len(self._config.mcp) > 0:
-            logger.info("Initializing MCP clients...")
+    async def _load_mcp_tools(self, server_name: str, session) -> list[BaseTool]:
+        """Load tools from a single MCP server session."""
+        server_tools = await load_mcp_tools(session)
 
-            server_configs = {}
-            for server_name, server_def in self._config.mcp.items():
-                if isinstance(server_def, MCPServerStdio):
-                    server_configs[server_name] = {
-                        "transport": "stdio",
-                        "command": server_def.command,
-                        "args": server_def.args.evaluate(self._evaluation_context),
-                        "env": server_def.env.evaluate(self._evaluation_context),
-                    }
-                elif isinstance(server_def, MCPServerHttp):
-                    server_configs[server_name] = {
-                        "transport": "streamable_http",
-                        "url": server_def.url,
-                        "headers": server_def.headers.evaluate(self._evaluation_context),
-                    }
-                else:
-                    raise WorkerException(f"Unsupported MCP definition: {type(server_def)}")
+        # Tag each tool with its server and add sync wrapper
+        for tool in server_tools:
+            if tool.metadata is None:
+                tool.metadata = {}
+            tool.metadata['mcp_server'] = server_name
+            tool.metadata['original_name'] = tool.name
 
-            # Load tools from MCP servers
-            try:
-                self._mcp_tools_by_server = await self._load_mcp_tools_async(server_configs)
-            except Exception as e:
-                raise WorkerException(f"Failed to initialize MCP clients: {e}", e)
+            # Add synchronous func wrapper using persistent event loop
+            if hasattr(tool, 'coroutine') and tool.coroutine is not None and tool.func is None:
+                tool.func = self._make_sync_wrapper(tool.coroutine)
+                logger.debug(f"Added sync wrapper to MCP tool '{tool.name}'")
 
-        # resolve and expose "global data"
-        for key, expr in self._config.shared.data.items():
-            self._evaluation_context.add(key, expr.evaluate(self._evaluation_context))
-        # lock the evaluation context to prevent further modifications
-        self._evaluation_context.mutable = False
-
-        # Finally we can register all tools
-        self._create_tools('shared', self._tools, self._config.shared.tools)
-
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """
-        Close this context (including all MCP server) sessions and cleanup.
-        """
-        if not self._mcp_sessions:
-            return
-
-        logger.info(f"Closing {len(self._mcp_sessions)} MCP sessions...")
-
-        # Close each session by calling __aexit__ on stored context managers
-        for server_name, session_data in self._mcp_sessions.items():
-            try:
-                logger.debug(f"Closing MCP session for '{server_name}'")
-                context_manager = session_data['context_manager']
-                # Call __aexit__ with no exception info (None, None, None)
-                await context_manager.__aexit__(None, None, None)
-            except Exception as e:
-                logger.error(f"Failed to close MCP session for '{server_name}': {e}", exc_info=True)
-
-        self._mcp_sessions.clear()
-        logger.info("MCP sessions closed")
+        logger.info(f"Loaded {len(server_tools)} tools from MCP server '{server_name}'")
+        return server_tools
 
     def _make_sync_wrapper(self, async_func):
         """
@@ -185,51 +182,6 @@ class StandardWorkersContext(WorkersContext):
             return future.result()
 
         return sync_wrapper
-
-    async def _load_mcp_tools_async(self, server_configs: Dict[str, dict]) -> Dict[str, List[BaseTool]]:
-        """Load tools from MCP servers asynchronously, keeping sessions open."""
-
-        # Create and store client
-        self._mcp_client = MultiServerMCPClient(server_configs)
-        tools_by_server = {}
-
-        # Load tools from each server individually and keep sessions open
-        for server_name in server_configs.keys():
-            try:
-                logger.info(f"Connecting to MCP server '{server_name}'...")
-
-                # Enter session but don't exit - store the context manager
-                session_cm = self._mcp_client.session(server_name)
-                session = await session_cm.__aenter__()
-
-                # Store session for later cleanup
-                self._mcp_sessions[server_name] = {
-                    'session': session,
-                    'context_manager': session_cm
-                }
-
-                # Load tools from the open session
-                server_tools = await load_mcp_tools(session)
-
-                # Tag each tool with its server and add sync wrapper
-                for tool in server_tools:
-                    if tool.metadata is None:
-                        tool.metadata = {}
-                    tool.metadata['mcp_server'] = server_name
-                    tool.metadata['original_name'] = tool.name
-
-                    # Add synchronous func wrapper using persistent event loop
-                    if hasattr(tool, 'coroutine') and tool.coroutine is not None and tool.func is None:
-                        tool.func = self._make_sync_wrapper(tool.coroutine)
-                        logger.debug(f"Added sync wrapper to MCP tool '{tool.name}'")
-
-                tools_by_server[server_name] = server_tools
-                logger.info(f"Loaded {len(server_tools)} tools from MCP server '{server_name}'")
-            except Exception as e:
-                logger.error(f"Failed to load tools from MCP server '{server_name}': {e}", exc_info=True)
-                tools_by_server[server_name] = []  # Empty list for failed servers
-
-        return tools_by_server
 
     def _import_tools_from_statement(self, scope: str, results: Dict[str, BaseTool], import_stmt: ImportToolsStatement):
         """Import tools based on ImportToolsStatement, delegating to toolkit or MCP import."""
