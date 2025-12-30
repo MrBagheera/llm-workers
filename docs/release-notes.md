@@ -6,6 +6,15 @@ nav_order: 90
 
 # Release notes
 
+## [1.0.0-rc7](https://github.com/MrBagheera/llm-workers/milestone/23?closed=1) (December 30, 2025)
+
+Last substantial changes before 1.0.0 code freeze, focusing on modularization and session management:
+- Split project into sub-modules: `llm-workers` (core), `llm-workers-console` (chat UI), and `llm-workers-tools` (CLI)
+- Added support for saving and resuming chat sessions
+- Introduced `!include` and `!require` YAML tags for modular configuration
+- Improved handling of multiple async MCP sessions
+- Streamlined project dependencies
+
 ## [1.0.0-rc5](https://github.com/MrBagheera/llm-workers/milestone/22?closed=1) (December 26, 2025)
 
 Core infrastructure improvements and model support expansion:
