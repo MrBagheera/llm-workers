@@ -6,6 +6,13 @@ nav_order: 90
 
 # Release notes
 
+## [1.0.0-rc8](https://github.com/MrBagheera/llm-workers/milestone/24) (January 9, 2026)
+
+Windows compatibility and release automation improvements:
+- Fixed Windows compatibility by making `pwd` and `grp` modules optional imports in filesystem tools ([#88](https://github.com/MrBagheera/llm-workers/issues/88))
+- Added automated release scripts for version management, building, and publishing
+- Improved release process documentation
+
 ## [1.0.0-rc7](https://github.com/MrBagheera/llm-workers/milestone/23?closed=1) (December 30, 2025)
 
 Last substantial changes before 1.0.0 code freeze, focusing on modularization and session management:
