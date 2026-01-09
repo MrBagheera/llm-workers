@@ -297,9 +297,9 @@ chat:
       filter:
         - "!*write*"    # Exclude write operations
         - "!*delete*"   # Exclude delete operations
-      ui_hints_for: ["*"]
+      force_ui_hints_for: ["*"]
       ui_hints_args: ["owner", "repo"]
-      require_confirmation_for: ["*push*"]
+      force_require_confirmation_for: ["*push*"]
 ```
 
 ### Complete MCP Example
@@ -351,9 +351,9 @@ chat:
       filter:
         - "!*write*"
         - "!*delete*"
-      ui_hints_for: ["*"]
+      force_ui_hints_for: ["*"]
       ui_hints_args: ["owner", "repo"]
-      require_confirmation_for: ["*push*"]
+      force_require_confirmation_for: ["*push*"]
 
     # Regular tool reference
     - read_file
@@ -453,14 +453,14 @@ shared:
         - call: _LLM
           params:
             prompt: >
-              Find Metacritic score for movie "{movie_title}" released in {movie_year}.
+              Find Metacritic score for movie "${movie_title}" released in ${movie_year}.
               To do so:
                 - From the list of possible matches, chose the one matching movie title and year and return metacritic score as single number
                 - If no matching movie is found, respond with just "N/A" (without quotes)
                 - DO NOT provide any additional information in the response
 
               Possible matches:
-              {_}
+              ${_}
 ```
 
 In addition to defining tools in the `shared.tools` section, you can define tools inline within `call` statements and within
@@ -497,6 +497,7 @@ The `shared.data` section provides a way to define reusable variables that can b
 - Variables can reference other variables defined earlier in the `data` section
 - Accessible in custom tools via the `${key}` template syntax
 - Variables are read-only after initialization
+- Supports `!require` directive to load content from external files
 
 **Example:**
 ```yaml
@@ -515,6 +516,41 @@ shared:
       do:
         eval: "Query ${query} returned ${prompts['test']}"
 ```
+
+**Loading External Files with !require:**
+
+The `!require` directive allows you to load content from external files into shared data variables:
+
+```yaml
+shared:
+  data:
+    # Load instructions from an external markdown file
+    reformat_Scala_instructions: !require reformat-Scala-instructions.md
+
+    # Load configuration from JSON
+    api_config: !require config.json
+
+  tools:
+    - name: process_with_instructions
+      input:
+        - name: code
+          type: str
+      do:
+        call: llm
+        params:
+          prompt: |
+            Follow these instructions:
+            ${reformat_Scala_instructions}
+
+            Code to process:
+            ${code}
+```
+
+This is particularly useful for:
+- Keeping large prompt templates in separate files
+- Sharing configuration across multiple scripts
+- Maintaining complex instructions separately from the main script
+- Version controlling prompts and instructions independently
 
 **Usage Notes:**
 - The `shared.data` section is optional and defaults to an empty dictionary
@@ -700,21 +736,20 @@ cli:
         if (playerContribution <= 2) return 1 + Math.floor(titanStars / 2.0).toInt
         ```
 
-        After reformatting, output just the file content without any additional comments or formatting.      
+        After reformatting, output just the file content without any additional comments or formatting.
         If no changes are needed, respond with string "NO CHANGES" (without quotes).
 
         Input file:
         ${_}
-  - match: "${_}"
-    matchers:
-      - case: "NO CHANGES"
-        then:
-          eval: "${input}: NO CHANGES"
-    default:
+  - if: "${_ == 'NO CHANGES'}"
+    then:
+      eval: "${input}: NO CHANGES"
+    else:
       - call: write_file
         params:
           path: "${input}"
-          content: "{_}"
+          content: "${_}"
+          if_exists: "overwrite"
       - eval: "${input}: FIXED"
 ```
 
@@ -854,9 +889,10 @@ Patterns are evaluated in order:
 **Parameters:**
 - `prefix`: (Mandatory) Prefix for all imported tool names. Can be empty `""` for no prefix
 - `filter`: (Optional, default: `["*"]`) Patterns to include/exclude tools
-- `ui_hints_for`: (Optional, default: `["*"]`) Patterns for which tools should show UI hints
 - `ui_hints_args`: (Optional, default: `[]`) Tool arguments to include in UI hints (empty means show tool name only)
-- `require_confirmation_for`: (Optional, default: `[]`) Patterns for tools requiring user confirmation
+- `force_ui_hints_for`: (Optional) Patterns to force UI hints for tools without ExtendedBaseTool (e.g., MCP tools)
+- `force_no_ui_hints_for`: (Optional) Patterns to explicitly suppress UI hints even for ExtendedBaseTool
+- `force_require_confirmation_for`: (Optional) Patterns to force confirmation for tools without ExtendedBaseTool (e.g., MCP tools)
 
 ### 3. Custom Tool Definitions
 
@@ -976,6 +1012,7 @@ Useful for models without Structured Output, like Claude. Fallbacks to entire me
   - "last" - returns only the last JSON block found in the response
   - "all" - returns all JSON blocks found in the response as list
   - "false" - returns the full response without filtering
+- `ui_hint`: (Optional) Template string to display in the UI when this tool is called. Supports variable interpolation.
 
 **Function**:
 This factory method creates a `StructuredTool` that passes a prompt to an LLM and returns the model's response.
@@ -1027,6 +1064,15 @@ This factory method creates a `StructuredTool` that passes a prompt to an LLM an
         - `references: string[] - List of references relevant to the bullet point
 ```
 
+**Example with Custom Configuration and UI Hint**:
+```yaml
+tools:
+  - import_tool: llm_workers.tools.llm_tool.build_llm_tool
+    name: llm_tool
+    config:
+      model_ref: fast
+    ui_hint: Extracting Metacritic score from search results
+```
 
 The tool can be used to create custom LLM-powered tools within your workflows, enabling tasks like summarization,
 analysis, formatting, or generating structured content based on input data.
@@ -1061,9 +1107,10 @@ Reads a file and returns its content.
 Writes content to a file.
 
 **Parameters:**
-- `filename`: Path to the file to write
+- `path`: Path to the file to write
 - `content`: Content to write
 - `append`: (Optional) If true, append to the file instead of overwriting it (default: false)
+- `if_exists`: (Optional) What to do if file exists: `"overwrite"`, `"append"`, or `"error"` (default: `"overwrite"`)
 
 #### run_python_script
 
@@ -1374,8 +1421,14 @@ Executes a specific tool with optional parameters. Tools must be defined in a `t
     param1: value1
     param2: value2
   catch: [error_type1, error_type2]  # Optional error handling
-  store_as: result_var  # Optional, stores result in a variable
+  store_as: result_var  # Optional, stores result in a named variable
 ```
+
+**Parameters:**
+- `call`: Name of the tool to execute
+- `params`: Dictionary of parameters to pass to the tool
+- `catch`: (Optional) List of error types to catch and handle gracefully
+- `store_as`: (Optional) Variable name to store the result. Can be referenced later using `${variable_name}`
 
 **Example:**
 ```yaml
@@ -1394,6 +1447,31 @@ shared:
             path: "${path}"
         - eval: "Processed: ${_}"
 ```
+
+**Example with store_as:**
+```yaml
+tools:
+  - name: multi_step_process
+    input:
+      - name: script
+        type: str
+      - name: approval_token
+        type: str
+    do:
+      - call: validate_approval
+        params:
+          approval_token: "${approval_token}"
+      - call: run_python_script
+        params:
+          script: "${script}"
+        store_as: script_result  # Store result in named variable
+      - call: consume_approval
+        params:
+          approval_token: "${approval_token}"
+      - eval: "${script_result}"  # Reference stored result
+```
+
+**Note:** Without `store_as`, the result of each statement is available as `${_}` in the next statement. With `store_as`, you can reference the result by name later in the workflow, which is useful when you need to perform multiple operations and reference earlier results.
 
 **Important Changes:**
 As of recent versions, inline tool definitions in `call` statements are no longer supported. Tools must be defined in a `tools` section (either in `shared.tools`, `chat.tools`, custom tool's `tools`, or CLI's `tools`) before they can be referenced by name in `call` statements.
@@ -1492,8 +1570,14 @@ Executes different actions based on a boolean condition:
     <statement(s)>  # Executed if condition is truthy
   else:  # Optional
     <statement(s)>  # Executed if condition is falsy
-  store_as: result_var  # Optional
+  store_as: result_var  # Optional, stores the result of the executed branch
 ```
+
+**Parameters:**
+- `if`: Boolean condition expression to evaluate
+- `then`: Statement(s) to execute if condition is truthy
+- `else`: (Optional) Statement(s) to execute if condition is falsy
+- `store_as`: (Optional) Variable name to store the result of whichever branch executes
 
 ### Basic Examples
 
