@@ -1,9 +1,7 @@
 import glob
-import grp
 import logging
 import mimetypes
 import os
-import pwd
 import re
 import stat
 from datetime import datetime
@@ -413,13 +411,15 @@ class FileInfoTool(BaseTool, ExtendedBaseTool):
 
             # Owner and group
             try:
+                import pwd
                 result["owner"] = pwd.getpwuid(stat_info.st_uid).pw_name
-            except KeyError:
+            except (ImportError, KeyError, AttributeError):
                 result["owner"] = str(stat_info.st_uid)
 
             try:
+                import grp
                 result["group"] = grp.getgrgid(stat_info.st_gid).gr_name
-            except KeyError:
+            except (ImportError, KeyError, AttributeError):
                 result["group"] = str(stat_info.st_gid)
 
             # Timestamps
