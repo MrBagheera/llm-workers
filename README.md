@@ -139,74 +139,89 @@ poetry run python -m unittest tests.test_worker
 
 ## Packaging for Release
 
-### Version Management
+The project includes automated scripts in the `scripts/` directory to streamline the release process.
 
-Before releasing, update versions in all three `pyproject.toml` files:
-- `packages/llm-workers/pyproject.toml`
-- `packages/llm-workers-console/pyproject.toml`
-- `packages/llm-workers-tools/pyproject.toml`
+1. **Update Version**
+   ```bash
+   # Set version across all packages
+   ./scripts/set-version.sh 1.0.0-rc9
+   ```
+   This updates version numbers in all `pyproject.toml` files (including root) and dependency constraints.
 
-Also update dependency version constraints in console and tools packages.
+2. **Update Release Notes**
 
-### Build Each Package
+   Edit `docs/release-notes.md` and add release notes for the new version:
+   ```markdown
+   ## Version 1.0.0-rc9 (YYYY-MM-DD)
 
-```bash
-# Build core package
-cd packages/llm-workers
-poetry build
+   ### Features
+   - New feature description
 
-# Build console package
-cd ../llm-workers-console
-poetry build
+   ### Bug Fixes
+   - Bug fix description
 
-# Build tools package
-cd ../llm-workers-tools
-poetry build
+   ### Breaking Changes
+   - Breaking change description (if any)
+   ```
 
-cd ../..
-```
+3. **Review and Commit Changes**
+   ```bash
+   # Review version changes
+   git diff
 
-### Publish to PyPI
+   # Commit version bump
+   git add -A
+   git commit -m "Bump version to 1.0.0-rc9"
+   ```
 
-**Important:** Publish in dependency order:
+4. **Build All Packages**
+   ```bash
+   ./scripts/build-all.sh
+   ```
+   This builds all three packages in the correct order.
 
-```bash
-# 1. Publish core (no dependencies on other packages)
-cd packages/llm-workers
-poetry publish
+5. **Test on TestPyPI (Recommended)**
+   ```bash
+   # Publish to TestPyPI
+   ./scripts/publish-testpypi.sh
 
-# 2. Publish console (depends on llm-workers)
-cd ../llm-workers-console
-poetry publish
+   # Test installation
+   pip install --index-url https://test.pypi.org/simple/ \
+     --extra-index-url https://pypi.org/simple/ \
+     llm-workers-tools
+   ```
 
-# 3. Publish tools (depends on llm-workers + llm-workers-console)
-cd ../llm-workers-tools
-poetry publish
+6. **Publish to PyPI**
+   ```bash
+   # Publish to production PyPI
+   ./scripts/publish-pypi.sh
+   ```
+   **Important:** This publishes in dependency order (core → console → tools) with proper wait times.
 
-cd ../..
-```
+7. **Create Git Tag and GitHub Release**
+   ```bash
+   # Get current version
+   VERSION=$(cd packages/llm-workers && poetry version -s)
 
-### Test on TestPyPI First (Recommended)
+   # Create and push tag
+   git tag "v$VERSION"
+   git push origin "v$VERSION"
+   ```
 
-```bash
-# Configure TestPyPI (one time)
-poetry config repositories.testpypi https://test.pypi.org/legacy/
+   Then create a GitHub release:
+   - Go to https://github.com/MrBagheera/llm-workers/releases/new
+   - Select the tag you just created
+   - Copy release notes from `docs/release-notes.md`
+   - Publish the release
 
-# Publish to TestPyPI
-cd packages/llm-workers
-poetry publish -r testpypi
+### Available Scripts
 
-cd ../llm-workers-console
-poetry publish -r testpypi
+- **`./scripts/set-version.sh <version>`** - Update version across all packages
+- **`./scripts/build-all.sh`** - Build all packages
+- **`./scripts/publish-testpypi.sh`** - Publish to TestPyPI for testing
+- **`./scripts/publish-pypi.sh`** - Publish to production PyPI
+- **`./scripts/clean-build.sh`** - Clean all build artifacts
 
-cd ../llm-workers-tools
-poetry publish -r testpypi
-
-cd ../..
-
-# Test installation
-pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ llm-workers-tools
-```
 
 ## Running CLI Tools in Development
 
