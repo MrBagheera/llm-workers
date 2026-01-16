@@ -220,8 +220,8 @@ def create_mock_mcp_tool(name: str, description: str = None) -> BaseTool:
 class MockMCPWorkersContext(StandardWorkersContext):
     """Mock context that simulates MCP tool loading without actual MCP servers.
 
-    This context subclasses StandardWorkersContext and overrides _load_mcp_tools_async
-    to return mock tools instead of connecting to real MCP servers. This allows testing
+    This context subclasses StandardWorkersContext and overrides _run
+    to skip actual MCP connections and use mock tools instead. This allows testing
     MCP tool importing without external dependencies.
 
     Args:
@@ -235,37 +235,51 @@ class MockMCPWorkersContext(StandardWorkersContext):
         super().__init__(config, user_context)
         self._mock_mcp_tools = mock_mcp_tools or {}
 
-    async def _load_mcp_tools_async(self, server_configs: Dict[str, dict]) -> Dict[str, List[BaseTool]]:
-        """Override to return mock tools instead of connecting to real MCP servers.
+    async def _run(self, func, *args, **kwargs):
+        """Override _run to skip actual MCP connections and use mock tools.
 
-        This method mimics the behavior of the real _load_mcp_tools_async by:
-        1. Looking up mock tools for each server
-        2. Tagging tools with 'mcp_server' and 'original_name' metadata
-        3. Returning a dictionary of tools by server name
+        This method mimics the behavior of the real _run but instead of
+        connecting to actual MCP servers, it populates _mcp_tools_by_server
+        with mock tools.
+        """
+        import asyncio
+        self._loop = asyncio.get_running_loop()
+
+        # Populate mock MCP tools instead of connecting to real servers
+        for server_name in self._config.mcp.keys():
+            self._mcp_tools_by_server[server_name] = self._get_mock_mcp_tools(server_name)
+
+        # resolve and expose "global data"
+        for key, expr in self._config.shared.data.items():
+            self._evaluation_context.add(key, expr.evaluate(self._evaluation_context))
+        # lock the evaluation context to prevent further modifications
+        self._evaluation_context.mutable = False
+
+        # finally we can register all tools
+        self._create_tools('shared', self._tools, self._config.shared.tools)
+
+        # and run the business code
+        return await asyncio.to_thread(func, *args, **kwargs)
+
+    def _get_mock_mcp_tools(self, server_name: str) -> list[BaseTool]:
+        """Get mock tools for a server, tagging with appropriate metadata.
 
         Args:
-            server_configs: Dictionary of MCP server configurations
+            server_name: Name of the MCP server
 
         Returns:
-            Dictionary mapping server names to lists of mock tools
+            List of mock tools for the specified server
         """
-        result = {}
-        for server_name in server_configs.keys():
-            if server_name in self._mock_mcp_tools:
-                # Tag tools with server metadata (mimicking real behavior)
-                tools = []
-                for tool in self._mock_mcp_tools[server_name]:
-                    # Create a copy to avoid modifying the original
-                    if tool.metadata is None:
-                        tool.metadata = {}
-                    tool.metadata['mcp_server'] = server_name
-                    tool.metadata['original_name'] = tool.name
-                    tools.append(tool)
-                result[server_name] = tools
-            else:
-                # Return empty list for unconfigured mock servers
-                result[server_name] = []
-        return result
+        if server_name in self._mock_mcp_tools:
+            tools = []
+            for tool in self._mock_mcp_tools[server_name]:
+                if tool.metadata is None:
+                    tool.metadata = {}
+                tool.metadata['mcp_server'] = server_name
+                tool.metadata['original_name'] = tool.name
+                tools.append(tool)
+            return tools
+        return []
 
 
 def create_context_from_yaml(yaml_str: str,

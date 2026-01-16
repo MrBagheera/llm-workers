@@ -147,7 +147,7 @@ class TestCompositeTokenUsageTracker(unittest.TestCase):
         self.assertEqual(self.tracker.format_current_usage(), "Tokens: 100 (60 in, 40 out)")
 
         # Total usage shows per-model breakdown
-        expected_total = "Total Session Tokens: 100 total\n  default: 100 (60 in, 40 out)"
+        expected_total = "Total Session Tokens: 100 total\nPer-Model:\n  default: 100 (60 in, 40 out)"
         self.assertEqual(self.tracker.format_total_usage(), expected_total)
 
     def test_multiple_model_updates(self):
@@ -175,6 +175,7 @@ class TestCompositeTokenUsageTracker(unittest.TestCase):
 
         # Total usage shows per-model breakdown
         expected_total = ("Total Session Tokens: 150 total\n"
+                         "Per-Model:\n"
                          "  default: 100 (60 in, 40 out)\n"
                          "  fast: 50 (30 in, 20 out)")
         self.assertEqual(self.tracker.format_total_usage(), expected_total)
@@ -202,9 +203,8 @@ class TestCompositeTokenUsageTracker(unittest.TestCase):
         self.assertEqual(self.tracker.format_current_usage(), "Tokens: 150 (90 in, 60 out)")
 
         # Total usage shows accumulated per-model tokens
-        expected_total = "Total Session Tokens: 150 total\n  default: 150 (90 in, 60 out)"
+        expected_total = "Total Session Tokens: 150 total\nPer-Model:\n  default: 150 (90 in, 60 out)"
         self.assertEqual(self.tracker.format_total_usage(), expected_total)
-
 
     def test_reasoning_tokens_handling(self):
         """Test handling of reasoning tokens in both current and total usage."""
@@ -237,7 +237,7 @@ class TestCompositeTokenUsageTracker(unittest.TestCase):
             self.assertEqual(self.tracker.format_current_usage(), "Tokens: 200 (100 in, 100 out, 40 reasoning)")
 
             # Total usage shows reasoning tokens in per-model breakdown
-            expected_total = "Total Session Tokens: 200 total\n  thinking: 200 (100 in, 100 out, 40 reasoning)"
+            expected_total = "Total Session Tokens: 200 total\nPer-Model:\n  thinking: 200 (100 in, 100 out, 40 reasoning)"
             self.assertEqual(self.tracker.format_total_usage(), expected_total)
         finally:
             # Restore original hasattr
@@ -262,7 +262,7 @@ class TestCompositeTokenUsageTracker(unittest.TestCase):
         self.assertIsNone(self.tracker.format_current_usage())
 
         # But total usage should still be preserved
-        expected_total = "Total Session Tokens: 100 total\n  default: 100 (60 in, 40 out)"
+        expected_total = "Total Session Tokens: 100 total\nPer-Model:\n  default: 100 (60 in, 40 out)"
         self.assertEqual(self.tracker.format_total_usage(), expected_total)
 
         # Add more tokens
@@ -279,7 +279,7 @@ class TestCompositeTokenUsageTracker(unittest.TestCase):
         self.assertEqual(current_usage, "Tokens: 50 (30 in, 20 out)")
 
         # Total usage should show accumulated tokens
-        expected_total = "Total Session Tokens: 150 total\n  default: 150 (90 in, 60 out)"
+        expected_total = "Total Session Tokens: 150 total\nPer-Model:\n  default: 150 (90 in, 60 out)"
         self.assertEqual(self.tracker.format_total_usage(), expected_total)
 
 

@@ -1,6 +1,5 @@
-import asyncio
 import unittest
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Callable
 
 from langchain_core.tools import BaseTool
 
@@ -9,18 +8,6 @@ from tests.mocks import MockMCPWorkersContext, create_mock_mcp_tool, create_cont
 
 
 # Helper Functions
-
-
-async def initialize_context_async(context: MockMCPWorkersContext) -> MockMCPWorkersContext:
-    """Initialize context asynchronously (calls __aenter__).
-
-    Args:
-        context: MockMCPWorkersContext instance to initialize
-
-    Returns:
-        The initialized context
-    """
-    return await context.__aenter__()
 
 
 def get_tool_names(tools: List[BaseTool]) -> List[str]:
@@ -78,20 +65,20 @@ class BaseToolImportTest(unittest.TestCase):
         """Common setup for all tool import tests."""
         self.maxDiff = None  # Show full diffs in assertions
 
-    @staticmethod
-    def create_and_initialize_context(yaml_str: str,
-                                      mock_mcp_tools: Dict[str, List[BaseTool]] = None) -> MockMCPWorkersContext:
-        """Create and initialize context from YAML synchronously.
+    def run_with_context(self, yaml_str: str, test_func: Callable[[MockMCPWorkersContext], Any],
+                         mock_mcp_tools: Dict[str, List[BaseTool]] = None) -> Any:
+        """Create context and run test function with initialized context.
 
         Args:
             yaml_str: YAML configuration string
+            test_func: Test function to run with the initialized context
             mock_mcp_tools: Optional dictionary mapping MCP server names to lists of mock tools
 
         Returns:
-            Initialized MockMCPWorkersContext instance
+            Result of the test function
         """
         context = create_context_from_yaml(yaml_str, mock_mcp_tools)
-        return asyncio.run(initialize_context_async(context))
+        return context.run(lambda: test_func(context))
 
     def assert_tools_available(self, context: MockMCPWorkersContext,
                                 scope: str, tool_refs: List[str],
@@ -133,18 +120,19 @@ shared:
         name: read_tool
         description: Read files
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify tool is in shared tools
+            self.assertIn('read_tool', context._tools)
+            tool = context._tools['read_tool']
+            self.assertEqual('read_tool', tool.name)
+            self.assertEqual('Read files', tool.description)
 
-        # Verify tool is in shared tools
-        self.assertIn('read_tool', context._tools)
-        tool = context._tools['read_tool']
-        self.assertEqual('read_tool', tool.name)
-        self.assertEqual('Read files', tool.description)
+            # Verify tool can be referenced from chat
+            chat_tools = context.get_tools('chat', ['read_tool'])
+            self.assertEqual(1, len(chat_tools))
+            self.assertEqual('read_tool', chat_tools[0].name)
 
-        # Verify tool can be referenced from chat
-        chat_tools = context.get_tools('chat', ['read_tool'])
-        self.assertEqual(1, len(chat_tools))
-        self.assertEqual('read_tool', chat_tools[0].name)
+        self.run_with_context(yaml_config, verify)
 
     def test_import_single_tool_from_toolkit_to_shared_and_reference(self):
         """Import one tool from toolkit to shared and reference from chat."""
@@ -155,18 +143,19 @@ shared:
       name: my_read_tool
       description: Custom read tool from toolkit
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify tool is in shared tools with custom name
+            self.assertIn('my_read_tool', context._tools)
+            tool = context._tools['my_read_tool']
+            self.assertEqual('my_read_tool', tool.name)
+            self.assertEqual('Custom read tool from toolkit', tool.description)
 
-        # Verify tool is in shared tools with custom name
-        self.assertIn('my_read_tool', context._tools)
-        tool = context._tools['my_read_tool']
-        self.assertEqual('my_read_tool', tool.name)
-        self.assertEqual('Custom read tool from toolkit', tool.description)
+            # Verify tool can be referenced from chat
+            chat_tools = context.get_tools('chat', ['my_read_tool'])
+            self.assertEqual(1, len(chat_tools))
+            self.assertEqual('my_read_tool', chat_tools[0].name)
 
-        # Verify tool can be referenced from chat
-        chat_tools = context.get_tools('chat', ['my_read_tool'])
-        self.assertEqual(1, len(chat_tools))
-        self.assertEqual('my_read_tool', chat_tools[0].name)
+        self.run_with_context(yaml_config, verify)
 
     def test_import_single_tool_from_mcp_to_shared_and_reference(self):
         """Import one tool from MCP server to shared and reference from chat."""
@@ -193,18 +182,19 @@ shared:
       name: my_mcp_read
       description: Custom MCP read tool
 """
-        context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
+        def verify(context):
+            # Verify tool is in shared tools with custom name
+            self.assertIn('my_mcp_read', context._tools)
+            tool = context._tools['my_mcp_read']
+            self.assertEqual('my_mcp_read', tool.name)
+            self.assertEqual('Custom MCP read tool', tool.description)
 
-        # Verify tool is in shared tools with custom name
-        self.assertIn('my_mcp_read', context._tools)
-        tool = context._tools['my_mcp_read']
-        self.assertEqual('my_mcp_read', tool.name)
-        self.assertEqual('Custom MCP read tool', tool.description)
+            # Verify tool can be referenced from chat
+            chat_tools = context.get_tools('chat', ['my_mcp_read'])
+            self.assertEqual(1, len(chat_tools))
+            self.assertEqual('my_mcp_read', chat_tools[0].name)
 
-        # Verify tool can be referenced from chat
-        chat_tools = context.get_tools('chat', ['my_mcp_read'])
-        self.assertEqual(1, len(chat_tools))
-        self.assertEqual('my_mcp_read', chat_tools[0].name)
+        self.run_with_context(yaml_config, verify, mock_mcp_tools)
 
     def test_declare_custom_tool_in_shared_and_reference(self):
         """Declare custom tool in shared and reference from chat."""
@@ -220,18 +210,19 @@ shared:
       do:
         - eval: "Query result for {query}"
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify tool is in shared tools
+            self.assertIn('custom_tool', context._tools)
+            tool = context._tools['custom_tool']
+            self.assertEqual('custom_tool', tool.name)
+            self.assertEqual('A custom tool', tool.description)
 
-        # Verify tool is in shared tools
-        self.assertIn('custom_tool', context._tools)
-        tool = context._tools['custom_tool']
-        self.assertEqual('custom_tool', tool.name)
-        self.assertEqual('A custom tool', tool.description)
+            # Verify tool can be referenced from chat
+            chat_tools = context.get_tools('chat', ['custom_tool'])
+            self.assertEqual(1, len(chat_tools))
+            self.assertEqual('custom_tool', chat_tools[0].name)
 
-        # Verify tool can be referenced from chat
-        chat_tools = context.get_tools('chat', ['custom_tool'])
-        self.assertEqual(1, len(chat_tools))
-        self.assertEqual('custom_tool', chat_tools[0].name)
+        self.run_with_context(yaml_config, verify)
 
     def test_import_toolkit_to_shared_and_reference(self):
         """Import entire toolkit to shared and reference from chat."""
@@ -241,19 +232,20 @@ shared:
     - import_tools: llm_workers.tools.fs.FilesystemToolkit
       prefix: 'fs_'
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify toolkit tools are in shared tools with prefix
+            shared_tool_names = list(context._tools.keys())
+            self.assertTrue(any(name == 'fs_read_file' for name in shared_tool_names))
+            self.assertTrue(any(name == 'fs_write_file' for name in shared_tool_names))
 
-        # Verify toolkit tools are in shared tools with prefix
-        shared_tool_names = list(context._tools.keys())
-        self.assertTrue(any(name == 'fs_read_file' for name in shared_tool_names))
-        self.assertTrue(any(name == 'fs_write_file' for name in shared_tool_names))
+            # Verify tools can be referenced from chat with wildcard
+            chat_tools = context.get_tools('chat', [ToolsReference(match=['fs_*'])])
+            self.assertGreater(len(chat_tools), 0)
+            # All tools should have fs_ prefix
+            for tool in chat_tools:
+                self.assertTrue(tool.name.startswith('fs_'))
 
-        # Verify tools can be referenced from chat with wildcard
-        chat_tools = context.get_tools('chat', [ToolsReference(match=['fs_*'])])
-        self.assertGreater(len(chat_tools), 0)
-        # All tools should have fs_ prefix
-        for tool in chat_tools:
-            self.assertTrue(tool.name.startswith('fs_'))
+        self.run_with_context(yaml_config, verify)
 
     def test_import_mcp_server_to_shared_and_reference(self):
         """Import all MCP server tools to shared and reference from chat."""
@@ -279,20 +271,21 @@ shared:
     - import_tools: mcp:test_server
       prefix: 'server_'
 """
-        context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
+        def verify(context):
+            # Verify MCP tools are in shared tools with prefix
+            shared_tool_names = list(context._tools.keys())
+            self.assertIn('server_mcp_read', shared_tool_names)
+            self.assertIn('server_mcp_write', shared_tool_names)
+            self.assertIn('server_mcp_list', shared_tool_names)
 
-        # Verify MCP tools are in shared tools with prefix
-        shared_tool_names = list(context._tools.keys())
-        self.assertIn('server_mcp_read', shared_tool_names)
-        self.assertIn('server_mcp_write', shared_tool_names)
-        self.assertIn('server_mcp_list', shared_tool_names)
+            # Verify tools can be referenced from chat with wildcard
+            chat_tools = context.get_tools('chat', [ToolsReference(match=['server_*'])])
+            self.assertEqual(3, len(chat_tools))
+            # All tools should have server_ prefix
+            for tool in chat_tools:
+                self.assertTrue(tool.name.startswith('server_'))
 
-        # Verify tools can be referenced from chat with wildcard
-        chat_tools = context.get_tools('chat', [ToolsReference(match=['server_*'])])
-        self.assertEqual(3, len(chat_tools))
-        # All tools should have server_ prefix
-        for tool in chat_tools:
-            self.assertTrue(tool.name.startswith('server_'))
+        self.run_with_context(yaml_config, verify, mock_mcp_tools)
 
     def test_auto_import_mcp_server_to_shared_and_reference(self):
         """MCP server with auto_import_scope: shared."""
@@ -312,19 +305,20 @@ mcp:
     args: []
     auto_import_scope: shared
 """
-        context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
+        def verify(context):
+            # Verify MCP tools are auto-imported to shared tools with server name prefix
+            shared_tool_names = list(context._tools.keys())
+            self.assertIn('auto_server_auto_read', shared_tool_names)
+            self.assertIn('auto_server_auto_write', shared_tool_names)
 
-        # Verify MCP tools are auto-imported to shared tools with server name prefix
-        shared_tool_names = list(context._tools.keys())
-        self.assertIn('auto_server_auto_read', shared_tool_names)
-        self.assertIn('auto_server_auto_write', shared_tool_names)
+            # Verify tools can be referenced from chat
+            chat_tools = context.get_tools('chat', [ToolsReference(match=['auto_server_*'])])
+            self.assertEqual(2, len(chat_tools))
+            # All tools should have auto_server_ prefix
+            for tool in chat_tools:
+                self.assertTrue(tool.name.startswith('auto_server_'))
 
-        # Verify tools can be referenced from chat
-        chat_tools = context.get_tools('chat', [ToolsReference(match=['auto_server_*'])])
-        self.assertEqual(2, len(chat_tools))
-        # All tools should have auto_server_ prefix
-        for tool in chat_tools:
-            self.assertTrue(tool.name.startswith('auto_server_'))
+        self.run_with_context(yaml_config, verify, mock_mcp_tools)
 
 
 # Test Category 2: Import Directly to Chat Section
@@ -341,16 +335,17 @@ chat:
       name: read_tool
       description: Read files directly
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify tool is NOT in shared tools (imported directly to chat)
+            self.assertNotIn('read_tool', context._tools)
 
-        # Verify tool is NOT in shared tools (imported directly to chat)
-        self.assertNotIn('read_tool', context._tools)
+            # Verify tool is accessible from chat by passing the chat config's tools
+            chat_tools = context.get_tools('chat', context.config.chat.tools)
+            self.assertEqual(1, len(chat_tools))
+            self.assertEqual('read_tool', chat_tools[0].name)
+            self.assertEqual('Read files directly', chat_tools[0].description)
 
-        # Verify tool is accessible from chat by passing the chat config's tools
-        chat_tools = context.get_tools('chat', context.config.chat.tools)
-        self.assertEqual(1, len(chat_tools))
-        self.assertEqual('read_tool', chat_tools[0].name)
-        self.assertEqual('Read files directly', chat_tools[0].description)
+        self.run_with_context(yaml_config, verify)
 
     def test_import_single_tool_from_toolkit_directly_to_chat(self):
         """Import one tool from toolkit directly in chat section."""
@@ -361,16 +356,17 @@ chat:
       name: my_write_tool
       description: Custom write tool from toolkit
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify tool is NOT in shared tools (imported directly to chat)
+            self.assertNotIn('my_write_tool', context._tools)
 
-        # Verify tool is NOT in shared tools (imported directly to chat)
-        self.assertNotIn('my_write_tool', context._tools)
+            # Verify tool is accessible from chat by passing the chat config's tools
+            chat_tools = context.get_tools('chat', context.config.chat.tools)
+            self.assertEqual(1, len(chat_tools))
+            self.assertEqual('my_write_tool', chat_tools[0].name)
+            self.assertEqual('Custom write tool from toolkit', chat_tools[0].description)
 
-        # Verify tool is accessible from chat by passing the chat config's tools
-        chat_tools = context.get_tools('chat', context.config.chat.tools)
-        self.assertEqual(1, len(chat_tools))
-        self.assertEqual('my_write_tool', chat_tools[0].name)
-        self.assertEqual('Custom write tool from toolkit', chat_tools[0].description)
+        self.run_with_context(yaml_config, verify)
 
     def test_import_single_tool_from_mcp_directly_to_chat(self):
         """Import one tool from MCP server directly in chat section."""
@@ -396,16 +392,17 @@ chat:
       name: my_search
       description: Custom search from MCP
 """
-        context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
+        def verify(context):
+            # Verify tool is NOT in shared tools (imported directly to chat)
+            self.assertNotIn('my_search', context._tools)
 
-        # Verify tool is NOT in shared tools (imported directly to chat)
-        self.assertNotIn('my_search', context._tools)
+            # Verify tool is accessible from chat by passing the chat config's tools
+            chat_tools = context.get_tools('chat', context.config.chat.tools)
+            self.assertEqual(1, len(chat_tools))
+            self.assertEqual('my_search', chat_tools[0].name)
+            self.assertEqual('Custom search from MCP', chat_tools[0].description)
 
-        # Verify tool is accessible from chat by passing the chat config's tools
-        chat_tools = context.get_tools('chat', context.config.chat.tools)
-        self.assertEqual(1, len(chat_tools))
-        self.assertEqual('my_search', chat_tools[0].name)
-        self.assertEqual('Custom search from MCP', chat_tools[0].description)
+        self.run_with_context(yaml_config, verify, mock_mcp_tools)
 
     def test_declare_custom_tool_directly_in_chat(self):
         """Declare custom tool directly in chat section."""
@@ -421,16 +418,17 @@ chat:
       do:
         - eval: "Chat query result for {query}"
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify tool is NOT in shared tools
+            self.assertNotIn('chat_custom_tool', context._tools)
 
-        # Verify tool is NOT in shared tools
-        self.assertNotIn('chat_custom_tool', context._tools)
+            # Verify tool is accessible from chat
+            chat_tools = context.get_tools('chat', context.config.chat.tools)
+            self.assertEqual(1, len(chat_tools))
+            self.assertEqual('chat_custom_tool', chat_tools[0].name)
+            self.assertEqual('A custom tool in chat', chat_tools[0].description)
 
-        # Verify tool is accessible from chat
-        chat_tools = context.get_tools('chat', context.config.chat.tools)
-        self.assertEqual(1, len(chat_tools))
-        self.assertEqual('chat_custom_tool', chat_tools[0].name)
-        self.assertEqual('A custom tool in chat', chat_tools[0].description)
+        self.run_with_context(yaml_config, verify)
 
     def test_import_toolkit_directly_to_chat(self):
         """Import entire toolkit directly in chat section."""
@@ -440,18 +438,19 @@ chat:
     - import_tools: llm_workers.tools.fs.FilesystemToolkit
       prefix: 'chat_fs_'
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify toolkit tools are NOT in shared tools
+            shared_tool_names = list(context._tools.keys())
+            self.assertFalse(any(name.startswith('chat_fs_') for name in shared_tool_names))
 
-        # Verify toolkit tools are NOT in shared tools
-        shared_tool_names = list(context._tools.keys())
-        self.assertFalse(any(name.startswith('chat_fs_') for name in shared_tool_names))
+            # Verify tools are accessible from chat with prefix
+            chat_tools = context.get_tools('chat', context.config.chat.tools)
+            self.assertGreater(len(chat_tools), 0)
+            # All tools should have chat_fs_ prefix
+            for tool in chat_tools:
+                self.assertTrue(tool.name.startswith('chat_fs_'))
 
-        # Verify tools are accessible from chat with prefix
-        chat_tools = context.get_tools('chat', context.config.chat.tools)
-        self.assertGreater(len(chat_tools), 0)
-        # All tools should have chat_fs_ prefix
-        for tool in chat_tools:
-            self.assertTrue(tool.name.startswith('chat_fs_'))
+        self.run_with_context(yaml_config, verify)
 
     def test_import_mcp_server_directly_to_chat(self):
         """Import all MCP server tools directly in chat section."""
@@ -476,18 +475,19 @@ chat:
     - import_tools: mcp:chat_server
       prefix: 'direct_'
 """
-        context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
+        def verify(context):
+            # Verify MCP tools are NOT in shared tools
+            shared_tool_names = list(context._tools.keys())
+            self.assertFalse(any(name.startswith('direct_') for name in shared_tool_names))
 
-        # Verify MCP tools are NOT in shared tools
-        shared_tool_names = list(context._tools.keys())
-        self.assertFalse(any(name.startswith('direct_') for name in shared_tool_names))
+            # Verify tools are accessible from chat
+            chat_tools = context.get_tools('chat', context.config.chat.tools)
+            self.assertEqual(2, len(chat_tools))
+            # All tools should have direct_ prefix
+            for tool in chat_tools:
+                self.assertTrue(tool.name.startswith('direct_'))
 
-        # Verify tools are accessible from chat
-        chat_tools = context.get_tools('chat', context.config.chat.tools)
-        self.assertEqual(2, len(chat_tools))
-        # All tools should have direct_ prefix
-        for tool in chat_tools:
-            self.assertTrue(tool.name.startswith('direct_'))
+        self.run_with_context(yaml_config, verify, mock_mcp_tools)
 
     def test_auto_import_mcp_server_directly_to_chat(self):
         """MCP server with auto_import_scope: chat."""
@@ -507,19 +507,20 @@ mcp:
     args: []
     auto_import_scope: chat
 """
-        context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
+        def verify(context):
+            # Verify MCP tools are NOT in shared tools
+            shared_tool_names = list(context._tools.keys())
+            self.assertFalse(any(name.startswith('auto_chat_server_') for name in shared_tool_names))
 
-        # Verify MCP tools are NOT in shared tools
-        shared_tool_names = list(context._tools.keys())
-        self.assertFalse(any(name.startswith('auto_chat_server_') for name in shared_tool_names))
+            # Verify tools are auto-imported to chat with server name prefix
+            chat_tools = context.get_tools('chat', [])
+            self.assertEqual(2, len(chat_tools))
+            # All tools should have auto_chat_server_ prefix
+            tool_names = [tool.name for tool in chat_tools]
+            self.assertIn('auto_chat_server_auto_tool1', tool_names)
+            self.assertIn('auto_chat_server_auto_tool2', tool_names)
 
-        # Verify tools are auto-imported to chat with server name prefix
-        chat_tools = context.get_tools('chat', [])
-        self.assertEqual(2, len(chat_tools))
-        # All tools should have auto_chat_server_ prefix
-        tool_names = [tool.name for tool in chat_tools]
-        self.assertIn('auto_chat_server_auto_tool1', tool_names)
-        self.assertIn('auto_chat_server_auto_tool2', tool_names)
+        self.run_with_context(yaml_config, verify, mock_mcp_tools)
 
 
 # Test Category 3: Import in Custom Tool Declarations
@@ -545,16 +546,17 @@ shared:
           params:
             path: "{filename}"
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify wrapper tool exists
+            self.assertIn('wrapper_tool', context._tools)
+            tool = context._tools['wrapper_tool']
+            self.assertEqual('wrapper_tool', tool.name)
 
-        # Verify wrapper tool exists
-        self.assertIn('wrapper_tool', context._tools)
-        tool = context._tools['wrapper_tool']
-        self.assertEqual('wrapper_tool', tool.name)
+            # Test that the tool can be retrieved from chat
+            chat_tools = context.get_tools('chat', ['wrapper_tool'])
+            self.assertEqual(1, len(chat_tools))
 
-        # Test that the tool can be retrieved from chat
-        chat_tools = context.get_tools('chat', ['wrapper_tool'])
-        self.assertEqual(1, len(chat_tools))
+        self.run_with_context(yaml_config, verify)
 
     def test_import_single_tool_from_toolkit_in_custom_tool_call(self):
         """Call statement with toolkit tool reference."""
@@ -578,16 +580,17 @@ shared:
             path: "{filename}"
             instructions: "{content}"
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify wrapper tool exists
+            self.assertIn('wrapper_tool', context._tools)
+            tool = context._tools['wrapper_tool']
+            self.assertEqual('wrapper_tool', tool.name)
 
-        # Verify wrapper tool exists
-        self.assertIn('wrapper_tool', context._tools)
-        tool = context._tools['wrapper_tool']
-        self.assertEqual('wrapper_tool', tool.name)
+            # Test that the tool can be retrieved from chat
+            chat_tools = context.get_tools('chat', ['wrapper_tool'])
+            self.assertEqual(1, len(chat_tools))
 
-        # Test that the tool can be retrieved from chat
-        chat_tools = context.get_tools('chat', ['wrapper_tool'])
-        self.assertEqual(1, len(chat_tools))
+        self.run_with_context(yaml_config, verify)
 
     def test_import_single_tool_from_mcp_in_custom_tool_call(self):
         """Call statement with MCP tool reference."""
@@ -622,16 +625,17 @@ shared:
             params:
               input_str: "{data}"
 """
-        context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
+        def verify(context):
+            # Verify wrapper tool exists
+            self.assertIn('wrapper_tool', context._tools)
+            tool = context._tools['wrapper_tool']
+            self.assertEqual('wrapper_tool', tool.name)
 
-        # Verify wrapper tool exists
-        self.assertIn('wrapper_tool', context._tools)
-        tool = context._tools['wrapper_tool']
-        self.assertEqual('wrapper_tool', tool.name)
+            # Test that the tool can be retrieved from chat
+            chat_tools = context.get_tools('chat', ['wrapper_tool'])
+            self.assertEqual(1, len(chat_tools))
 
-        # Test that the tool can be retrieved from chat
-        chat_tools = context.get_tools('chat', ['wrapper_tool'])
-        self.assertEqual(1, len(chat_tools))
+        self.run_with_context(yaml_config, verify, mock_mcp_tools)
 
 
 # Test Category 4: Import in LLM Tool Declarations
@@ -651,16 +655,17 @@ shared:
           - import_tool: llm_workers.tools.fs.ReadFileTool
             name: read_tool
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify LLM tool exists
+            self.assertIn('llm_with_tool', context._tools)
+            llm_tool = context._tools['llm_with_tool']
+            self.assertEqual('llm_with_tool', llm_tool.name)
 
-        # Verify LLM tool exists
-        self.assertIn('llm_with_tool', context._tools)
-        llm_tool = context._tools['llm_with_tool']
-        self.assertEqual('llm_with_tool', llm_tool.name)
+            # Verify LLM tool can be retrieved from chat
+            chat_tools = context.get_tools('chat', ['llm_with_tool'])
+            self.assertEqual(1, len(chat_tools))
 
-        # Verify LLM tool can be retrieved from chat
-        chat_tools = context.get_tools('chat', ['llm_with_tool'])
-        self.assertEqual(1, len(chat_tools))
+        self.run_with_context(yaml_config, verify)
 
     def test_import_single_tool_from_toolkit_in_llm_tool(self):
         """Import one tool from toolkit in LLM tool declaration."""
@@ -674,16 +679,17 @@ shared:
           - import_tool: llm_workers.tools.fs.FilesystemToolkit/list_files
             name: list_tool
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify LLM tool exists
+            self.assertIn('llm_with_toolkit_tool', context._tools)
+            llm_tool = context._tools['llm_with_toolkit_tool']
+            self.assertEqual('llm_with_toolkit_tool', llm_tool.name)
 
-        # Verify LLM tool exists
-        self.assertIn('llm_with_toolkit_tool', context._tools)
-        llm_tool = context._tools['llm_with_toolkit_tool']
-        self.assertEqual('llm_with_toolkit_tool', llm_tool.name)
+            # Verify LLM tool can be retrieved from chat
+            chat_tools = context.get_tools('chat', ['llm_with_toolkit_tool'])
+            self.assertEqual(1, len(chat_tools))
 
-        # Verify LLM tool can be retrieved from chat
-        chat_tools = context.get_tools('chat', ['llm_with_toolkit_tool'])
-        self.assertEqual(1, len(chat_tools))
+        self.run_with_context(yaml_config, verify)
 
     def test_import_single_tool_from_mcp_in_llm_tool(self):
         """Import one tool from MCP server in LLM tool declaration."""
@@ -712,16 +718,17 @@ shared:
           - import_tool: mcp:llm_server/mcp_query
             name: query_tool
 """
-        context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
+        def verify(context):
+            # Verify LLM tool exists
+            self.assertIn('llm_with_mcp_tool', context._tools)
+            llm_tool = context._tools['llm_with_mcp_tool']
+            self.assertEqual('llm_with_mcp_tool', llm_tool.name)
 
-        # Verify LLM tool exists
-        self.assertIn('llm_with_mcp_tool', context._tools)
-        llm_tool = context._tools['llm_with_mcp_tool']
-        self.assertEqual('llm_with_mcp_tool', llm_tool.name)
+            # Verify LLM tool can be retrieved from chat
+            chat_tools = context.get_tools('chat', ['llm_with_mcp_tool'])
+            self.assertEqual(1, len(chat_tools))
 
-        # Verify LLM tool can be retrieved from chat
-        chat_tools = context.get_tools('chat', ['llm_with_mcp_tool'])
-        self.assertEqual(1, len(chat_tools))
+        self.run_with_context(yaml_config, verify, mock_mcp_tools)
 
     def test_declare_custom_tool_in_llm_tool(self):
         """Declare custom tool in LLM tool declaration."""
@@ -741,16 +748,17 @@ shared:
             do:
               - eval: "Processed: {input_text}"
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify LLM tool exists
+            self.assertIn('llm_with_custom_tool', context._tools)
+            llm_tool = context._tools['llm_with_custom_tool']
+            self.assertEqual('llm_with_custom_tool', llm_tool.name)
 
-        # Verify LLM tool exists
-        self.assertIn('llm_with_custom_tool', context._tools)
-        llm_tool = context._tools['llm_with_custom_tool']
-        self.assertEqual('llm_with_custom_tool', llm_tool.name)
+            # Verify LLM tool can be retrieved from chat
+            chat_tools = context.get_tools('chat', ['llm_with_custom_tool'])
+            self.assertEqual(1, len(chat_tools))
 
-        # Verify LLM tool can be retrieved from chat
-        chat_tools = context.get_tools('chat', ['llm_with_custom_tool'])
-        self.assertEqual(1, len(chat_tools))
+        self.run_with_context(yaml_config, verify)
 
     def test_import_toolkit_in_llm_tool(self):
         """Import entire toolkit in LLM tool declaration."""
@@ -764,16 +772,17 @@ shared:
           - import_tools: llm_workers.tools.fs.FilesystemToolkit
             prefix: 'fs_'
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify LLM tool exists
+            self.assertIn('llm_with_fs_toolkit', context._tools)
+            llm_tool = context._tools['llm_with_fs_toolkit']
+            self.assertEqual('llm_with_fs_toolkit', llm_tool.name)
 
-        # Verify LLM tool exists
-        self.assertIn('llm_with_fs_toolkit', context._tools)
-        llm_tool = context._tools['llm_with_fs_toolkit']
-        self.assertEqual('llm_with_fs_toolkit', llm_tool.name)
+            # Verify LLM tool can be retrieved from chat
+            chat_tools = context.get_tools('chat', ['llm_with_fs_toolkit'])
+            self.assertEqual(1, len(chat_tools))
 
-        # Verify LLM tool can be retrieved from chat
-        chat_tools = context.get_tools('chat', ['llm_with_fs_toolkit'])
-        self.assertEqual(1, len(chat_tools))
+        self.run_with_context(yaml_config, verify)
 
     def test_import_mcp_server_in_llm_tool(self):
         """Import all MCP server tools in LLM tool declaration."""
@@ -802,16 +811,17 @@ shared:
           - import_tools: mcp:llm_mcp_server
             prefix: 'mcp_'
 """
-        context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
+        def verify(context):
+            # Verify LLM tool exists
+            self.assertIn('llm_with_mcp', context._tools)
+            llm_tool = context._tools['llm_with_mcp']
+            self.assertEqual('llm_with_mcp', llm_tool.name)
 
-        # Verify LLM tool exists
-        self.assertIn('llm_with_mcp', context._tools)
-        llm_tool = context._tools['llm_with_mcp']
-        self.assertEqual('llm_with_mcp', llm_tool.name)
+            # Verify LLM tool can be retrieved from chat
+            chat_tools = context.get_tools('chat', ['llm_with_mcp'])
+            self.assertEqual(1, len(chat_tools))
 
-        # Verify LLM tool can be retrieved from chat
-        chat_tools = context.get_tools('chat', ['llm_with_mcp'])
-        self.assertEqual(1, len(chat_tools))
+        self.run_with_context(yaml_config, verify, mock_mcp_tools)
 
 
 # Test Category 5: Mass Import Properties
@@ -830,14 +840,15 @@ shared:
         - 'read*'
         - 'list*'
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify only read* and list* tools are imported
+            shared_tool_names = list(context._tools.keys())
+            self.assertIn('read_file', shared_tool_names)
+            self.assertIn('list_files', shared_tool_names)
+            self.assertNotIn('write_file', shared_tool_names)
+            self.assertNotIn('edit_file', shared_tool_names)
 
-        # Verify only read* and list* tools are imported
-        shared_tool_names = list(context._tools.keys())
-        self.assertIn('read_file', shared_tool_names)
-        self.assertIn('list_files', shared_tool_names)
-        self.assertNotIn('write_file', shared_tool_names)
-        self.assertNotIn('edit_file', shared_tool_names)
+        self.run_with_context(yaml_config, verify)
 
     def test_toolkit_import_with_tool_filtering_exclude(self):
         """Test toolkit import with exclusion patterns: tools: ['*', '!write*']."""
@@ -850,12 +861,13 @@ shared:
         - '*'
         - '!write*'
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify write* tools are excluded
+            shared_tool_names = list(context._tools.keys())
+            self.assertIn('read_file', shared_tool_names)
+            self.assertNotIn('write_file', shared_tool_names)
 
-        # Verify write* tools are excluded
-        shared_tool_names = list(context._tools.keys())
-        self.assertIn('read_file', shared_tool_names)
-        self.assertNotIn('write_file', shared_tool_names)
+        self.run_with_context(yaml_config, verify)
 
     def test_toolkit_import_with_tool_filtering_combined(self):
         """Test toolkit import with combined patterns: tools: ['read*', '!read_unsafe']."""
@@ -867,13 +879,14 @@ shared:
       filter:
         - 'read*'
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify only read* tools are imported
+            shared_tool_names = list(context._tools.keys())
+            self.assertIn('read_file', shared_tool_names)
+            self.assertNotIn('write_file', shared_tool_names)
+            self.assertNotIn('list_files', shared_tool_names)
 
-        # Verify only read* tools are imported
-        shared_tool_names = list(context._tools.keys())
-        self.assertIn('read_file', shared_tool_names)
-        self.assertNotIn('write_file', shared_tool_names)
-        self.assertNotIn('list_files', shared_tool_names)
+        self.run_with_context(yaml_config, verify)
 
     def test_toolkit_import_with_prefix(self):
         """Test toolkit import with prefix: prefix: 'fs_'."""
@@ -883,13 +896,14 @@ shared:
     - import_tools: llm_workers.tools.fs.FilesystemToolkit
       prefix: 'fs_'
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify all tools have fs_ prefix
+            shared_tool_names = list(context._tools.keys())
+            self.assertIn('fs_read_file', shared_tool_names)
+            self.assertIn('fs_write_file', shared_tool_names)
+            self.assertNotIn('read_file', shared_tool_names)  # No unprefixed tools
 
-        # Verify all tools have fs_ prefix
-        shared_tool_names = list(context._tools.keys())
-        self.assertIn('fs_read_file', shared_tool_names)
-        self.assertIn('fs_write_file', shared_tool_names)
-        self.assertNotIn('read_file', shared_tool_names)  # No unprefixed tools
+        self.run_with_context(yaml_config, verify)
 
     def test_toolkit_import_with_empty_prefix(self):
         """Test toolkit import with empty prefix: prefix: ''."""
@@ -899,12 +913,13 @@ shared:
     - import_tools: llm_workers.tools.fs.FilesystemToolkit
       prefix: ''
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify tools have no prefix (original names)
+            shared_tool_names = list(context._tools.keys())
+            self.assertIn('read_file', shared_tool_names)
+            self.assertIn('write_file', shared_tool_names)
 
-        # Verify tools have no prefix (original names)
-        shared_tool_names = list(context._tools.keys())
-        self.assertIn('read_file', shared_tool_names)
-        self.assertIn('write_file', shared_tool_names)
+        self.run_with_context(yaml_config, verify)
 
     def test_toolkit_import_with_ui_hints_for_all(self):
         """Test toolkit import with force_ui_hints_for: ['*']."""
@@ -915,15 +930,16 @@ shared:
       prefix: ''
       force_ui_hints_for: ['*']
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify all tools have UI hints enabled
+            for tool_name in context._tools:
+                tool = context._tools[tool_name]
+                if tool.metadata and 'tool_definition' in tool.metadata:
+                    tool_def = tool.metadata['tool_definition']
+                    # UI hint should be True for all tools
+                    self.assertIsNotNone(tool_def.ui_hint)
 
-        # Verify all tools have UI hints enabled
-        for tool_name in context._tools:
-            tool = context._tools[tool_name]
-            if tool.metadata and 'tool_definition' in tool.metadata:
-                tool_def = tool.metadata['tool_definition']
-                # UI hint should be True for all tools
-                self.assertIsNotNone(tool_def.ui_hint)
+        self.run_with_context(yaml_config, verify)
 
     def test_toolkit_import_with_ui_hints_for_pattern(self):
         """Test toolkit import with force_ui_hints_for: ['read*']."""
@@ -934,12 +950,13 @@ shared:
       prefix: ''
       force_ui_hints_for: ['read*']
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify only read* tools have UI hints
+            read_tool = context._tools.get('read_file')
+            if read_tool and read_tool.metadata and 'tool_definition' in read_tool.metadata:
+                self.assertIsNotNone(read_tool.metadata['tool_definition'].ui_hint)
 
-        # Verify only read* tools have UI hints
-        read_tool = context._tools.get('read_file')
-        if read_tool and read_tool.metadata and 'tool_definition' in read_tool.metadata:
-            self.assertIsNotNone(read_tool.metadata['tool_definition'].ui_hint)
+        self.run_with_context(yaml_config, verify)
 
     def test_toolkit_import_with_ui_hints_args(self):
         """Test toolkit import with ui_hints_args: ['path']."""
@@ -951,15 +968,16 @@ shared:
       force_ui_hints_for: ['*']
       ui_hints_args: ['path']
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify UI hints args are set
+            for tool_name in context._tools:
+                tool = context._tools[tool_name]
+                if tool.metadata and 'tool_definition' in tool.metadata:
+                    tool_def = tool.metadata['tool_definition']
+                    if tool_def.ui_hint:
+                        self.assertEqual(['path'], tool_def.ui_hint_args)
 
-        # Verify UI hints args are set
-        for tool_name in context._tools:
-            tool = context._tools[tool_name]
-            if tool.metadata and 'tool_definition' in tool.metadata:
-                tool_def = tool.metadata['tool_definition']
-                if tool_def.ui_hint:
-                    self.assertEqual(['path'], tool_def.ui_hint_args)
+        self.run_with_context(yaml_config, verify)
 
     def test_toolkit_import_with_require_confirmation_for_pattern(self):
         """Test toolkit import with force_require_confirmation_for: ['write*']."""
@@ -970,17 +988,18 @@ shared:
       prefix: ''
       force_require_confirmation_for: ['write*']
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify write* tools require confirmation
+            write_tool = context._tools.get('write_file')
+            if write_tool and write_tool.metadata and 'tool_definition' in write_tool.metadata:
+                self.assertTrue(write_tool.metadata['tool_definition'].require_confirmation)
 
-        # Verify write* tools require confirmation
-        write_tool = context._tools.get('write_file')
-        if write_tool and write_tool.metadata and 'tool_definition' in write_tool.metadata:
-            self.assertTrue(write_tool.metadata['tool_definition'].require_confirmation)
+            # Verify read* tools have None require_confirmation (use built-in behavior)
+            read_tool = context._tools.get('read_file')
+            if read_tool and read_tool.metadata and 'tool_definition' in read_tool.metadata:
+                self.assertIsNone(read_tool.metadata['tool_definition'].require_confirmation)
 
-        # Verify read* tools have None require_confirmation (use built-in behavior)
-        read_tool = context._tools.get('read_file')
-        if read_tool and read_tool.metadata and 'tool_definition' in read_tool.metadata:
-            self.assertIsNone(read_tool.metadata['tool_definition'].require_confirmation)
+        self.run_with_context(yaml_config, verify)
 
     def test_mcp_import_with_combined_properties(self):
         """Test MCP import with filtering, prefix, UI hints, and confirmation."""
@@ -1012,23 +1031,24 @@ shared:
       ui_hints_args: ['input_str']
       force_require_confirmation_for: ['list*']
 """
-        context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
+        def verify(context):
+            # Verify filtering: write* excluded
+            shared_tool_names = list(context._tools.keys())
+            self.assertIn('mcp_read_data', shared_tool_names)
+            self.assertIn('mcp_list_data', shared_tool_names)
+            self.assertNotIn('mcp_write_data', shared_tool_names)
 
-        # Verify filtering: write* excluded
-        shared_tool_names = list(context._tools.keys())
-        self.assertIn('mcp_read_data', shared_tool_names)
-        self.assertIn('mcp_list_data', shared_tool_names)
-        self.assertNotIn('mcp_write_data', shared_tool_names)
+            # Verify prefix applied
+            self.assertTrue(all(name.startswith('mcp_') for name in shared_tool_names))
 
-        # Verify prefix applied
-        self.assertTrue(all(name.startswith('mcp_') for name in shared_tool_names))
+            # Verify UI hints and confirmation for matching tools
+            list_tool = context._tools.get('mcp_list_data')
+            if list_tool and list_tool.metadata and 'tool_definition' in list_tool.metadata:
+                tool_def = list_tool.metadata['tool_definition']
+                self.assertIsNotNone(tool_def.ui_hint)
+                self.assertTrue(tool_def.require_confirmation)
 
-        # Verify UI hints and confirmation for matching tools
-        list_tool = context._tools.get('mcp_list_data')
-        if list_tool and list_tool.metadata and 'tool_definition' in list_tool.metadata:
-            tool_def = list_tool.metadata['tool_definition']
-            self.assertIsNotNone(tool_def.ui_hint)
-            self.assertTrue(tool_def.require_confirmation)
+        self.run_with_context(yaml_config, verify, mock_mcp_tools)
 
 
 # Test Category 6: Single Import Properties
@@ -1044,14 +1064,15 @@ shared:
     - import_tool: llm_workers.tools.fs.ReadFileTool
       name: my_read_tool
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify tool name is overridden
+            self.assertIn('my_read_tool', context._tools)
+            self.assertNotIn('read_file', context._tools)
 
-        # Verify tool name is overridden
-        self.assertIn('my_read_tool', context._tools)
-        self.assertNotIn('read_file', context._tools)
+            tool = context._tools['my_read_tool']
+            self.assertEqual('my_read_tool', tool.name)
 
-        tool = context._tools['my_read_tool']
-        self.assertEqual('my_read_tool', tool.name)
+        self.run_with_context(yaml_config, verify)
 
     def test_single_tool_import_with_description_override(self):
         """Test single tool import with description: Custom desc."""
@@ -1062,11 +1083,12 @@ shared:
       name: read_tool
       description: Custom description for reading files
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify description is overridden
+            tool = context._tools['read_tool']
+            self.assertEqual('Custom description for reading files', tool.description)
 
-        # Verify description is overridden
-        tool = context._tools['read_tool']
-        self.assertEqual('Custom description for reading files', tool.description)
+        self.run_with_context(yaml_config, verify)
 
     def test_single_tool_import_with_ui_hint_string(self):
         """Test single tool import with ui_hint: 'Doing {action}'."""
@@ -1077,12 +1099,13 @@ shared:
       name: read_tool
       ui_hint: "Reading file ${path}"
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify UI hint is set as string
+            tool = context._tools['read_tool']
+            tool_def = tool.metadata['tool_definition']
+            self.assertEqual("Reading file file", tool_def.ui_hint.evaluate({'path': 'file'}))
 
-        # Verify UI hint is set as string
-        tool = context._tools['read_tool']
-        tool_def = tool.metadata['tool_definition']
-        self.assertEqual("Reading file file", tool_def.ui_hint.evaluate({'path': 'file'}))
+        self.run_with_context(yaml_config, verify)
 
     def test_single_tool_import_with_ui_hint_boolean(self):
         """Test single tool import with ui_hint: true or false."""
@@ -1094,10 +1117,12 @@ shared:
       name: read_tool_true
       ui_hint: true
 """
-        context = self.create_and_initialize_context(yaml_config_true)
-        tool = context._tools['read_tool_true']
-        tool_def = tool.metadata['tool_definition']
-        self.assertEqual(True, tool_def.ui_hint)
+        def verify_true(context):
+            tool = context._tools['read_tool_true']
+            tool_def = tool.metadata['tool_definition']
+            self.assertEqual(True, tool_def.ui_hint)
+
+        self.run_with_context(yaml_config_true, verify_true)
 
         # Test with ui_hint: false
         yaml_config_false = """
@@ -1107,10 +1132,12 @@ shared:
       name: read_tool_false
       ui_hint: false
 """
-        context = self.create_and_initialize_context(yaml_config_false)
-        tool = context._tools['read_tool_false']
-        tool_def = tool.metadata['tool_definition']
-        self.assertEqual(False, tool_def.ui_hint)
+        def verify_false(context):
+            tool = context._tools['read_tool_false']
+            tool_def = tool.metadata['tool_definition']
+            self.assertEqual(False, tool_def.ui_hint)
+
+        self.run_with_context(yaml_config_false, verify_false)
 
     def test_single_tool_import_with_require_confirmation(self):
         """Test single tool import with require_confirmation: true."""
@@ -1121,12 +1148,13 @@ shared:
       name: read_tool
       require_confirmation: true
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify require_confirmation is set
+            tool = context._tools['read_tool']
+            tool_def = tool.metadata['tool_definition']
+            self.assertTrue(tool_def.require_confirmation)
 
-        # Verify require_confirmation is set
-        tool = context._tools['read_tool']
-        tool_def = tool.metadata['tool_definition']
-        self.assertTrue(tool_def.require_confirmation)
+        self.run_with_context(yaml_config, verify)
 
     def test_single_tool_import_with_return_direct(self):
         """Test single tool import with return_direct: true."""
@@ -1137,11 +1165,12 @@ shared:
       name: read_tool
       return_direct: true
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify return_direct is set
+            tool = context._tools['read_tool']
+            self.assertTrue(tool.return_direct)
 
-        # Verify return_direct is set
-        tool = context._tools['read_tool']
-        self.assertTrue(tool.return_direct)
+        self.run_with_context(yaml_config, verify)
 
     def test_single_tool_import_with_confidential(self):
         """Test single tool import with confidential: true (implies return_direct)."""
@@ -1152,13 +1181,14 @@ shared:
       name: read_tool
       confidential: true
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify confidential implies return_direct
+            tool = context._tools['read_tool']
+            tool_def = tool.metadata['tool_definition']
+            self.assertTrue(tool_def.confidential)
+            self.assertTrue(tool.return_direct)  # Should be automatically set
 
-        # Verify confidential implies return_direct
-        tool = context._tools['read_tool']
-        tool_def = tool.metadata['tool_definition']
-        self.assertTrue(tool_def.confidential)
-        self.assertTrue(tool.return_direct)  # Should be automatically set
+        self.run_with_context(yaml_config, verify)
 
 
 # Test Category 7: Shared Tool Referencing
@@ -1176,12 +1206,13 @@ shared:
     - import_tool: llm_workers.tools.fs.WriteFileTool
       name: write_file
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify exact name match works
+            chat_tools = context.get_tools('chat', ['read_file'])
+            self.assertEqual(1, len(chat_tools))
+            self.assertEqual('read_file', chat_tools[0].name)
 
-        # Verify exact name match works
-        chat_tools = context.get_tools('chat', ['read_file'])
-        self.assertEqual(1, len(chat_tools))
-        self.assertEqual('read_file', chat_tools[0].name)
+        self.run_with_context(yaml_config, verify)
 
     def test_reference_shared_tool_by_wildcard_pattern(self):
         """Test referencing shared tool by wildcard: tools: ['search_*']."""
@@ -1195,14 +1226,15 @@ shared:
     - import_tool: llm_workers.tools.fs.EditFileTool
       name: edit_file
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify wildcard pattern matches both search_ tools
+            chat_tools = context.get_tools('chat', [ToolsReference(match=['search_*'])])
+            tool_names = [tool.name for tool in chat_tools]
+            self.assertIn('search_files', tool_names)
+            self.assertIn('search_text', tool_names)
+            self.assertNotIn('edit_file', tool_names)
 
-        # Verify wildcard pattern matches both search_ tools
-        chat_tools = context.get_tools('chat', [ToolsReference(match=['search_*'])])
-        tool_names = [tool.name for tool in chat_tools]
-        self.assertIn('search_files', tool_names)
-        self.assertIn('search_text', tool_names)
-        self.assertNotIn('edit_file', tool_names)
+        self.run_with_context(yaml_config, verify)
 
     def test_reference_shared_tool_by_multiple_patterns(self):
         """Test referencing shared by multiple patterns: tools: ['search_*', 'read_*']."""
@@ -1216,14 +1248,15 @@ shared:
     - import_tool: llm_workers.tools.fs.EditFileTool
       name: edit_file
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify multiple patterns work
+            chat_tools = context.get_tools('chat', [ToolsReference(match=['search_*', 'read_*'])])
+            tool_names = [tool.name for tool in chat_tools]
+            self.assertIn('search_files', tool_names)
+            self.assertIn('read_files', tool_names)
+            self.assertNotIn('edit_file', tool_names)
 
-        # Verify multiple patterns work
-        chat_tools = context.get_tools('chat', [ToolsReference(match=['search_*', 'read_*'])])
-        tool_names = [tool.name for tool in chat_tools]
-        self.assertIn('search_files', tool_names)
-        self.assertIn('read_files', tool_names)
-        self.assertNotIn('edit_file', tool_names)
+        self.run_with_context(yaml_config, verify)
 
     def test_reference_shared_tool_with_exclusion_pattern(self):
         """Test referencing shared with exclusion: tools: ['*', '!write_*']."""
@@ -1237,14 +1270,15 @@ shared:
     - import_tool: llm_workers.tools.fs.EditFileTool
       name: edit_file
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify exclusion pattern works
+            chat_tools = context.get_tools('chat', [ToolsReference(match=['*', '!write_*'])])
+            tool_names = [tool.name for tool in chat_tools]
+            self.assertIn('read_file', tool_names)
+            self.assertIn('edit_file', tool_names)
+            self.assertNotIn('write_file', tool_names)
 
-        # Verify exclusion pattern works
-        chat_tools = context.get_tools('chat', [ToolsReference(match=['*', '!write_*'])])
-        tool_names = [tool.name for tool in chat_tools]
-        self.assertIn('read_file', tool_names)
-        self.assertIn('edit_file', tool_names)
-        self.assertNotIn('write_file', tool_names)
+        self.run_with_context(yaml_config, verify)
 
     def test_reference_nonexistent_shared_tool_fails(self):
         """Test that referencing non-existent shared tool raises error."""
@@ -1256,15 +1290,16 @@ shared:
     - import_tool: llm_workers.tools.fs.WriteFileTool
       name: write_file
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify that referencing non-existent tool by exact name raises error
+            with self.assertRaises(Exception):
+                context.get_tools('chat', ['nonexistent_tool'])
 
-        # Verify that referencing non-existent tool by exact name raises error
-        with self.assertRaises(Exception):
-            context.get_tools('chat', ['nonexistent_tool'])
+            # Verify that referencing with ToolsReference pattern that matches 0 tools raises error
+            with self.assertRaises(Exception):
+                context.get_tools('chat', [ToolsReference(match=['nonexistent_*'])])
 
-        # Verify that referencing with ToolsReference pattern that matches 0 tools raises error
-        with self.assertRaises(Exception):
-            context.get_tools('chat', [ToolsReference(match=['nonexistent_*'])])
+        self.run_with_context(yaml_config, verify)
 
 
 # Test Category 8: Error Handling
@@ -1281,7 +1316,7 @@ tools:
 """
         # Verify that importing non-existent tool raises error
         with self.assertRaises(Exception):
-            self.create_and_initialize_context(yaml_config)
+            self.run_with_context(yaml_config, lambda ctx: None)
 
     def test_import_nonexistent_toolkit_fails(self):
         """Test that importing non-existent toolkit raises WorkerException."""
@@ -1292,7 +1327,7 @@ tools:
 """
         # Verify that importing non-existent toolkit raises error
         with self.assertRaises(Exception):
-            self.create_and_initialize_context(yaml_config)
+            self.run_with_context(yaml_config, lambda ctx: None)
 
     def test_import_nonexistent_mcp_server_fails(self):
         """Test that importing from unconfigured MCP server raises WorkerException."""
@@ -1303,7 +1338,7 @@ tools:
 """
         # Verify that importing from unconfigured MCP server raises error
         with self.assertRaises(Exception):
-            self.create_and_initialize_context(yaml_config)
+            self.run_with_context(yaml_config, lambda ctx: None)
 
     def test_duplicate_tool_name_fails(self):
         """Test that importing tool with duplicate name raises WorkerException."""
@@ -1317,7 +1352,7 @@ shared:
 """
         # Verify that duplicate tool names raise error
         with self.assertRaises(Exception) as context:
-            self.create_and_initialize_context(yaml_config)
+            self.run_with_context(yaml_config, lambda ctx: None)
 
         # Verify the error message mentions the duplicate tool
         self.assertIn('my_tool', str(context.exception))
@@ -1332,11 +1367,12 @@ shared:
       prefix: ''
       filter: []
 """
-        context = self.create_and_initialize_context(yaml_config)
+        def verify(context):
+            # Verify that no tools are imported with empty pattern
+            shared_tool_names = list(context._tools.keys())
+            self.assertEqual(0, len(shared_tool_names))
 
-        # Verify that no tools are imported with empty pattern
-        shared_tool_names = list(context._tools.keys())
-        self.assertEqual(0, len(shared_tool_names))
+        self.run_with_context(yaml_config, verify)
 
     def test_exclusion_only_with_implicit_wildcard(self):
         """Test that tools: ['!unsafe'] matches all except unsafe (implicit '*')."""
@@ -1364,13 +1400,14 @@ shared:
       filter:
         - '!unsafe*'
 """
-        context = self.create_and_initialize_context(yaml_config, mock_mcp_tools)
+        def verify(context):
+            # Verify that exclusion-only pattern matches all except unsafe*
+            shared_tool_names = list(context._tools.keys())
+            self.assertIn('safe_tool', shared_tool_names)
+            self.assertIn('another_safe', shared_tool_names)
+            self.assertNotIn('unsafe_tool', shared_tool_names)
 
-        # Verify that exclusion-only pattern matches all except unsafe*
-        shared_tool_names = list(context._tools.keys())
-        self.assertIn('safe_tool', shared_tool_names)
-        self.assertIn('another_safe', shared_tool_names)
-        self.assertNotIn('unsafe_tool', shared_tool_names)
+        self.run_with_context(yaml_config, verify, mock_mcp_tools)
 
 
 if __name__ == '__main__':
