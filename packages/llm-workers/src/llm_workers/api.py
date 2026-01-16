@@ -53,6 +53,11 @@ class WorkersContext(ABC):
     def evaluation_context(self) -> EvaluationContext:
         pass
 
+    @property
+    @abstractmethod
+    def shared_tools(self) -> Dict[str, BaseTool]:
+        pass
+
     @abstractmethod
     def get_tool(self, tool_ref: str, extra_tools: Optional[Dict[str, BaseTool]] = None) -> BaseTool:
         pass

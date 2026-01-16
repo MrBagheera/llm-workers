@@ -166,7 +166,8 @@ class StarlarkStatement(ExtendedRunnable[Json]):
     def __init__(self, model: StarlarkDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool]):
         self._script = model.starlark
         self._store_as = model.store_as
-        self._local_tools = local_tools
+        # combine local and shared tools (local take precedence)
+        self._tools = context.shared_tools | local_tools
 
         # Compile Starlark script once during initialization
         from llm_workers.starlark import StarlarkExec
@@ -187,7 +188,7 @@ class StarlarkStatement(ExtendedRunnable[Json]):
         from llm_workers.worker_utils import split_result_and_notifications
 
         global_funcs = {}
-        for tool_name, tool in self._local_tools.items():
+        for tool_name, tool in self._tools.items():
             # Use closure to capture the correct tool reference
             def create_tool_wrapper(t):
                 def wrapper(**params):

@@ -766,3 +766,34 @@ result = total
         generator = statement.yield_notifications_and_result(child_context, _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual(123, result)
+
+    def test_starlark_access_shared_tools(self):
+        """Test that Starlark can access shared tools from context without local_tools."""
+        # Tool is only in context.shared_tools, NOT passed as local_tools
+        statement = create_statement_from_model(
+            model=StarlarkDefinition(starlark="result = test_tool_logic(param1=5, param2=10)"),
+            context=StubWorkersContext(tools={"test_tool_logic": test_tool_logic}),
+            local_tools={}  # Empty local tools
+        )
+        context = {}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(15, result)
+
+    def test_starlark_local_tools_override_shared_tools(self):
+        """Test that local tools take precedence over shared tools with the same name."""
+        @tool
+        def different_logic(param1: int, param2: int) -> int:
+            """Multiply two parameters instead of adding"""
+            return param1 * param2
+
+        # Shared tool adds, local tool multiplies - local should win
+        statement = create_statement_from_model(
+            model=StarlarkDefinition(starlark="result = test_tool_logic(param1=5, param2=10)"),
+            context=StubWorkersContext(tools={"test_tool_logic": test_tool_logic}),  # adds: 5+10=15
+            local_tools={"test_tool_logic": different_logic}  # multiplies: 5*10=50
+        )
+        context = {}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(50, result)  # local tool (multiply) takes precedence

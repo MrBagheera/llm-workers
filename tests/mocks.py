@@ -167,6 +167,10 @@ class StubWorkersContext(WorkersContext):
     def evaluation_context(self) -> EvaluationContext:
         return self._evaluation_context
 
+    @property
+    def shared_tools(self) -> Dict[str, BaseTool]:
+        return self._tools
+
     def get_tool(self, tool_ref, extra_tools: Optional[Dict[str, BaseTool]] = None):
         if extra_tools and tool_ref in extra_tools:
             return extra_tools[tool_ref]
