@@ -1087,7 +1087,7 @@ These tools provide access to the file system and allow code execution, which ma
 #### read_file
 
 ```yaml
-- import_tool: llm_workers.tools.unsafe.ReadFileTool
+- import_tool: llm_workers.tools.fs.ReadFileTool
   name: read_file
 ```
 

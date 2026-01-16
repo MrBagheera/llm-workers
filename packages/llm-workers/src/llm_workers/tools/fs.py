@@ -44,9 +44,9 @@ class ReadFileTool(BaseTool, ExtendedBaseTool):
         )
 
     def get_ui_hint(self, input: dict[str, Any]) -> str:
-        if input.get('offset', 0) != 0:
-            return f"Reading file {input['path']} (offset: {input.get('offset', 0)})"
-        return f"Reading file {input['path']}"
+        offset = input.get('offset', 0)
+        lines = input.get('lines', 1000)
+        return f"Reading file \"{input['path']}\" (lines {offset + 1}-{offset + lines})"
 
     def _run(self, path: str, offset: int = 0, lines: int = 1000, show_line_numbers: bool = False) -> str:
         try:
@@ -102,7 +102,7 @@ class WriteFileTool(BaseTool, ExtendedBaseTool):
         )
 
     def get_ui_hint(self, input: dict[str, Any]) -> str:
-        return f"Writing file {input['path']}"
+        return f"Writing file \"{input['path']}\""
 
     def _run(self, path: str, content: str, if_exists: str = "fail"):
         try:
@@ -144,7 +144,7 @@ class EditFileTool(BaseTool, ExtendedBaseTool):
         )
 
     def get_ui_hint(self, input: dict[str, Any]) -> str:
-        return f"Editing file {input['path']}"
+        return f"Updating file \"{input['path']}\""
 
     def _run(self, path: str, old_string: str, new_string: str,
              replace_all: bool = False, expected_count: Optional[int] = None) -> dict:
@@ -208,7 +208,7 @@ class GlobFilesTool(BaseTool, ExtendedBaseTool):
         )
 
     def get_ui_hint(self, input: dict[str, Any]) -> str:
-        return f"Searching for files matching {input['pattern']}"
+        return f"Searching for files matching \"{input['pattern']}\""
 
     def _run(self, pattern: str, path: str = ".", max_results: int = 100,
              include_hidden: bool = False) -> List[str]:
@@ -271,7 +271,12 @@ class GrepFilesTool(BaseTool, ExtendedBaseTool):
         )
 
     def get_ui_hint(self, input: dict[str, Any]) -> str:
-        return f"Searching for pattern {input['pattern']}"
+        path = input.get('path', '.')
+        location = f"\"{path}\"" if path != "." else "current directory"
+        file_glob = input.get('file_glob')
+        if file_glob:
+            location += f", files matching \"{file_glob}\""
+        return f"Searching for \"{input["pattern"]}\" in {location}"
 
     def _get_files_to_search(self, path: str, file_glob: Optional[str]) -> List[str]:
         """Get list of files to search based on path and optional glob filter."""
@@ -374,9 +379,7 @@ class FileInfoTool(BaseTool, ExtendedBaseTool):
         return False
 
     def get_ui_hint(self, input: dict[str, Any]) -> str:
-        if _not_in_working_directory(input['path']):
-            return f"Getting info for {input['path']} outside working directory"
-        return f"Getting info for {input['path']}"
+        return f"Getting info for \"{input['path']}\""
 
     def _run(self, path: str) -> dict:
         result: dict[str, Any] = {"exists": os.path.exists(path)}
@@ -463,7 +466,7 @@ class ListFilesTool(BaseTool, ExtendedBaseTool):
         )
 
     def get_ui_hint(self, input: dict[str, Any]) -> str:
-        return f"Listing files at {input.get('path', '.')}"
+        return f"Listing files at \"{input.get('path', '.')}\""
 
     def _run(self, path: str = ".") -> str:
         try:
