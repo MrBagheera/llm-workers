@@ -47,20 +47,22 @@ def run_llm_script(
         parser.error(f"No CLI configuration found in {script_name}.")
 
     # Determine the inputs
-    inputs: list[str] = []
+    inputs: list[Any] = []
     for arg in args.inputs:
         if arg == '-':
             for line in sys.stdin:
                 inputs.append(line.strip())
         else:
             inputs.append(arg)
+    if cli.process_input == 'all_as_list':
+        inputs = [inputs]
 
     token_tracker: CompositeTokenUsageTracker = context.run(_run, cli, context, user_context, inputs)
     if not token_tracker.is_empty:
         print(token_tracker.format_total_usage(), file=sys.stderr)
 
 
-def _run(cli: CliConfig, context: StandardWorkersContext, user_context: UserContext, inputs: list[str]):
+def _run(cli: CliConfig, context: StandardWorkersContext, user_context: UserContext, inputs: list[Any]):
     """Execute worker for each input and return token tracker."""
     tools = context.get_tools('cli', cli.tools)
     local_tools = {tool.name: tool for tool in tools}
