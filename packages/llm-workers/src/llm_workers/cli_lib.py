@@ -5,7 +5,7 @@ import json
 import sys
 from typing import Any, Optional
 
-from llm_workers.api import UserContext, ExtendedRunnable
+from llm_workers.api import UserContext, ExtendedRunnable, WorkerNotification
 from llm_workers.cache import prepare_cache
 from llm_workers.config import CliConfig
 from llm_workers.expressions import EvaluationContext
@@ -71,11 +71,18 @@ def _run(cli: CliConfig, context: StandardWorkersContext, user_context: UserCont
     token_tracker = CompositeTokenUsageTracker(user_context.models)
     for input in inputs:
         evaluation_context = EvaluationContext({'input': input}, parent=evaluation_context)
-        result, _ = split_result_and_notifications(worker.yield_notifications_and_result(
-            evaluation_context,
-            token_tracker,
-            config=None
-        ))
+        print(f'Processing input: {input}', file=sys.stderr, flush=True)
+        generator = worker.yield_notifications_and_result(evaluation_context, token_tracker, config=None)
+        while True:
+            try:
+                chunk = next(generator)
+                if not isinstance(chunk, WorkerNotification):
+                    raise ValueError(f"Statement yielded non-notification chunk: {LazyFormatter(chunk)}")
+                if chunk.text:
+                    print(chunk.text, file=sys.stderr, flush=True)
+            except StopIteration as e:
+                result = e.value
+                break
         if not cli.json_output:
             print(str(result))
         elif cli.json_output == 'pretty':
