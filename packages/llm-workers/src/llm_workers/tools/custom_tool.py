@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Iterable
 from typing import Type, Any, Optional, Dict, TypeAlias, List, Generator
 
 from langchain_core.runnables import RunnableConfig
@@ -8,7 +9,7 @@ from pydantic import BaseModel, Field, create_model
 
 from llm_workers.api import WorkersContext, WorkerNotification, ExtendedRunnable, ExtendedExecutionTool
 from llm_workers.config import Json, CustomToolParamsDefinition, \
-    CallDefinition, EvalDefinition, StatementDefinition, IfDefinition, StarlarkDefinition, CustomToolDefinition
+    CallDefinition, EvalDefinition, StatementDefinition, IfDefinition, StarlarkDefinition, ForEachDefinition, CustomToolDefinition
 from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.utils import LazyFormatter, parse_standard_type
@@ -99,9 +100,12 @@ class FlowStatement(ExtendedRunnable[Json]):
     ) -> Generator[WorkerNotification, None, Json]:
         # if we are inside another FlowStatement, inherit its '_' variable
         result = evaluation_context.get('_') # returns None if not defined
+        i = 0
         for statement in self._statements:
             inner_context = EvaluationContext({"_": result}, parent=evaluation_context, mutable=False)
             result = yield from statement.yield_notifications_and_result(inner_context, token_tracker, config)
+            logger.debug("Flow statement at %s yielded:\n%r", i, LazyFormatter(result, trim=False))
+            i += 1
         return result
 
 
@@ -215,6 +219,65 @@ class StarlarkStatement(ExtendedRunnable[Json]):
         return result
 
 
+class ForEachStatement(ExtendedRunnable[Json]):
+    """
+    Iterates over a collection and executes the body for each element.
+
+    - Dict: Maps over values (preserving keys), returns dict
+    - Iterable (except str): Maps over elements, returns list of results
+    - Other (including str): Treats as single item, returns single result
+
+    Available in body: `_` = current element, `key` = key (for dicts)
+    """
+
+    def __init__(self, model: ForEachDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool]):
+        self._collection_expr = model.for_each
+        self._body_statement = create_statement_from_model(model.do, context, local_tools)
+        self._store_as = model.store_as
+
+    def yield_notifications_and_result(
+            self,
+            evaluation_context: EvaluationContext,
+            token_tracker: CompositeTokenUsageTracker,
+            config: Optional[RunnableConfig],
+            **kwargs: Any
+    ) -> Generator[WorkerNotification, None, Json]:
+        collection = self._collection_expr.evaluate(evaluation_context)
+
+        if isinstance(collection, dict):
+            # Dict: map over values, preserve keys
+            results = {}
+            for key, value in collection.items():
+                inner_context = EvaluationContext({"_": value, "key": key}, parent=evaluation_context, mutable=False)
+                result = yield from self._body_statement.yield_notifications_and_result(
+                    inner_context, token_tracker, config
+                )
+                results[key] = result
+            final_result = results
+
+        elif isinstance(collection, Iterable) and not isinstance(collection, str):
+            # Any iterable (except str): map over elements, return list
+            results = []
+            for item in collection:
+                inner_context = EvaluationContext({"_": item}, parent=evaluation_context, mutable=False)
+                result = yield from self._body_statement.yield_notifications_and_result(
+                    inner_context, token_tracker, config
+                )
+                results.append(result)
+            final_result = results
+
+        else:
+            inner_context = EvaluationContext({"_": collection}, parent=evaluation_context, mutable=False)
+            final_result = yield from self._body_statement.yield_notifications_and_result(
+                inner_context, token_tracker, config
+            )
+
+        if self._store_as:
+            evaluation_context.add(self._store_as, final_result)
+
+        return final_result
+
+
 class CustomTool(ExtendedExecutionTool):
     def __init__(self, context: WorkersContext, body: Statement, **kwargs):
         super().__init__(**kwargs)
@@ -250,6 +313,8 @@ def create_statement_from_model(model: StatementDefinition, context: WorkersCont
         return IfStatement(model, context, local_tools)
     elif isinstance(model, StarlarkDefinition):
         return StarlarkStatement(model, context, local_tools)
+    elif isinstance(model, ForEachDefinition):
+        return ForEachStatement(model, context, local_tools)
     else:
         raise ValueError(f"Invalid statement model type {type(model)}")
 

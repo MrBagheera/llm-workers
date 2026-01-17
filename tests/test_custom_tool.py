@@ -5,7 +5,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
 from llm_workers.config import CustomToolParamsDefinition, CallDefinition, EvalDefinition, \
-    IfDefinition, StarlarkDefinition, WorkersConfig, CustomToolDefinition
+    IfDefinition, StarlarkDefinition, ForEachDefinition, WorkersConfig, CustomToolDefinition
 from llm_workers.expressions import EvaluationContext, JsonExpression
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.tools.custom_tool import create_statement_from_model, build_custom_tool
@@ -797,3 +797,274 @@ result = total
         generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual(50, result)  # local tool (multiply) takes precedence
+
+
+class TestForEachStatement(unittest.TestCase):
+    """Test for_each statement functionality."""
+
+    def test_for_each_list_basic(self):
+        """Test iterating over a list produces a list of results."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${items}
+            do:
+              eval: "Hello, ${_}!"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"items": ["Alice", "Bob", "Charlie"]}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(["Hello, Alice!", "Hello, Bob!", "Hello, Charlie!"], result)
+
+    def test_for_each_dict_basic(self):
+        """Test iterating over a dict preserves keys and maps values."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${data}
+            do:
+              eval: "Hello, ${_}!"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"data": {"user1": "Alice", "user2": "Bob"}}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual({"user1": "Hello, Alice!", "user2": "Hello, Bob!"}, result)
+
+    def test_for_each_dict_access_key(self):
+        """Test that key variable is available when iterating over dict."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${data}
+            do:
+              eval: "${key}: ${_}"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"data": {"name": "Alice", "age": "30"}}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual({"name": "name: Alice", "age": "age: 30"}, result)
+
+    def test_for_each_scalar_passthrough(self):
+        """Test that scalar input applies body directly and returns single result."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${value}
+            do:
+              eval: "Hello, ${_}!"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"value": "World"}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual("Hello, World!", result)
+
+    def test_for_each_empty_list(self):
+        """Test empty list returns empty list."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${items}
+            do:
+              eval: "Hello, ${_}!"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"items": []}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual([], result)
+
+    def test_for_each_empty_dict(self):
+        """Test empty dict returns empty dict."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${data}
+            do:
+              eval: "Hello, ${_}!"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"data": {}}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual({}, result)
+
+    def test_for_each_with_flow_body(self):
+        """Test multi-statement body (list of statements)."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${numbers}
+            do:
+              - eval: "${_ * 2}"
+                store_as: doubled
+              - eval: "${doubled + 1}"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"numbers": [1, 2, 3]}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual([3, 5, 7], result)  # (1*2)+1=3, (2*2)+1=5, (3*2)+1=7
+
+    def test_for_each_nested(self):
+        """Test nested for_each statements."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${matrix}
+            do:
+              for_each: ${_}
+              do:
+                eval: "${_ * 10}"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"matrix": [[1, 2], [3, 4]]}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual([[10, 20], [30, 40]], result)
+
+    def test_for_each_with_store_as(self):
+        """Test result is stored in variable with store_as."""
+        statement = create_statement_from_model(
+            model=[
+                ForEachDefinition.model_validate(yaml.safe_load("""
+                for_each: ${items}
+                do:
+                  eval: "${_ * 2}"
+                store_as: doubled_items
+                """)),
+                EvalDefinition(eval=JsonExpression("Result: ${doubled_items}"))
+            ],
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"items": [1, 2, 3]}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual("Result: [2, 4, 6]", result)
+
+    def test_for_each_with_tool_call(self):
+        """Test calling tools in the body of for_each."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${pairs}
+            do:
+              call: test_tool_logic
+              params:
+                param1: "${_[0]}"
+                param2: "${_[1]}"
+            """)),
+            context=StubWorkersContext(tools={"test_tool_logic": test_tool_logic}),
+            local_tools={}
+        )
+        context = {"pairs": [[1, 2], [3, 4], [5, 6]]}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual([3, 7, 11], result)  # 1+2=3, 3+4=7, 5+6=11
+
+    def test_for_each_preserves_parent_context(self):
+        """Test that body can access parent context variables."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${items}
+            do:
+              eval: "${prefix}: ${_}"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"items": ["Alice", "Bob"], "prefix": "Hello"}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(["Hello: Alice", "Hello: Bob"], result)
+
+    def test_for_each_none_input(self):
+        """Test that None input applies body to None directly."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${value}
+            do:
+              eval: "Got: ${_}"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"value": None}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual("Got: None", result)
+
+    def test_for_each_integer_input(self):
+        """Test that integer input is treated as scalar."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${value}
+            do:
+              eval: "${_ * 2}"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"value": 21}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(42, result)
+
+    def test_for_each_tuple_input(self):
+        """Test that tuple input is treated as iterable and produces list output."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${items}
+            do:
+              eval: "${_ * 2}"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"items": (1, 2, 3)}  # tuple input
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual([2, 4, 6], result)  # returns list
+
+    def test_for_each_set_input(self):
+        """Test that set input is treated as iterable and produces list output."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${items}
+            do:
+              eval: "${_ * 2}"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"items": {1, 2, 3}}  # set input
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(sorted(result), [2, 4, 6])  # returns list (order may vary)
+
+    def test_for_each_string_treated_as_scalar(self):
+        """Test that string input is treated as scalar, not iterated character by character."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${text}
+            do:
+              eval: "Got: ${_}"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"text": "hello"}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual("Got: hello", result)  # single result, not ['Got: h', 'Got: e', ...]

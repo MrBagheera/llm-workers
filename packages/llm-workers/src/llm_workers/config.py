@@ -3,7 +3,6 @@ from __future__ import annotations
 from abc import ABC
 from typing import Any, TypeAliasType, Annotated, Union, List, Optional, Dict, Literal
 
-from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel, ConfigDict, Field, Discriminator, Tag
 from pydantic import ValidationError, WrapValidator
 from pydantic_core import PydanticCustomError
@@ -193,6 +192,12 @@ class StarlarkDefinition(BaseModel):
     starlark: str  # The Starlark script as a string
     store_as: Optional[str] = None
 
+class ForEachDefinition(BaseModel):
+    model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
+    for_each: JsonExpression  # Collection to iterate (list, dict, or scalar)
+    do: 'BodyDefinition'      # Body to execute for each element
+    store_as: Optional[str] = None
+
 
 StatementDefinition = Annotated[
     Union[
@@ -200,6 +205,7 @@ StatementDefinition = Annotated[
         Annotated[IfDefinition, Tag('<if statement>')],
         Annotated[EvalDefinition, Tag('<eval statement>')],
         Annotated[StarlarkDefinition, Tag('<starlark statement>')],
+        Annotated[ForEachDefinition, Tag('<for_each statement>')],
     ],
     Discriminator(create_discriminator({
         'call': '<call statement>',
@@ -210,6 +216,8 @@ StatementDefinition = Annotated[
         EvalDefinition: '<eval statement>',
         'starlark': '<starlark statement>',
         StarlarkDefinition: '<starlark statement>',
+        'for_each': '<for_each statement>',
+        ForEachDefinition: '<for_each statement>',
     }))
 ]
 
@@ -219,6 +227,7 @@ BodyDefinition = Annotated[
         Annotated[IfDefinition, Tag('<if statement>')],
         Annotated[EvalDefinition, Tag('<eval statement>')],
         Annotated[StarlarkDefinition, Tag('<starlark statement>')],
+        Annotated[ForEachDefinition, Tag('<for_each statement>')],
         Annotated[List[StatementDefinition], Tag('<statements>')],
     ],
     Discriminator(create_discriminator({
@@ -230,6 +239,8 @@ BodyDefinition = Annotated[
         EvalDefinition: '<eval statement>',
         'starlark': '<starlark statement>',
         StarlarkDefinition: '<starlark statement>',
+        'for_each': '<for_each statement>',
+        ForEachDefinition: '<for_each statement>',
         list: '<statements>'
     }))
 ]
@@ -250,15 +261,6 @@ class ImportToolStatement(ToolDefinition):
     """Definition for an imported tool."""
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     import_tool: str
-
-    def __init__(self, **data):
-        super().__init__(**data)
-        if isinstance(self.ui_hint, str):
-            self._ui_hint_template = PromptTemplate.from_template(self.ui_hint)
-
-    @property
-    def ui_hint_template(self) -> Optional[PromptTemplate]:
-        return self._ui_hint_template
 
     def __str__(self):
         return f"import_tool: {self.import_tool}"

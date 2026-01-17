@@ -1659,6 +1659,127 @@ The condition uses Python truthiness rules:
 
 **Note:** Direct evaluation of `None` variables is not supported due to expression system limitations. Use explicit comparisons like `${value is not None}` when checking for `None`.
 
+## for_each Statement
+
+Iterates over a collection and executes the body for each element:
+
+```yaml
+- for_each: ${collection}
+  do:
+    <statement(s)>  # Executed for each element
+  store_as: result_var  # Optional, stores the final result
+```
+
+**Parameters:**
+- `for_each`: Expression that evaluates to a list, dict, or scalar value
+- `do`: Statement(s) to execute for each element
+- `store_as`: (Optional) Variable name to store the result
+
+**Behavior by Input Type:**
+
+| Input Type | Output Type | Available Variables |
+|------------|-------------|---------------------|
+| Dict | Dict with same keys, mapped values | `_` = current value, `key` = current key |
+| Iterable (list, tuple, set, etc.) | List of results | `_` = current element |
+| Other (str, int, None, etc.) | Single result | `_` = the scalar value |
+
+**Note:** Strings are treated as scalars, not as character iterables.
+
+### Basic Examples
+
+**Iterating over a list:**
+```yaml
+- for_each: ${names}
+  do:
+    eval: "Hello, ${_}!"
+```
+
+With input `["Alice", "Bob"]`, returns `["Hello, Alice!", "Hello, Bob!"]`.
+
+**Iterating over a dict:**
+```yaml
+- for_each: ${users}
+  do:
+    eval: "User ${key} is ${_}"
+```
+
+With input `{"id1": "Alice", "id2": "Bob"}`, returns `{"id1": "User id1 is Alice", "id2": "User id2 is Bob"}`.
+
+**Scalar passthrough:**
+```yaml
+- for_each: ${single_value}
+  do:
+    eval: "Value: ${_}"
+```
+
+With input `42`, returns `"Value: 42"`.
+
+**Other iterables (tuple, set, etc.):**
+```yaml
+- for_each: ${items}
+  do:
+    eval: "${_ * 2}"
+```
+
+With input `(1, 2, 3)` (tuple) or `{1, 2, 3}` (set), returns `[2, 4, 6]` (always a list).
+
+### Advanced Examples
+
+**Multi-statement body:**
+```yaml
+- for_each: ${numbers}
+  do:
+    - eval: "${_ * 2}"
+      store_as: doubled
+    - eval: "${doubled + 1}"
+```
+
+With input `[1, 2, 3]`, returns `[3, 5, 7]`.
+
+**Nested for_each:**
+```yaml
+- for_each: ${matrix}
+  do:
+    for_each: ${_}
+    do:
+      eval: "${_ * 10}"
+```
+
+With input `[[1, 2], [3, 4]]`, returns `[[10, 20], [30, 40]]`.
+
+**With tool calls:**
+```yaml
+- for_each: ${file_paths}
+  do:
+    call: read_file
+    params:
+      filename: "${_}"
+```
+
+**Accessing parent context:**
+```yaml
+- for_each: ${items}
+  do:
+    eval: "${prefix}: ${_}"
+```
+
+Variables from the parent context (like `${prefix}`) remain accessible inside the loop body.
+
+**Storing results:**
+```yaml
+- for_each: ${items}
+  do:
+    eval: "${_ * 2}"
+  store_as: doubled_items
+- eval: "Processed ${len(doubled_items)} items"
+```
+
+### Edge Cases
+
+- **Empty list:** Returns `[]`
+- **Empty dict:** Returns `{}`
+- **None input:** Applies body to `None`, returns single result
+
 ## Composing Statements
 
 Statements can be used as part of a tool's `body` section to create composite tools:
