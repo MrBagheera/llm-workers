@@ -30,9 +30,9 @@ class TestReadFileTool(unittest.TestCase):
         shutil.rmtree(self.temp_dir)
 
     def test_read_entire_file(self):
-        """Test reading entire file with default parameters."""
+        """Test reading entire file."""
         tool = ReadFileTool()
-        result = tool._run(self.test_file)
+        result = tool._run(self.test_file, lines=1000)
 
         self.assertIn("Line 1", result)
         self.assertIn("Line 10", result)
@@ -97,7 +97,7 @@ class TestReadFileTool(unittest.TestCase):
         tool = ReadFileTool()
 
         with self.assertRaises(ToolException) as context:
-            tool._run(os.path.join(self.temp_dir, "nonexistent.txt"))
+            tool._run(os.path.join(self.temp_dir, "nonexistent.txt"), lines=100)
 
         self.assertIn("Error reading file", str(context.exception))
 

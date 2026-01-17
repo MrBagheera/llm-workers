@@ -691,7 +691,8 @@ cli:
   do:
     - call: read_file
       params:
-        filename: "${input}"
+        path: "${input}"
+        lines: 10000
     - call: llm
       params:
         prompt: |-
@@ -1091,11 +1092,13 @@ These tools provide access to the file system and allow code execution, which ma
   name: read_file
 ```
 
-Reads a file and returns its content.
+Reads a file and returns its content. Output is limited to `lines` parameter.
 
 **Parameters:**
-- `filename`: Path to the file to read
-- `lines`: (Optional) Number of lines to read. If 0 (default), reads the entire file. If negative, reads from the end of file (tail)
+- `path`: Path to the file to read
+- `lines`: Number of lines to read (required)
+- `offset`: (Optional) Offset in lines. >=0 means from the start of the file, <0 means from the end of the file (default: 0)
+- `show_line_numbers`: (Optional) If true, prefix each line with its line number (default: false)
 
 #### write_file
 
@@ -1753,7 +1756,8 @@ With input `[[1, 2], [3, 4]]`, returns `[[10, 20], [30, 40]]`.
   do:
     call: read_file
     params:
-      filename: "${_}"
+      path: "${_}"
+      lines: 1000
 ```
 
 **Accessing parent context:**

@@ -18,6 +18,7 @@ cli:
     - call: read_file
       params:
         path: "${input}"
+        lines: 10000
     - call: llm
       params:
         prompt: |-

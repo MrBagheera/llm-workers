@@ -24,12 +24,12 @@ def _not_in_working_directory(file_path) -> bool:
 class ReadFileToolSchema(BaseModel):
     path: str = Field(..., description="Path to the file to read")
     offset: int = Field(0, description="Offset in lines. >=0 means from the start of the file, <0 means from the end of the file.")
-    lines: int = Field(1000, description="Number of lines to read.")
+    lines: int = Field(..., description="Number of lines to read.")
     show_line_numbers: bool = Field(False, description="If true, prefix each line with its line number.")
 
 class ReadFileTool(BaseTool, ExtendedBaseTool):
     name: str = "read_file"
-    description: str = "Reads a file and returns its content"
+    description: str = "Reads a file and returns its content. Output is limited to `lines` parameter."
     args_schema: Type[ReadFileToolSchema] = ReadFileToolSchema
 
     def needs_confirmation(self, input: dict[str, Any]) -> bool:
@@ -45,10 +45,16 @@ class ReadFileTool(BaseTool, ExtendedBaseTool):
 
     def get_ui_hint(self, input: dict[str, Any]) -> str:
         offset = input.get('offset', 0)
-        lines = input.get('lines', 1000)
-        return f"Reading file \"{input['path']}\" (lines {offset + 1}-{offset + lines})"
+        lines = input['lines']
+        path_ = input['path']
+        if offset >= 0:
+            return f"Reading file \"{path_}\" (lines {offset + 1}-{offset + lines})"
+        elif lines == -offset:
+            return f"Reading last {lines} lines of file \"{path_}\""
+        else:
+            return f"Reading {lines} lines starting {-offset} lines from the end of file \"{path_}\""
 
-    def _run(self, path: str, offset: int = 0, lines: int = 1000, show_line_numbers: bool = False) -> str:
+    def _run(self, path: str, lines: int, offset: int = 0, show_line_numbers: bool = False) -> str:
         try:
             with open(path, 'r') as file:
                 file_lines: list[str] = file.readlines()
