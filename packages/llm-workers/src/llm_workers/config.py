@@ -372,7 +372,7 @@ class CliConfig(BaseModel):
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
     process_input: Literal['one_by_one'] | Literal['all_as_list']
     tools: list[ToolsDefinitionOrReference] = []
-    json_output: bool = False
+    json_output: bool | Literal['pretty'] = False
     do: BodyDefinition
 
 

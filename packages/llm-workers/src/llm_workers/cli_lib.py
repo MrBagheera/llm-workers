@@ -76,10 +76,12 @@ def _run(cli: CliConfig, context: StandardWorkersContext, user_context: UserCont
             token_tracker,
             config=None
         ))
-        if cli.json_output:
-            print(json.dumps(result, indent=None))
-        else:
+        if not cli.json_output:
             print(str(result))
+        elif cli.json_output == 'pretty':
+            print(json.dumps(result, indent=2))
+        else:
+            print(json.dumps(result, indent=None))
         print('\n')
         sys.stdout.flush()
     return token_tracker
