@@ -1425,6 +1425,7 @@ Executes a specific tool with optional parameters. Tools must be defined in a `t
     param2: value2
   catch: [error_type1, error_type2]  # Optional error handling
   store_as: result_var  # Optional, stores result in a named variable
+  ui_hint: 'Processing ${param1}'  # Optional, overrides the tool's UI hint
 ```
 
 **Parameters:**
@@ -1432,6 +1433,7 @@ Executes a specific tool with optional parameters. Tools must be defined in a `t
 - `params`: Dictionary of parameters to pass to the tool
 - `catch`: (Optional) List of error types to catch and handle gracefully
 - `store_as`: (Optional) Variable name to store the result. Can be referenced later using `${variable_name}`
+- `ui_hint`: (Optional) Override the tool's built-in UI hint with a custom message. Supports template variables from the current evaluation context (e.g., `${param_name}`, `${_}`)
 
 **Example:**
 ```yaml
@@ -1473,6 +1475,26 @@ tools:
           approval_token: "${approval_token}"
       - eval: "${script_result}"  # Reference stored result
 ```
+
+**Example with ui_hint:**
+```yaml
+tools:
+  - name: check_translations
+    description: "Checks translations for a given key"
+    input:
+      - name: key
+        type: str
+      - name: locale
+        type: str
+    do:
+      - call: fetch_translations
+        params:
+          key: "${key}"
+          locale: "${locale}"
+        ui_hint: 'Checking translations for key "${key}" (${locale})'
+```
+
+This will display `Checking translations for key "welcome_message" (en)` in the UI instead of the default tool hint when called with `key="welcome_message"` and `locale="en"`.
 
 **Note:** Without `store_as`, the result of each statement is available as `${_}` in the next statement. With `store_as`, you can reference the result by name later in the workflow, which is useful when you need to perform multiple operations and reference earlier results.
 

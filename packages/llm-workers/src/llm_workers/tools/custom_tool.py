@@ -54,6 +54,7 @@ class CallStatement(ExtendedRunnable[Json]):
         else:
             self._catch = None
         self._store_as = model.store_as
+        self._ui_hint = model.ui_hint
 
     def yield_notifications_and_result(
         self,
@@ -66,7 +67,7 @@ class CallStatement(ExtendedRunnable[Json]):
         target_params = self._params_expr.evaluate(evaluation_context) if self._params_expr else {}
         logger.debug("Calling tool %s with args:\n%r", self._tool.name, LazyFormatter(target_params))
         try:
-            result = yield from call_tool(self._tool, target_params, evaluation_context, token_tracker, config, kwargs)
+            result = yield from call_tool(self._tool, target_params, evaluation_context, token_tracker, config, kwargs, ui_hint_override=self._ui_hint)
             logger.debug("Calling tool %s resulted:\n%r", self._tool.name, LazyFormatter(result, trim=False))
             if self._store_as:
                 evaluation_context.add(self._store_as, result)

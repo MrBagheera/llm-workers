@@ -56,7 +56,20 @@ def set_max_start_tool_msg_length(length: int) -> None:
     global MAX_START_TOOL_MSG_LENGTH
     MAX_START_TOOL_MSG_LENGTH = length
 
-def get_start_tool_message(tool_name: str, tool_meta: Optional[Dict[str, Any]], inputs: Dict[str, Any]) -> str | None:
+def get_start_tool_message(
+        tool_name: str,
+        tool_meta: Optional[Dict[str, Any]],
+        inputs: Dict[str, Any],
+        ui_hint_override: Optional[StringExpression] = None,
+        evaluation_context: Optional[EvaluationContext] = None
+) -> str | None:
+    # Priority 0: Override from call statement
+    if ui_hint_override is not None:
+        ctx = evaluation_context if evaluation_context else EvaluationContext(inputs)
+        hint = ui_hint_override.evaluate(ctx).strip()
+        if hint:
+            return hint
+
     if tool_meta:
         try:
             ui_hint = None
@@ -171,12 +184,13 @@ def call_tool(
         evaluation_context: EvaluationContext,
         token_tracker: CompositeTokenUsageTracker,
         config: Optional[RunnableConfig],
-        kwargs: dict[str, Any]
+        kwargs: dict[str, Any],
+        ui_hint_override: Optional[StringExpression] = None
 ) -> Generator[WorkerNotification, None, Any]:
     run_id = config.get("run_id", None) if config is not None else None
     child_config = config
 
-    tool_start_text = get_start_tool_message(tool.name, tool.metadata, input)
+    tool_start_text = get_start_tool_message(tool.name, tool.metadata, input, ui_hint_override, evaluation_context)
     if tool_start_text:
         parent_run_id = run_id
         run_id = uuid.uuid4()

@@ -179,6 +179,7 @@ class CallDefinition(BaseModel):
     params: Optional[JsonExpression[dict]] = None
     catch: Optional[str | list[str]] = None
     store_as: Optional[str] = None
+    ui_hint: Optional[StringExpression] = None
 
 class IfDefinition(BaseModel):
     model_config = ConfigDict(extra='forbid') # Forbid extra fields to ensure strictness
