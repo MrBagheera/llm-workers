@@ -6,6 +6,17 @@ nav_order: 90
 
 # Release notes
 
+## [1.0.0-rc9](https://github.com/MrBagheera/llm-workers/milestone/25?closed=1) (January 18, 2026)
+
+Tool improvements and scripting enhancements:
+- Improved `read_file` tool with better defaults and options ([#89](https://github.com/MrBagheera/llm-workers/issues/89))
+- Enhanced UI hints for FilesystemToolkit tools ([#90](https://github.com/MrBagheera/llm-workers/issues/90))
+- Simplified `grep_files` parameters ([#91](https://github.com/MrBagheera/llm-workers/issues/91))
+- Added `for_each` statement for iterating in custom tools ([#93](https://github.com/MrBagheera/llm-workers/issues/93))
+- Exposed shared tools to Starlark scripts ([#94](https://github.com/MrBagheera/llm-workers/issues/94))
+- Improved CLI support with better tool call output ([#95](https://github.com/MrBagheera/llm-workers/issues/95))
+- Added UI hint support for `call` statement ([#96](https://github.com/MrBagheera/llm-workers/issues/96))
+
 ## [1.0.0-rc8](https://github.com/MrBagheera/llm-workers/milestone/24) (January 9, 2026)
 
 Windows compatibility and release automation improvements:
