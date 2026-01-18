@@ -292,9 +292,9 @@ class TestGrepFilesTool(unittest.TestCase):
         shutil.rmtree(self.temp_dir)
 
     def test_basic_search(self):
-        """Test basic regex search."""
+        """Test basic regex search with directory."""
         tool = GrepFilesTool()
-        result = tool._run("Hello", path=self.temp_dir)
+        result = tool._run("Hello", files_glob=self.temp_dir)
 
         # Case-sensitive: matches "Hello World" and "class Hello:" but not "def hello():"
         self.assertEqual(result["total_matches"], 2)
@@ -303,31 +303,90 @@ class TestGrepFilesTool(unittest.TestCase):
     def test_case_insensitive_search(self):
         """Test case insensitive search."""
         tool = GrepFilesTool()
-        result = tool._run("hello", path=self.temp_dir, case_insensitive=True)
+        result = tool._run("hello", files_glob=self.temp_dir, case_insensitive=True)
 
         self.assertEqual(result["total_matches"], 3)
 
-    def test_file_glob_filter(self):
-        """Test filtering by file glob."""
+    def test_files_glob_single_file(self):
+        """Test files_glob with a single file path."""
         tool = GrepFilesTool()
-        result = tool._run("Hello", path=self.temp_dir, file_glob="*.py")
+        result = tool._run("Hello", files_glob=self.file1)
+
+        # Only matches "Hello World" in file1.py, not "def hello():"
+        self.assertEqual(result["total_matches"], 1)
+        self.assertEqual(result["files_searched"], 1)
+
+    def test_files_glob_directory(self):
+        """Test files_glob with a directory path (no glob characters)."""
+        tool = GrepFilesTool()
+        result = tool._run("Hello", files_glob=self.temp_dir)
+
+        # Should search all files in directory
+        self.assertEqual(result["files_searched"], 3)
+        self.assertEqual(result["total_matches"], 2)
+
+    def test_files_glob_pattern(self):
+        """Test files_glob with glob pattern."""
+        tool = GrepFilesTool()
+        result = tool._run("Hello", files_glob=os.path.join(self.temp_dir, "*.py"))
 
         # Should only search .py files
         self.assertEqual(result["files_searched"], 2)
+        self.assertEqual(result["total_matches"], 2)
 
-    def test_context_lines(self):
-        """Test context lines."""
+    def test_context_lines_separate(self):
+        """Test separate lines_before and lines_after parameters."""
         tool = GrepFilesTool()
-        result = tool._run("print", path=self.file1, context_lines=1)
+        result = tool._run("print", files_glob=self.file1, lines_before=1, lines_after=1)
 
         match = result["matches"][0]
         self.assertIn("context_before", match)
         self.assertIn("context_after", match)
 
+    def test_asymmetric_context(self):
+        """Test different values for lines_before and lines_after."""
+        tool = GrepFilesTool()
+        result = tool._run("print", files_glob=self.file1, lines_before=2, lines_after=1)
+
+        # First print is on line 2, so context_before should have 1 line (line 1)
+        match = result["matches"][0]
+        self.assertIn("context_before", match)
+        self.assertIn("context_after", match)
+        # lines_before=2 but line 2 only has 1 line before it
+        self.assertLessEqual(len(match["context_before"]), 2)
+        self.assertLessEqual(len(match["context_after"]), 1)
+
+    def test_context_only_before(self):
+        """Test that context_after is absent when only lines_before is specified."""
+        tool = GrepFilesTool()
+        result = tool._run("print", files_glob=self.file1, lines_before=1, lines_after=0)
+
+        match = result["matches"][0]
+        self.assertIn("context_before", match)
+        self.assertNotIn("context_after", match)
+
+    def test_context_only_after(self):
+        """Test that context_before is absent when only lines_after is specified."""
+        tool = GrepFilesTool()
+        result = tool._run("print", files_glob=self.file1, lines_before=0, lines_after=1)
+
+        match = result["matches"][0]
+        self.assertNotIn("context_before", match)
+        self.assertIn("context_after", match)
+
+    def test_no_context(self):
+        """Test that context fields are absent when no context is requested."""
+        tool = GrepFilesTool()
+        result = tool._run("print", files_glob=self.file1)
+
+        match = result["matches"][0]
+        self.assertNotIn("context_before", match)
+        self.assertNotIn("context_after", match)
+
     def test_output_mode_files_only(self):
         """Test files_only output mode."""
         tool = GrepFilesTool()
-        result = tool._run("Hello", path=self.temp_dir, output_mode="files_only")
+        result = tool._run("Hello", files_glob=self.temp_dir, output_mode="files_only")
 
         self.assertIn("files", result)
         self.assertNotIn("matches", result)
@@ -336,7 +395,7 @@ class TestGrepFilesTool(unittest.TestCase):
     def test_output_mode_count(self):
         """Test count output mode."""
         tool = GrepFilesTool()
-        result = tool._run("Hello", path=self.temp_dir, output_mode="count")
+        result = tool._run("Hello", files_glob=self.temp_dir, output_mode="count")
 
         self.assertIn("files_with_matches", result)
         self.assertEqual(result["files_with_matches"], 2)
@@ -344,7 +403,7 @@ class TestGrepFilesTool(unittest.TestCase):
     def test_max_results(self):
         """Test max_results limit."""
         tool = GrepFilesTool()
-        result = tool._run(".", path=self.temp_dir, max_results=2)
+        result = tool._run(".", files_glob=self.temp_dir, max_results=2)
 
         self.assertEqual(len(result["matches"]), 2)
         self.assertGreater(result["total_matches"], 2)
@@ -354,7 +413,7 @@ class TestGrepFilesTool(unittest.TestCase):
         tool = GrepFilesTool()
 
         with self.assertRaises(ToolException) as context:
-            tool._run("[invalid", path=self.temp_dir)
+            tool._run("[invalid", files_glob=self.temp_dir)
 
         self.assertIn("Invalid regex", str(context.exception))
 
@@ -362,8 +421,8 @@ class TestGrepFilesTool(unittest.TestCase):
         """Test confirmation requirements."""
         tool = GrepFilesTool()
 
-        self.assertFalse(tool.needs_confirmation({"path": ".", "pattern": "test"}))
-        self.assertTrue(tool.needs_confirmation({"path": "/tmp", "pattern": "test"}))
+        self.assertFalse(tool.needs_confirmation({"files_glob": ".", "pattern": "test"}))
+        self.assertTrue(tool.needs_confirmation({"files_glob": "/tmp", "pattern": "test"}))
 
 
 class TestFileInfoTool(unittest.TestCase):

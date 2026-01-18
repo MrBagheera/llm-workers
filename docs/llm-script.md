@@ -1100,6 +1100,49 @@ Reads a file and returns its content. Output is limited to `lines` parameter.
 - `offset`: (Optional) Offset in lines. >=0 means from the start of the file, <0 means from the end of the file (default: 0)
 - `show_line_numbers`: (Optional) If true, prefix each line with its line number (default: false)
 
+#### grep_files
+
+```yaml
+- import_tool: llm_workers.tools.fs.GrepFilesTool
+  name: grep_files
+```
+
+Search for regex patterns within files. Returns matching lines with optional context.
+
+**Parameters:**
+- `pattern`: Regular expression pattern to search for
+- `files_glob`: File path, directory, or glob pattern (e.g., `*.py`, `src/**/*.ts`). This parameter is required and determines where to search:
+  - If a single file path: searches that file
+  - If a directory path: recursively searches all files in that directory
+  - If a glob pattern (containing `*`, `?`, or `[]`): searches files matching the pattern
+- `lines_before`: (Optional) Number of lines to show before each match (default: 0)
+- `lines_after`: (Optional) Number of lines to show after each match (default: 0)
+- `case_insensitive`: (Optional) Ignore case when matching (default: false)
+- `max_results`: (Optional) Maximum number of matches to return (default: 50)
+- `output_mode`: (Optional) Output format (default: `"content"`):
+  - `"content"`: Returns matching lines with file path and line number
+  - `"files_only"`: Returns only file paths containing matches
+  - `"count"`: Returns match counts
+
+**Returns:**
+A dictionary containing:
+- `total_matches`: Total number of matches found
+- `files_searched`: Number of files searched
+- `matches` (when `output_mode="content"`): List of match objects with `file`, `line_number`, `content`, and optionally `context_before`/`context_after`
+- `files` (when `output_mode="files_only"`): List of file paths
+- `files_with_matches` (when `output_mode="count"`): Number of files with matches
+
+**Example:**
+```yaml
+- call: grep_files
+  params:
+    pattern: "def.*test"
+    files_glob: "**/*.py"
+    lines_before: 2
+    lines_after: 1
+    case_insensitive: true
+```
+
 #### write_file
 
 ```yaml

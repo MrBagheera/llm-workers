@@ -250,9 +250,9 @@ class GlobFilesTool(BaseTool, ExtendedBaseTool):
 
 class GrepFilesToolSchema(BaseModel):
     pattern: str = Field(..., description="Regular expression pattern to search for")
-    path: str = Field(".", description="File or directory to search in")
-    file_glob: str = Field(None, description="Glob pattern to filter files (e.g., '*.py')")
-    context_lines: int = Field(0, description="Number of lines to show before and after each match")
+    files_glob: str = Field(..., description="File path, directory, or glob pattern (e.g., '*.py', 'src/**/*.ts')")
+    lines_before: int = Field(0, description="Number of lines to show before each match")
+    lines_after: int = Field(0, description="Number of lines to show after each match")
     case_insensitive: bool = Field(False, description="Ignore case when matching")
     max_results: int = Field(50, description="Maximum number of matches to return")
     output_mode: str = Field("content", description="Output format: 'content' (matching lines), 'files_only' (just filenames), or 'count' (match counts)")
@@ -264,56 +264,59 @@ class GrepFilesTool(BaseTool, ExtendedBaseTool):
     args_schema: Type[GrepFilesToolSchema] = GrepFilesToolSchema
 
     def needs_confirmation(self, input: dict[str, Any]) -> bool:
-        return _not_in_working_directory(input.get('path', '.'))
+        return _not_in_working_directory(input['files_glob'])
 
     def make_confirmation_request(self, input: dict[str, Any]) -> ConfirmationRequestToolCallDescription:
-        path = input.get('path', '.')
+        files_glob = input['files_glob']
         pattern = input['pattern']
         return ConfirmationRequestToolCallDescription(
-            action=f"search for \"{pattern}\" at \"{path}\" outside working directory"
-            if _not_in_working_directory(path)
+            action=f"search for \"{pattern}\" at \"{files_glob}\" outside working directory"
+            if _not_in_working_directory(files_glob)
             else f"search for \"{pattern}\"",
             params=[]
         )
 
     def get_ui_hint(self, input: dict[str, Any]) -> str:
-        path = input.get('path', '.')
-        location = f"\"{path}\"" if path != "." else "current directory"
-        file_glob = input.get('file_glob')
-        if file_glob:
-            location += f", files matching \"{file_glob}\""
-        return f"Searching for \"{input["pattern"]}\" in {location}"
+        files_glob = input['files_glob']
+        return f"Searching for \"{input['pattern']}\" in \"{files_glob}\""
 
-    def _get_files_to_search(self, path: str, file_glob: Optional[str]) -> List[str]:
-        """Get list of files to search based on path and optional glob filter."""
-        if os.path.isfile(path):
-            return [path]
+    def _is_glob_pattern(self, pattern: str) -> bool:
+        """Check if pattern contains glob special characters."""
+        return any(char in pattern for char in '*?[]')
 
-        files = []
-        if file_glob:
-            # Use glob pattern within the directory
-            full_pattern = os.path.join(path, "**", file_glob)
-            files = [f for f in glob.glob(full_pattern, recursive=True) if os.path.isfile(f)]
-        else:
-            # Walk all files in directory
-            for root, _, filenames in os.walk(path):
+    def _get_files_to_search(self, files_glob: str) -> List[str]:
+        """Get list of files based on files_glob (file, directory, or glob pattern)."""
+        if self._is_glob_pattern(files_glob):
+            # Treat as glob pattern
+            files = [f for f in glob.glob(files_glob, recursive=True) if os.path.isfile(f)]
+        elif os.path.isfile(files_glob):
+            # Literal file path
+            return [files_glob]
+        elif os.path.isdir(files_glob):
+            # Directory - walk recursively
+            files = []
+            for root, _, filenames in os.walk(files_glob):
                 # Skip hidden directories
                 if any(part.startswith('.') for part in root.split(os.sep) if part):
                     continue
                 for filename in filenames:
                     if not filename.startswith('.'):
                         files.append(os.path.join(root, filename))
+        else:
+            # Try as glob anyway (user may expect glob behavior)
+            files = [f for f in glob.glob(files_glob, recursive=True) if os.path.isfile(f)]
 
         return files
 
-    def _run(self, pattern: str, path: str = ".", file_glob: Optional[str] = None,
-             context_lines: int = 0, case_insensitive: bool = False,
+    def _run(self, pattern: str, files_glob: str,
+             lines_before: int = 0, lines_after: int = 0,
+             case_insensitive: bool = False,
              max_results: int = 50, output_mode: str = "content") -> dict:
         try:
             flags = re.IGNORECASE if case_insensitive else 0
             regex = re.compile(pattern, flags)
 
-            files = self._get_files_to_search(path, file_glob)
+            files = self._get_files_to_search(files_glob)
             matches = []
             files_with_matches = set()
             total_matches = 0
@@ -335,12 +338,13 @@ class GrepFilesTool(BaseTool, ExtendedBaseTool):
                                     "content": line.rstrip('\n')
                                 }
 
-                                if context_lines > 0:
-                                    start = max(0, line_num - 1 - context_lines)
-                                    end = min(len(lines), line_num + context_lines)
+                                if lines_before > 0:
+                                    start = max(0, line_num - 1 - lines_before)
                                     match_entry["context_before"] = [
                                         lines[i].rstrip('\n') for i in range(start, line_num - 1)
                                     ]
+                                if lines_after > 0:
+                                    end = min(len(lines), line_num + lines_after)
                                     match_entry["context_after"] = [
                                         lines[i].rstrip('\n') for i in range(line_num, end)
                                     ]
