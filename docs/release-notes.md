@@ -6,6 +6,12 @@ nav_order: 90
 
 # Release notes
 
+## [1.0.0](https://github.com/MrBagheera/llm-workers/milestone/25?closed=1) (January 20, 2026)
+
+- Misc documentation updates
+- Allow non-ASCII characters in JSON dumps
+- Final release following code freeze
+
 ## [1.0.0-rc9](https://github.com/MrBagheera/llm-workers/milestone/25?closed=1) (January 18, 2026)
 
 Tool improvements and scripting enhancements:
