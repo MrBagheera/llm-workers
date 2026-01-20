@@ -300,7 +300,7 @@ class Worker(Runnable[In, Out]):
                 tool_message.name = tool.name
                 content = tool_message.content
             else:
-                content = tool_output if isinstance(tool_output, str) else json.dumps(tool_output)
+                content = tool_output if isinstance(tool_output, str) else json.dumps(tool_output, ensure_ascii=False)
                 tool_message = ToolMessage(content = content, tool_call_id = tool_call['id'], name = tool.name)
 
             # if we used temporary token tracker, attach usage info to message

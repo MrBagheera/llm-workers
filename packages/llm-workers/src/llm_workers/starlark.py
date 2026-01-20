@@ -154,7 +154,7 @@ def _parse_json(arg: str, ignore_error: bool = False) -> Any:
 
 def _print_json(arg: Any) -> str:
     """Convert a Python object into a JSON string."""
-    return json.dumps(arg)
+    return json.dumps(arg, ensure_ascii=False)
 
 # --- Base Class ---
 

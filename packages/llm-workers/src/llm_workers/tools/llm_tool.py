@@ -60,7 +60,7 @@ def extract_json_blocks(text: str, extract_json: Union[bool, str]) -> str:
     elif extract_json == "last":
         return json_blocks[-1]
     elif extract_json == "all":
-        return json.dumps(json_blocks)
+        return json.dumps(json_blocks, ensure_ascii=False)
     
     return text
 
