@@ -6,6 +6,15 @@ nav_order: 90
 
 # Release notes
 
+## Unreleased
+
+New features:
+- Added `llm-workers-evaluation` package with evaluation framework for testing LLM scripts ([#98](https://github.com/MrBagheera/llm-workers/issues/98))
+  - New `llm-workers-evaluate` CLI tool for running evaluation suites
+  - YAML-based evaluation suite configuration
+  - Score calculation with automatic averaging across iterations, tests, and suites
+  - Data and tool merging from shared → suite → test levels
+
 ## [1.0.0](https://github.com/MrBagheera/llm-workers/milestone/25?closed=1) (January 20, 2026)
 
 - Misc documentation updates

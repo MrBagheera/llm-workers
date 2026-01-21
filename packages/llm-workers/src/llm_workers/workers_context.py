@@ -18,6 +18,7 @@ from llm_workers.config import WorkersConfig, ImportToolStatement, ImportToolsSt
     ToolsDefinitionOrReference, ToolsReference
 from llm_workers.expressions import EvaluationContext
 from llm_workers.utils import matches_patterns, load_yaml
+from llm_workers.worker_utils import tool_with_definition
 
 logger = logging.getLogger(__name__)
 
@@ -222,16 +223,7 @@ class StandardWorkersContext(WorkersContext):
             else:
                 raise WorkerException(f"Unsupported tool definition type: {type(tool_def)}")
             # common post-processing
-            if tool_def.return_direct is not None:
-                tool.return_direct = tool_def.return_direct
-            if tool_def.confidential:   # confidential implies return_direct
-                tool.return_direct = True
-            if tool.metadata is None:
-                tool.metadata = {}
-            tool.metadata['tool_definition'] = tool_def
-            if isinstance(tool, ExtendedBaseTool):
-                tool.metadata['__extension'] = tool # really hackish
-            return tool
+            return tool_with_definition(tool, tool_def)
         except ImportError as e:
             raise WorkerException(f"Failed to import module for tool {tool_def}: {e}")
         except WorkerException:
@@ -268,22 +260,7 @@ class StandardWorkersContext(WorkersContext):
 
             # Extract the single tool
             tool = list(temp_results.values())[0]
-
-            # Override properties from tool_def (similar to existing logic below)
-            if tool_def.name is not None:
-                tool.name = tool_def.name
-            if tool_def.description is not None:
-                tool.description = tool_def.description
-
-            # Update tool_definition in metadata with additional properties
-            if tool.metadata is None:
-                tool.metadata = {}
-
-            tool_def = tool_def.model_copy()
-            tool_def.name = tool.name
-            tool.metadata['tool_definition'] = tool_def
-
-            return tool
+            return tool_with_definition(tool, tool_def)
 
         # Original logic for direct tool imports
         tool_config = copy(tool_def.config if tool_def.config else {})
@@ -316,12 +293,8 @@ class StandardWorkersContext(WorkersContext):
             raise ValueError(f"Invalid symbol type {type(symbol)}")
         if not isinstance(tool, BaseTool):
             raise ValueError(f"Not a BaseTool: {type(tool)}")
-        # overrides for un-cooperating tools (and factories)
-        if tool_def.name is not None:
-            tool.name = tool_def.name
-        if tool_def.description is not None:
-            tool.description = tool_def.description
-        return tool
+
+        return tool_with_definition(tool, tool_def)
 
     @staticmethod
     def _import_toolkit_tools(scope: str, results: Dict[str, BaseTool], path: str, import_def: ImportToolsStatement):

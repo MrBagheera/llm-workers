@@ -1,0 +1,29 @@
+[project]
+name = "llm-workers-evaluation"
+version = "1.0.0"
+description = "Evaluation framework for LLM Workers"
+authors = [
+    {name = "Dmitry Mikhaylov", email = "mikhailov.dmitry@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+    "llm-workers (==1.0.0)",
+    "langchain-openai (>=1.0.0,<2.0.0)",
+    "langchain-anthropic (>=1.0.0,<2.0.0)",
+    "langchain-google-genai (>=4.0.0,<5.0.0)",
+]
+
+[project.scripts]
+llm-workers-evaluate = "llm_workers_evaluation.main:main"
+
+[project.urls]
+Homepage = "https://mrbagheera.github.io/llm-workers/"
+Issues = "https://github.com/MrBagheera/llm-workers/issues"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [{include = "llm_workers_evaluation", from = "src"}]

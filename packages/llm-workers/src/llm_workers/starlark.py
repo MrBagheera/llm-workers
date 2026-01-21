@@ -206,7 +206,12 @@ class StarlarkBase:
     def _prepare_scope(self, global_vars: Dict[str, Any], global_funcs: Dict[str, Callable]) -> Dict[str, Any]:
         """Merges inputs into a safe execution scope."""
 
-        sanitized_vars = {k: _sanitize_data(v) for k, v in global_vars.items()}
+        # remove all private variables (but keep '_' because of flow statements)
+        sanitized_vars = {
+            k: _sanitize_data(v)
+            for k, v in global_vars.items()
+            if not k.startswith('_') or k == '_'
+        }
 
         scope = {
             '__builtins__': self.builtins,

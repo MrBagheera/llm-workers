@@ -9,7 +9,8 @@ echo ""
 echo "IMPORTANT: Packages will be published in dependency order:"
 echo "  1. llm-workers (core)"
 echo "  2. llm-workers-console (depends on llm-workers)"
-echo "  3. llm-workers-tools (depends on both)"
+echo "  3. llm-workers-tools (depends on llm-workers + llm-workers-console)"
+echo "  4. llm-workers-evaluation (depends on llm-workers)"
 echo ""
 
 # Confirm before proceeding
@@ -57,6 +58,19 @@ cd packages/llm-workers-tools
 poetry publish -r testpypi
 cd ../..
 echo "✓ llm-workers-tools published to TestPyPI"
+echo ""
+
+# Wait a bit for package to be available
+echo "Waiting 5 seconds for package to be available..."
+sleep 5
+echo ""
+
+# Publish evaluation package
+echo "==> Publishing llm-workers-evaluation to TestPyPI"
+cd packages/llm-workers-evaluation
+poetry publish -r testpypi
+cd ../..
+echo "✓ llm-workers-evaluation published to TestPyPI"
 echo ""
 
 echo "All packages published to TestPyPI successfully!"

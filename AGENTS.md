@@ -6,10 +6,11 @@ This file provides guidance to AI Coding Assistants when working with code in th
 
 LLM Workers is a Python library and command-line tools for experimenting with Large Language Models (LLMs). It provides a YAML-based configuration system for defining LLM interactions and custom tools.
 
-**Architecture:** Monorepo with three separate packages:
+**Architecture:** Monorepo with four separate packages:
 - **llm-workers** - Core library (worker, config, tools)
 - **llm-workers-console** - Console UI components (chat session, rich terminal output)
 - **llm-workers-tools** - CLI entry points (llm-workers-cli, llm-workers-chat)
+- **llm-workers-evaluation** - Evaluation framework (llm-workers-evaluate)
 
 ## Development Commands
 
@@ -18,7 +19,7 @@ LLM Workers is a Python library and command-line tools for experimenting with La
 # Install all packages in development mode (from repository root)
 poetry install
 
-# This installs all three packages via path dependencies
+# This installs all four packages via path dependencies
 ```
 
 ### Testing
@@ -50,12 +51,16 @@ poetry build
 cd ../llm-workers-tools
 poetry build
 
+# Build evaluation package
+cd ../llm-workers-evaluation
+poetry build
+
 cd ../..
 ```
 
 ### Publishing to PyPI
 
-Publish in dependency order (after version bump in all three pyproject.toml files):
+Publish in dependency order (after version bump in all four pyproject.toml files):
 
 ```bash
 # 1. Publish core (no dependencies on other packages)
@@ -68,6 +73,10 @@ poetry publish
 
 # 3. Publish tools (depends on llm-workers + llm-workers-console)
 cd ../llm-workers-tools
+poetry publish
+
+# 4. Publish evaluation (depends on llm-workers)
+cd ../llm-workers-evaluation
 poetry publish
 
 cd ../..
@@ -83,13 +92,16 @@ poetry run llm-workers-chat [--verbose] [--debug] <script_file>
 
 # Read from stdin
 poetry run llm-workers-cli <script_file> -
+
+# Run evaluation suites
+poetry run llm-workers-evaluate [--verbose] [--debug] [-n iterations] <script_file> <evaluation_suite>
 ```
 
 ## Architecture
 
 ### Package Structure
 
-The project is organized as a monorepo with three packages:
+The project is organized as a monorepo with four packages:
 
 #### 1. llm-workers (Core Library)
 Location: `packages/llm-workers/src/llm_workers/`
@@ -138,6 +150,16 @@ Command-line entry points only:
 - **Chat Main** (`chat_main.py`): main() entry point for llm-workers-chat
 
 Dependencies: llm-workers, llm-workers-console, model integrations (langchain-openai, langchain-anthropic, langchain-google-genai)
+
+#### 4. llm-workers-evaluation (Evaluation Framework)
+Location: `packages/llm-workers-evaluation/src/llm_workers_evaluation/`
+
+Evaluation framework for running test suites against LLM scripts:
+- **Config** (`config.py`): Pydantic models for evaluation suite YAML
+- **Evaluation Library** (`evaluation_lib.py`): Core evaluation logic
+- **Evaluation Main** (`evaluation_main.py`): main() entry point for llm-workers-evaluate
+
+Dependencies: llm-workers, model integrations (langchain-openai, langchain-anthropic, langchain-google-genai)
 
 ### LLM Scripts
 
@@ -194,6 +216,9 @@ llm-workers/                                    # Repository root
 ├── docs/                                       # Documentation
 │   ├── index.md
 │   ├── llm-script.md
+│   ├── custom-tools.md
+│   ├── built-in-tools.md
+│   ├── evaluation.md
 │   ├── examples.md
 │   └── release-notes.md
 ├── workspace/                                  # Working directory for local tests
@@ -238,13 +263,22 @@ llm-workers/                                    # Repository root
     │       ├── chat.py                         # ChatSession (no main)
     │       └── chat_completer.py
     │
-    └── llm-workers-tools/                      # CLI tools package
+    ├── llm-workers-tools/                      # CLI tools package
+    │   ├── pyproject.toml
+    │   ├── README.md
+    │   └── src/llm_workers_tools/
+    │       ├── __init__.py
+    │       ├── cli_main.py                     # main() for llm-workers-cli
+    │       └── chat_main.py                    # main() for llm-workers-chat
+    │
+    └── llm-workers-evaluation/                 # Evaluation framework package
         ├── pyproject.toml
         ├── README.md
-        └── src/llm_workers_tools/
+        └── src/llm_workers_evaluation/
             ├── __init__.py
-            ├── cli_main.py                     # main() for llm-workers-cli
-            └── chat_main.py                    # main() for llm-workers-chat
+            ├── config.py                       # Pydantic models for evaluation YAML
+            ├── evaluation_lib.py               # Core evaluation logic
+            └── evaluation_main.py              # main() for llm-workers-evaluate
 ```
 
 ## Dependency Management
@@ -302,12 +336,19 @@ from llm_workers.cli_lib import run_llm_script
 from llm_workers_console.chat import chat_with_llm_script
 ```
 
+### Evaluation Package Imports
+```python
+from llm_workers_evaluation import run_evaluation, format_results
+from llm_workers_evaluation.config import EvaluationSuiteFile
+```
+
 ## Version Management
 
-When releasing, update versions in all three `pyproject.toml` files:
+When releasing, update versions in all four `pyproject.toml` files:
 - `packages/llm-workers/pyproject.toml`
 - `packages/llm-workers-console/pyproject.toml`
 - `packages/llm-workers-tools/pyproject.toml`
+- `packages/llm-workers-evaluation/pyproject.toml`
 - Root `pyproject.toml` (for consistency)
 
-Also update dependency version constraints in console and tools packages to match.
+Also update dependency version constraints in console, tools, and evaluation packages to match.

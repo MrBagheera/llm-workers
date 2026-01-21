@@ -24,5 +24,11 @@ if [ -d "packages/llm-workers-tools/dist" ]; then
   echo "✓ Cleaned packages/llm-workers-tools/dist"
 fi
 
+# Clean evaluation package
+if [ -d "packages/llm-workers-evaluation/dist" ]; then
+  rm -rf packages/llm-workers-evaluation/dist
+  echo "✓ Cleaned packages/llm-workers-evaluation/dist"
+fi
+
 echo ""
 echo "Build artifacts cleaned!"

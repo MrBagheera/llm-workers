@@ -11,6 +11,7 @@ dependencies = [
     "llm-workers",
     "llm-workers-console",
     "llm-workers-tools",
+    "llm-workers-evaluation",
 ]
 
 [project.urls]
@@ -33,3 +34,4 @@ echo-mcp-server-for-testing = ">=0.1.5,<0.2.0"
 llm-workers = {path = "packages/llm-workers", develop = true}
 llm-workers-console = {path = "packages/llm-workers-console", develop = true}
 llm-workers-tools = {path = "packages/llm-workers-tools", develop = true}
+llm-workers-evaluation = {path = "packages/llm-workers-evaluation", develop = true}

@@ -44,6 +44,27 @@ def ensure_env_vars_defined(environment: Dict[str, str], env_definitions: Dict[s
         )
 
 
+def tool_with_definition(tool: BaseTool, tool_def: ToolDefinition) -> BaseTool:
+    # overrides for uncooperating tools (and factories)
+    if tool_def.name is not None:
+        tool.name = tool_def.name
+    if tool_def.description is not None:
+        tool.description = tool_def.description
+
+    # common post-processing
+    if tool_def.return_direct is not None:
+        tool.return_direct = tool_def.return_direct
+    if tool_def.confidential:   # confidential implies return_direct
+        tool.return_direct = True
+    if tool.metadata is None:
+        tool.metadata = {}
+    tool.metadata['tool_definition'] = tool_def
+    if isinstance(tool, ExtendedBaseTool):
+        tool.metadata['__extension'] = tool # really hackish
+
+    return tool
+
+
 MAX_START_TOOL_MSG_LENGTH = 80
 
 def set_max_start_tool_msg_length(length: int) -> None:

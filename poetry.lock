@@ -1023,7 +1023,7 @@ vcr = ["vcrpy (>=7.0.0)"]
 
 [[package]]
 name = "llm-workers"
-version = "1.0.0-rc6"
+version = "1.0.0"
 description = "Core library for experimenting with LLMs - provides configuration, workers, tools, and LLM integrations"
 optional = false
 python-versions = ">=3.12,<3.15"
@@ -1050,7 +1050,7 @@ url = "packages/llm-workers"
 
 [[package]]
 name = "llm-workers-console"
-version = "1.0.0-rc6"
+version = "1.0.0"
 description = "Console UI components for LLM Workers - interactive chat interface and rich terminal output"
 optional = false
 python-versions = ">=3.12,<3.15"
@@ -1059,7 +1059,7 @@ files = []
 develop = true
 
 [package.dependencies]
-llm-workers = ">=1.0.0-rc6"
+llm-workers = "1.0.0"
 prompt-toolkit = "3.0.50"
 rich = ">=14.1.0,<15.0.0"
 
@@ -1068,8 +1068,28 @@ type = "directory"
 url = "packages/llm-workers-console"
 
 [[package]]
+name = "llm-workers-evaluation"
+version = "1.0.0"
+description = "Evaluation framework for LLM Workers"
+optional = false
+python-versions = ">=3.12,<3.15"
+groups = ["main"]
+files = []
+develop = true
+
+[package.dependencies]
+langchain-anthropic = ">=1.0.0,<2.0.0"
+langchain-google-genai = ">=4.0.0,<5.0.0"
+langchain-openai = ">=1.0.0,<2.0.0"
+llm-workers = "1.0.0"
+
+[package.source]
+type = "directory"
+url = "packages/llm-workers-evaluation"
+
+[[package]]
 name = "llm-workers-tools"
-version = "1.0.0-rc6"
+version = "1.0.0"
 description = "Command-line tools for LLM Workers - llm-workers-cli and llm-workers-chat"
 optional = false
 python-versions = ">=3.12,<3.15"
@@ -1081,8 +1101,8 @@ develop = true
 langchain-anthropic = ">=1.0.0,<2.0.0"
 langchain-google-genai = ">=4.0.0,<5.0.0"
 langchain-openai = ">=1.0.0,<2.0.0"
-llm-workers = ">=1.0.0-rc6"
-llm-workers-console = ">=1.0.0-rc6"
+llm-workers = "1.0.0"
+llm-workers-console = "1.0.0"
 
 [package.source]
 type = "directory"
@@ -2765,4 +2785,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.15"
-content-hash = "e3489f80efe5df7e8da9dc5457776fbebacaed4c07300ee4feea74bb906fce60"
+content-hash = "7ab389debf7cddd8a5059c47db6709678de1964e6c6892b84d53da44d7366465"

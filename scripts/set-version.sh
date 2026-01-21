@@ -36,6 +36,12 @@ sed -i.bak "s/\"llm-workers (==.*)\"/\"llm-workers (==$VERSION)\"/" packages/llm
 sed -i.bak "s/\"llm-workers-console (==.*)\"/\"llm-workers-console (==$VERSION)\"/" packages/llm-workers-tools/pyproject.toml
 rm packages/llm-workers-tools/pyproject.toml.bak
 
+# Update version in llm-workers-evaluation
+sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" packages/llm-workers-evaluation/pyproject.toml
+# Update llm-workers dependency in llm-workers-evaluation
+sed -i.bak "s/\"llm-workers (==.*)\"/\"llm-workers (==$VERSION)\"/" packages/llm-workers-evaluation/pyproject.toml
+rm packages/llm-workers-evaluation/pyproject.toml.bak
+
 echo "✓ Version updated to $VERSION in all packages"
 echo ""
 echo "Changed files:"
@@ -43,6 +49,7 @@ echo "  - pyproject.toml"
 echo "  - packages/llm-workers/pyproject.toml"
 echo "  - packages/llm-workers-console/pyproject.toml"
 echo "  - packages/llm-workers-tools/pyproject.toml"
+echo "  - packages/llm-workers-evaluation/pyproject.toml"
 echo ""
 echo "Next steps:"
 echo "  1. Update docs/release-notes.md with release notes for version $VERSION"

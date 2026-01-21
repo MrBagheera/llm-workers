@@ -31,12 +31,21 @@ cd ../..
 echo "✓ llm-workers-tools built"
 echo ""
 
+# Build evaluation package
+echo "==> Building llm-workers-evaluation"
+cd packages/llm-workers-evaluation
+poetry build
+cd ../..
+echo "✓ llm-workers-evaluation built"
+echo ""
+
 echo "All packages built successfully!"
 echo ""
 echo "Build artifacts:"
 echo "  - packages/llm-workers/dist/"
 echo "  - packages/llm-workers-console/dist/"
 echo "  - packages/llm-workers-tools/dist/"
+echo "  - packages/llm-workers-evaluation/dist/"
 echo ""
 echo "Next steps:"
 echo "  - Test on TestPyPI: ./scripts/publish-testpypi.sh"

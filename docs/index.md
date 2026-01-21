@@ -30,7 +30,7 @@ Provide developers with a simple way to experiment with LLMs and LangChain:
 
 # Running
 
-Library comes with two command-line tools that can be used to run LLM scripts: `llm-workers-cli` and `llm-workers-chat`.
+Library comes with command-line tools for running and testing LLM scripts: `llm-workers-cli`, `llm-workers-chat`, and `llm-workers-evaluate`.
 
 To chat using LLM script:
 ```shell
@@ -60,6 +60,12 @@ To chat with LLM script:
 llm-workers-chat [--verbose] [--debug] <script_file>
 ```
 The tool provides terminal chat interface where user can interact with LLM script.
+
+To run evaluation suites against LLM scripts:
+```shell
+llm-workers-evaluate [--verbose] [--debug] [-n iterations] <script_file> <evaluation_suite>
+```
+The tool runs automated tests and reports scores. See [Evaluation Framework](evaluation.md) for details.
 
 Common flags:
 - `--verbose` - increases verbosity of stderr logging, can be used multiple times (info / debug)

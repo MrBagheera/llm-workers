@@ -11,7 +11,8 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 
-from llm_workers.api import ConfirmationRequest, ConfirmationResponse, UserContext, WorkerNotification
+from llm_workers.api import ConfirmationRequest, ConfirmationResponse, UserContext, WorkerNotification, \
+    ConfirmationRequestParam
 from llm_workers.cache import prepare_cache
 from llm_workers.chat_history import ChatHistory
 from llm_workers.expressions import EvaluationContext
@@ -605,7 +606,7 @@ class ChatSession:
             self._console.print(f"\nAI assistant wants to {tool_request.action}:", style="bold green")
 
             if len(tool_request.params) == 1:
-                arg = tool_request.params[0]
+                arg: ConfirmationRequestParam = tool_request.params[0]
                 if arg.format is not None:
                     self._console.print(Syntax(arg.value, arg.format))
                 else:
