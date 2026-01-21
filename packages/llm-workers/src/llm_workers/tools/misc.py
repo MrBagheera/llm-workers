@@ -132,7 +132,7 @@ class ConsumeApprovalToolSchema(BaseModel):
 
 class ConsumeApprovalTool(BaseTool, ExtendedBaseTool):
     """Tool that validates and consumes an approval token, making it unusable."""
-    
+
     name: str = "consume_approval"
     description: str = "Validate and consume approval token, making it unusable"
     args_schema: Type[ConsumeApprovalToolSchema] = ConsumeApprovalToolSchema
@@ -145,3 +145,10 @@ class ConsumeApprovalTool(BaseTool, ExtendedBaseTool):
         if not was_consumed:
             raise ToolException(f"Invalid or already consumed approval token: {approval_token}")
         return "Approval token consumed"
+
+
+# Aliases for simpler import_tool usage, match actual tool names
+user_input = UserInputTool
+request_approval = RequestApprovalTool
+validate_approval = ValidateApprovalTool
+consume_approval = ConsumeApprovalTool

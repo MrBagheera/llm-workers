@@ -19,28 +19,25 @@ tools:
   - name: my_custom_tool
     description: "Description of what this tool does"
     input:
-      - name: param1
-        description: "Description of first parameter"
-        type: "str"
-        default: "default value"  # Optional
-      - name: param2
-        description: "Description of second parameter"
-        type: "int"
+    - name: name
+      description: "Description of first parameter"
+      type: "str"
+      default: "default value"  # Optional
+    - name: param2
+      description: "Description of second parameter"
+      type: "int"
     tools:  # Optional, local tools available only within this custom tool
-      - import_tool: llm_workers.tools.fs.ReadFileTool
-      - import_tool: llm_workers.tools.fs.WriteFileTool
+    - import_tool: llm_workers.tools.fs.read_file
     return_direct: true  # Optional, returns result directly to user
     do:
-      - call: ReadFileTool  # References local tool
+      - call: read_file  # References local tool
         params:
-          path: "${param1}"
-      - match: "${_}"
-        matchers:
-          - case: "success"
-            then:
-              - eval: "Operation successful: ${_}"
-        default:
-          - eval: "Operation failed"
+          path: ${name}          
+      - if: ${len(_).trim() == 0}
+        then:
+          eval: "File ${name} is empty"
+        else:
+          eval: ${_}
 ```
 
 **Key Sections:**
@@ -79,15 +76,15 @@ Executes a specific tool with optional parameters. Tools must be defined in a `t
 ```yaml
 shared:
   tools:
-    - import_tool: llm_workers.tools.fs.ReadFileTool
+    - import_tool: llm_workers.tools.fs.read_file
     - name: process_file
       input:
         - name: path
           type: str
       tools:
-        - import_tool: llm_workers.tools.fs.ReadFileTool  # Local tool
+        - import_tool: llm_workers.tools.fs.read_file  # Local tool
       do:
-        - call: ReadFileTool  # References local tool
+        - call: read_file  # References local tool
           params:
             path: "${path}"
         - eval: "Processed: ${_}"

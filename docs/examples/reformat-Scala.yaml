@@ -11,8 +11,8 @@ shared:
 cli:
   process_input: one_by_one
   tools:
-    - import_tool: llm_workers.tools.fs.ReadFileTool
-    - import_tool: llm_workers.tools.fs.WriteFileTool
+    - import_tool: llm_workers.tools.fs.read_file
+    - import_tool: llm_workers.tools.fs.write_file
     - import_tool: llm_workers.tools.llm_tool.build_llm_tool
   do:
     - call: read_file

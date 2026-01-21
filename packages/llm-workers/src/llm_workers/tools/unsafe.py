@@ -221,3 +221,10 @@ class RunProcessTool(BaseTool, ExtendedBaseTool):
             raise ToolException(f"Process execution timed out after {timeout} seconds")
         except Exception as e:
             raise ToolException(f"Error running process: {e}")
+
+
+# Aliases for simpler import_tool usage, match actual tool names
+run_python_script = RunPythonScriptTool
+show_file = ShowFileTool
+bash = BashTool
+run_process = RunProcessTool

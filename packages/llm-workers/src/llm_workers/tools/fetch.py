@@ -270,3 +270,10 @@ class FetchPageLinksTool(ExtendedBaseTool, BaseTool):
 
     def get_ui_hint(self, input: dict[str, Any]) -> str:
         return f"Fetching links from {input['url']}"
+
+
+# Aliases for simpler import_tool usage, match actual tool names
+fetch_content = FetchContentTool
+fetch_page_markdown = FetchPageMarkdownTool
+fetch_page_text = FetchPageTextTool
+fetch_page_links = FetchPageLinksTool

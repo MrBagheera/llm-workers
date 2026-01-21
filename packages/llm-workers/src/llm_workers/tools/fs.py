@@ -530,3 +530,13 @@ class FilesystemToolkit(BaseToolkit):
             FileInfoTool(),
             ListFilesTool(),
         ]
+
+
+# Aliases for simpler import_tool usage, match actual tool names
+read_file = ReadFileTool
+write_file = WriteFileTool
+edit_file = EditFileTool
+glob_files = GlobFilesTool
+grep_files = GrepFilesTool
+file_info = FileInfoTool
+list_files = ListFilesTool

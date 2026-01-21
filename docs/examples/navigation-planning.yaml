@@ -5,8 +5,7 @@ shared:
     # Defining shared tools here because we use them both in chat and cli sections.
     # Since tools are visible to LLM, we care for clarity of naming and description.
 
-    - name: fetch_page_markdown
-      import_tool: llm_workers.tools.fetch.FetchPageMarkdownTool
+    - import_tool: llm_workers.tools.fetch.fetch_page_markdown
 
     - name: generate_navigation_summary
       description: >

@@ -1,14 +1,12 @@
 """Console UI components for LLM Workers - interactive chat and rich terminal output."""
 
-from llm_workers_console.console import ConsoleController
-from llm_workers_console.chat import ChatSession, chat_with_llm_script
-from llm_workers_console.chat_completer import ChatCompleter
+import importlib.metadata
 
-__version__ = "1.0.0-rc6"
+from .chat import ChatSession, chat_with_llm_script
 
-__all__ = [
-    "ConsoleController",
-    "ChatSession",
-    "chat_with_llm_script",
-    "ChatCompleter",
-]
+try:
+    # Fetch version from the installed package metadata
+    __version__ = importlib.metadata.version("my_package")
+except importlib.metadata.PackageNotFoundError:
+    # Handle cases where package is not installed (e.g. local dev)
+    __version__ = "unknown"

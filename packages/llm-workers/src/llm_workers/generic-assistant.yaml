@@ -45,5 +45,5 @@ chat:
   tools:
     - import_tools: llm_workers.tools.fs.FilesystemToolkit
       prefix: ''
-    - import_tool: llm_workers.tools.unsafe.RunProcessTool
-    - import_tool: llm_workers.tools.unsafe.BashTool
+    - import_tool: llm_workers.tools.unsafe.run_process
+    - import_tool: llm_workers.tools.unsafe.bash

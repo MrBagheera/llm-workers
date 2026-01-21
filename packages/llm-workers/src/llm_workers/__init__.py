@@ -1,4 +1,4 @@
-"""Command-line tools for LLM Workers."""
+"""LLM Workers Core Library"""
 
 import importlib.metadata
 
@@ -8,3 +8,4 @@ try:
 except importlib.metadata.PackageNotFoundError:
     # Handle cases where package is not installed (e.g. local dev)
     __version__ = "unknown"
+

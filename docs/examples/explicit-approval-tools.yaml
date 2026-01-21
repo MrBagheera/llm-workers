@@ -11,7 +11,7 @@ chat:
   default_prompt: Calculate factorial of 10
   tools:
   - name: show_plan_to_user
-    import_tool: llm_workers.tools.misc.RequestApprovalTool
+    import_tool: llm_workers.tools.misc.request_approval
     description: |-
       Show plan to user and asks for explicit confirmation; upon confirmation return 'approval_token' to be used in
       the following call to 'run_script'.
@@ -31,10 +31,10 @@ chat:
       type: str
     ui_hint: "${ui_hint}"
     tools:
-    - import_tool: llm_workers.tools.misc.ValidateApprovalTool
-    - import_tool: llm_workers.tools.unsafe.RunPythonScriptTool
+    - import_tool: llm_workers.tools.misc.validate_approval
+    - import_tool: llm_workers.tools.unsafe.run_python_script
       require_confirmation: false
-    - import_tool: llm_workers.tools.misc.ConsumeApprovalTool
+    - import_tool: llm_workers.tools.misc.consume_approval
     do:
     - call: validate_approval
       params:

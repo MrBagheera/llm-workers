@@ -89,20 +89,20 @@ shared:
           description: Movie title
           type: str
       tools:
-        - import_tool: llm_workers.tools.misc.UserInputTool
+        - import_tool: llm_workers.tools.misc.user_input
       do:
         starlark: |-
           if movie_title in metacritic_stub_data:
               result = metacritic_stub_data[movie_title]
           else:
               result = user_input(prompt = f"Movie '{movie_title}' not found in stub data. Please provide mock Metacritic search results (movie titles, years, and scores):")
-#        if: "${movie_title in metacritic_stub_data}"
+#        if: ${movie_title in metacritic_stub_data}
 #        then:
-#          eval: "${metacritic_stub_data[movie_title]}"
+#          eval: ${metacritic_stub_data[movie_title]}
 #        else:
-#          - call: user_input
-#            params:
-#              prompt: "Movie '${movie_title}' not found in stub data. Please provide mock Metacritic search results (movie titles, years, and scores):"
+#          call: user_input
+#          params:
+#            prompt: "Movie '${movie_title}' not found in stub data. Please provide mock Metacritic search results (movie titles, years, and scores):"
 
     - name: metacritic_monkey
       description: >
@@ -123,7 +123,7 @@ shared:
           ui_hint: Extracting Metacritic score from search results
       do:
         #        - call:
-        #            import_tool: llm_workers.tools.fetch.FetchPageTextTool
+        #            import_tool: llm_workers.tools.fetch.fetch_page_text
         #          params:
         #            url: "https://www.metacritic.com/search/${movie_title}/?page=1&category=2"
         #            xpath: "//*[@class=\"c-pageSiteSearch-results\"]"

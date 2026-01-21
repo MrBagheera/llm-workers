@@ -339,8 +339,9 @@ mcp:
     auto_import_scope: chat
 
 # Regular tools work alongside MCP tools
-tools:
-  - import_tool: llm_workers.tools.unsafe.ReadFileTool
+shared:
+  tools:
+    - import_tool: llm_workers.tools.fs.read_file
 
 chat:
   system_message: "You are a helpful assistant with access to MCP tools."
@@ -416,7 +417,7 @@ shared:
 shared:
   tools:
     # Single tool import from Python class
-    - import_tool: llm_workers.tools.fetch.FetchPageTextTool
+    - import_tool: llm_workers.tools.fetch.fetch_page_text
       name: _fetch_page_text
 
     # Single tool import from Python function
@@ -587,8 +588,7 @@ Configuration for interactive chat mode:
 3. **Inline import_tool** - Import a single tool with full control:
    ```yaml
    tools:
-     - import_tool: llm_workers.tools.unsafe.ReadFileTool
-       name: read_file
+     - import_tool: llm_workers.tools.fs.read_file
        require_confirmation: false
    ```
 
@@ -646,7 +646,7 @@ chat:
     - match: ["fs_read*", "fs_list*"]
 
     # Inline tool import
-    - import_tool: llm_workers.tools.unsafe.RunPythonScriptTool
+    - import_tool: llm_workers.tools.unsafe.run_python_script
       name: run_python
       require_confirmation: true
 
@@ -785,7 +785,7 @@ Tools can be referenced in different ways depending on the context:
 **In `tools` sections** (tool definitions):
 - By name: `- read_file` (references a previously defined tool)
 - By pattern: `- match: ["fs_*", "!fs_write*"]` (matches multiple tools)
-- Import single tool: `- import_tool: llm_workers.tools.unsafe.ReadFileTool`
+- Import single tool: `- import_tool: llm_workers.tools.fs.read_file`
 - Import from toolkit: `- import_tool: llm_workers.tools.fs.FilesystemToolkit/read_file`
 - Import from MCP: `- import_tool: mcp:server_name/tool_name`
 - Mass import: `- import_tools: llm_workers.tools.fs.FilesystemToolkit`
@@ -804,8 +804,8 @@ The `import_tool` statement imports a single tool with full control over its pro
 **Import from Python class or function:**
 ```yaml
 tools:
-  - import_tool: llm_workers.tools.unsafe.ReadFileTool
-    name: read_file  # Optional, can override default name
+  - import_tool: llm_workers.tools.fs.read_file
+    name: _read_file  # Optional, can override default name
     description: "Custom description"  # Optional
     require_confirmation: true  # Optional
 ```

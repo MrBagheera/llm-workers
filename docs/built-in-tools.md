@@ -21,8 +21,7 @@ any imported library, or [define your own](https://python.langchain.com/docs/con
 ### fetch_content
 
 ```yaml
-- import_tool: llm_workers.tools.fetch.FetchContentTool
-  name: fetch_content
+- import_tool: llm_workers.tools.fetch.fetch_content
 ```
 
 Fetches raw content from a given URL and returns it as a string.
@@ -36,8 +35,7 @@ Fetches raw content from a given URL and returns it as a string.
 ### fetch_page_markdown
 
 ```yaml
-- import_tool: llm_workers.tools.fetch.FetchPageMarkdownTool
-  name: fetch_page_markdown
+- import_tool: llm_workers.tools.fetch.fetch_page_markdown
 ```
 
 Fetches web page or page element and converts it to markdown.
@@ -52,8 +50,7 @@ Fetches web page or page element and converts it to markdown.
 ### fetch_page_text
 
 ```yaml
-- import_tool: llm_workers.tools.fetch.FetchPageTextTool
-  name: fetch_page_text
+- import_tool: llm_workers.tools.fetch.fetch_page_text
 ```
 
 Fetches the text from web page or web page element.
@@ -68,8 +65,7 @@ Fetches the text from web page or web page element.
 ### fetch_page_links
 
 ```yaml
-- import_tool: llm_workers.tools.fetch.FetchPageLinksTool
-  name: fetch_page_links
+- import_tool: llm_workers.tools.fetch.fetch_page_links
 ```
 
 Fetches the links from web page or web page element.
@@ -101,12 +97,12 @@ Creates a tool that allows calling an LLM with a prompt and returning its respon
 - `tools`: (Optional) List of tool names or inline tool definitions to make available for this specific LLM tool.
 See `tools` definition in [Chat Section](llm-script.md#chat-section) for details.
 - `remove_past_reasoning`: (Optional) Whether to hide past LLM reasoning, defaults to false
-- `extract_json`: (Optional) Filters result to include only JSON blocks, defaults to "false".
-Useful for models without Structured Output, like Claude. Fallbacks to entire message if no "```json" blocks are found. Possible values:
-  - "first" - returns only the first JSON block found in the response
-  - "last" - returns only the last JSON block found in the response
-  - "all" - returns all JSON blocks found in the response as list
-  - "false" - returns the full response without filtering
+- `extract_json`: (Optional) Filters result to include only JSON blocks, defaults to "false"
+Useful for models without Structured Output, like Claude. Fallbacks to the entire message if no "```json" blocks are found. Possible values:
+  - "first" – returns only the first JSON block found in the response
+  - "last" – returns only the last JSON block found in the response
+  - "all" – returns all JSON blocks found in the response as list
+  - "false" – returns the full response without filtering
 - `ui_hint`: (Optional) Template string to display in the UI when this tool is called. Supports variable interpolation.
 
 **Function**:
@@ -173,15 +169,14 @@ The tool can be used to create custom LLM-powered tools within your workflows, e
 analysis, formatting, or generating structured content based on input data.
 
 
-## File and System Tools
+## File System Tools
 
-These tools provide access to the file system and allow code execution, which makes them potentially unsafe for use with untrusted inputs:
+These tools provide access to the file system. Operations outside the working directory require confirmation.
 
 ### read_file
 
 ```yaml
-- import_tool: llm_workers.tools.fs.ReadFileTool
-  name: read_file
+- import_tool: llm_workers.tools.fs.read_file
 ```
 
 Reads a file and returns its content. Output is limited to `lines` parameter.
@@ -192,11 +187,56 @@ Reads a file and returns its content. Output is limited to `lines` parameter.
 - `offset`: (Optional) Offset in lines. >=0 means from the start of the file, <0 means from the end of the file (default: 0)
 - `show_line_numbers`: (Optional) If true, prefix each line with its line number (default: false)
 
+### write_file
+
+```yaml
+- import_tool: llm_workers.tools.fs.write_file
+```
+
+Writes content to a file.
+
+**Parameters:**
+- `path`: Path to the file to write
+- `content`: Content to write
+- `if_exists`: (Optional) What to do if the file already exists: `"fail"` (default), `"append"`, or `"overwrite"`
+
+### edit_file
+
+```yaml
+- import_tool: llm_workers.tools.fs.edit_file
+```
+
+Make targeted replacements in a file. More efficient than read+write for small changes.
+
+**Parameters:**
+- `path`: Path to the file to edit
+- `old_string`: The exact text to find and replace
+- `new_string`: The text to replace with
+- `replace_all`: (Optional) Replace all occurrences (default: false, only replaces first)
+- `expected_count`: (Optional) Expected number of replacements. Fails if mismatch (safety check)
+
+**Returns:** Dictionary with `replacements` count
+
+### glob_files
+
+```yaml
+- import_tool: llm_workers.tools.fs.glob_files
+```
+
+Find files matching glob patterns. Efficient for locating files by name or extension.
+
+**Parameters:**
+- `pattern`: Glob pattern (e.g., `**/*.py`, `src/**/*.ts`)
+- `path`: (Optional) Base directory to search from (default: `.`)
+- `max_results`: (Optional) Maximum number of results to return (default: 100)
+- `include_hidden`: (Optional) Include hidden files starting with `.` (default: false)
+
+**Returns:** List of matching file paths sorted by modification time (newest first)
+
 ### grep_files
 
 ```yaml
-- import_tool: llm_workers.tools.fs.GrepFilesTool
-  name: grep_files
+- import_tool: llm_workers.tools.fs.grep_files
 ```
 
 Search for regex patterns within files. Returns matching lines with optional context.
@@ -235,26 +275,53 @@ A dictionary containing:
     case_insensitive: true
 ```
 
-### write_file
+### file_info
 
 ```yaml
-- import_tool: llm_workers.tools.unsafe.WriteFileTool
-  name: write_file
+- import_tool: llm_workers.tools.fs.file_info
 ```
 
-Writes content to a file.
+Get detailed information about a file or directory including size, permissions, and timestamps.
 
 **Parameters:**
-- `path`: Path to the file to write
-- `content`: Content to write
-- `append`: (Optional) If true, append to the file instead of overwriting it (default: false)
-- `if_exists`: (Optional) What to do if file exists: `"overwrite"`, `"append"`, or `"error"` (default: `"overwrite"`)
+- `path`: Path to the file or directory
+
+**Returns:** Dictionary containing:
+- `exists`: Whether the path exists
+- `type`: `"file"`, `"directory"`, `"symlink"`, or `"other"`
+- `size`: Size in bytes
+- `permissions`: Permission string (e.g., `"rwxr-xr-x"`)
+- `owner`: Owner name or UID
+- `group`: Group name or GID
+- `created`: ISO timestamp of creation time
+- `modified`: ISO timestamp of modification time
+- `accessed`: ISO timestamp of last access time
+- `is_readable`: Whether the file is readable
+- `is_writable`: Whether the file is writable
+- `mime_type`: MIME type (for files only)
+
+### list_files
+
+```yaml
+- import_tool: llm_workers.tools.fs.list_files
+```
+
+Lists files and directories in the specified directory.
+
+**Parameters:**
+- `path`: (Optional) Path to directory to list (default: `.`)
+
+**Returns:** Text listing of files and directories with counts
+
+
+## Unsafe Tools
+
+These tools allow code execution and require user confirmation by default.
 
 ### run_python_script
 
 ```yaml
-- import_tool: llm_workers.tools.unsafe.RunPythonScriptTool
-  name: run_python_script
+- import_tool: llm_workers.tools.unsafe.run_python_script
 ```
 
 Runs a Python script and returns its output.
@@ -277,8 +344,7 @@ Runs a Python script and returns its output.
 ### show_file
 
 ```yaml
-- import_tool: llm_workers.tools.unsafe.ShowFileTool
-  name: show_file
+- import_tool: llm_workers.tools.unsafe.show_file
 ```
 
 Opens a file in the OS default application.
@@ -289,8 +355,7 @@ Opens a file in the OS default application.
 ### bash
 
 ```yaml
-- import_tool: llm_workers.tools.unsafe.BashTool
-  name: bash
+- import_tool: llm_workers.tools.unsafe.bash
 ```
 
 Executes a bash script and returns its output.
@@ -306,34 +371,17 @@ Executes a bash script and returns its output.
 - Deletes the script file after execution
 - Requires user confirmation by default
 
-### list_files
-
-```yaml
-- import_tool: llm_workers.tools.unsafe.ListFilesTool
-  name: list_files
-```
-
-Lists files and directories with optional detailed information.
-
-**Parameters:**
-- `path`: Path to directory to list or file to show info
-- `depth`: (Optional) Recursive directory depth (default: 0 - no recursion)
-- `permissions`: (Optional) Whether to show permissions (default: false)
-- `times`: (Optional) Whether to show creation and modification times (default: false)
-- `sizes`: (Optional) Whether to show file sizes (default: false)
-
 ### run_process
 
 ```yaml
-- import_tool: llm_workers.tools.unsafe.RunProcessTool
-  name: run_process
+- import_tool: llm_workers.tools.unsafe.run_process
 ```
 
 Runs a system process and returns its output.
 
 **Parameters:**
 - `command`: Command to run as a subprocess
-- `args`: (Optional) List of arguments for the command
+- `args`: (Optional) List of arguments for the command (default: [])
 - `timeout`: (Optional) Timeout in seconds (default: 30)
 
 **Behavior:**
@@ -347,8 +395,7 @@ Runs a system process and returns its output.
 ### user_input
 
 ```yaml
-- import_tool: llm_workers.tools.misc.UserInputTool
-  name: user_input
+- import_tool: llm_workers.tools.misc.user_input
 ```
 
 Prompts the user for input and returns their response.
@@ -372,22 +419,21 @@ This tool is primarily intended for **prototyping new tools and prompt combinati
 - name: search_api_stub
   description: "Searches external API for data"
   input:
-    - name: query
-      description: "Search query"
-      type: str
+  - name: query
+    description: "Search query"
+    type: str
   do:
-    - match: "${query}"
-      matchers:
-        - case: "common query 1"
-          then:
-            eval: "predefined result 1"
-        - case: "common query 2"
-          then:
-            eval: "predefined result 2"
-      default:
-        - call: user_input
-          params:
-            prompt: "API returned: ${query}. Please provide mock response:"
+    if: ${query == "common query 1"}
+    then:
+      eval: "predefined result 1"
+    else:
+      if: ${query == "common query 2"}
+      then:
+        eval: "predefined result 2"
+      else:
+        call: user_input
+        params:
+          prompt: "API returned: ${query}. Please provide mock response:"
 ```
 
 This approach allows you to quickly prototype and test tool interactions before implementing the actual tool logic.
@@ -399,8 +445,7 @@ This approach allows you to quickly prototype and test tool interactions before 
 The approval tools provide a way to require explicit user confirmation for potentially dangerous operations through a token-based system:
 
 ```yaml
-- import_tool: llm_workers.tools.misc.RequestApprovalTool
-  name: request_approval
+- import_tool: llm_workers.tools.misc.request_approval
 ```
 
 Shows a prompt to the user for approval and returns an approval token that can be used to authorize subsequent operations.
@@ -420,8 +465,7 @@ Shows a prompt to the user for approval and returns an approval token that can b
 ### validate_approval
 
 ```yaml
-- import_tool: llm_workers.tools.misc.ValidateApprovalTool
-  name: validate_approval
+- import_tool: llm_workers.tools.misc.validate_approval
 ```
 
 Validates that an approval token exists and has not been consumed.
@@ -440,8 +484,7 @@ Validates that an approval token exists and has not been consumed.
 ### consume_approval
 
 ```yaml
-- import_tool: llm_workers.tools.misc.ConsumeApprovalTool
-  name: consume_approval
+- import_tool: llm_workers.tools.misc.consume_approval
 ```
 
 Validates and marks an approval token as consumed, making it unusable for future operations.
@@ -464,40 +507,37 @@ The approval tools are designed to work together in custom tool workflows to for
 
 ```yaml
 tools:
-  - import_tool: llm_workers.tools.unsafe.RunPythonScriptTool
+  - import_tool: llm_workers.tools.unsafe.run_python_script
     name: _run_python_script_no_confirmation
     require_confirmation: false
 
-  - import_tool: llm_workers.tools.misc.RequestApprovalTool
+  - import_tool: llm_workers.tools.misc.request_approval
     name: show_plan_to_user
     description: |-
       Show plan to user and asks for explicit confirmation; upon confirmation return `approval_token` to be used in
       the following call to `run_script`.
 
-  - import_tool: llm_workers.tools.misc.ValidateApprovalTool
-    name: _validate_approval
-
-  - import_tool: llm_workers.tools.misc.ConsumeApprovalTool
-    name: _consume_approval
-
   - name: run_python_script
     description: Consume approval_token and run given Python script
     input:
-      - name: approval_token
-        description: `approval_token` from `show_plan_to_user` tool; upon successful tool completion is consumed and cannot be re-used
-        type: str
-      - name: script
-        description: Python script to run
-        type: str
+    - name: approval_token
+      description: `approval_token` from `show_plan_to_user` tool; upon successful tool completion is consumed and cannot be re-used
+      type: str
+    - name: script
+      description: Python script to run
+      type: str
     ui_hint: Running generated Python script...
+    tools:
+    - import_tool: llm_workers.tools.misc.validate_approval
+    - import_tool: llm_workers.tools.misc.consume_approval
     do:
-      - call: _validate_approval
+      - call: validate_approval
         params:
           approval_token: {approval_token}
       - call: _run_python_script_no_confirmation
         params:
           script: ${script}
-      - call: _consume_approval
+      - call: consume_approval
         params:
           approval_token: {approval_token}
 ```
