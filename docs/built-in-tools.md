@@ -16,159 +16,6 @@ In addition to the tools listed below, you can use (almost) any tool from [`lang
 any imported library, or [define your own](https://python.langchain.com/docs/concepts/tools/) tools.
 
 
-## Web Fetching Tools
-
-### fetch_content
-
-```yaml
-- import_tool: llm_workers.tools.fetch.fetch_content
-```
-
-Fetches raw content from a given URL and returns it as a string.
-
-**Parameters:**
-- `url`: The URL to fetch from
-- `headers`: (Optional) Extra headers to use for the request
-- `on_no_content`: (Optional) What to do if no matching content is found ('raise_exception', 'return_error', 'return_empty')
-- `on_error`: (Optional) What to do if an error occurs ('raise_exception', 'return_error', 'return_empty')
-
-### fetch_page_markdown
-
-```yaml
-- import_tool: llm_workers.tools.fetch.fetch_page_markdown
-```
-
-Fetches web page or page element and converts it to markdown.
-
-**Parameters:**
-- `url`: The URL of the page
-- `xpath`: (Optional) The xpath to the element containing the text; if not specified the entire page will be returned
-- `headers`: (Optional) Extra headers to use for the request
-- `on_no_content`: (Optional) What to do if no matching content is found
-- `on_error`: (Optional) What to do if an error occurs
-
-### fetch_page_text
-
-```yaml
-- import_tool: llm_workers.tools.fetch.fetch_page_text
-```
-
-Fetches the text from web page or web page element.
-
-**Parameters:**
-- `url`: The URL of the page
-- `xpath`: (Optional) The xpath to the element containing the text; if not specified the entire page will be returned
-- `headers`: (Optional) Extra headers to use for the request
-- `on_no_content`: (Optional) What to do if no matching content is found
-- `on_error`: (Optional) What to do if an error occurs
-
-### fetch_page_links
-
-```yaml
-- import_tool: llm_workers.tools.fetch.fetch_page_links
-```
-
-Fetches the links from web page or web page element.
-
-**Parameters:**
-- `url`: The URL of the page
-- `xpath`: (Optional) The xpath to the element containing the links; if not specified the entire page will be searched
-- `headers`: (Optional) Extra headers to use for the request
-- `on_no_content`: (Optional) What to do if no matching content is found
-- `on_error`: (Optional) What to do if an error occurs
-
-**Returns:** List of objects with `link` and optional `text` properties
-
-
-## LLM Tool
-
-### build_llm_tool
-
-```yaml
-- import_tool: llm_workers.tools.llm_tool.build_llm_tool
-  name: llm
-```
-
-Creates a tool that allows calling an LLM with a prompt and returning its response.
-
-**Configuration Parameters**:
-- `model_ref`: (Optional) Reference to a model configured in `~/.config/llm-workers/config.yaml` (fast/default/thinking), defaults to "default"
-- `system_message`: (Optional) System message to use for this specific LLM tool
-- `tools`: (Optional) List of tool names or inline tool definitions to make available for this specific LLM tool.
-See `tools` definition in [Chat Section](llm-script.md#chat-section) for details.
-- `remove_past_reasoning`: (Optional) Whether to hide past LLM reasoning, defaults to false
-- `extract_json`: (Optional) Filters result to include only JSON blocks, defaults to "false"
-Useful for models without Structured Output, like Claude. Fallbacks to the entire message if no "```json" blocks are found. Possible values:
-  - "first" – returns only the first JSON block found in the response
-  - "last" – returns only the last JSON block found in the response
-  - "all" – returns all JSON blocks found in the response as list
-  - "false" – returns the full response without filtering
-- `ui_hint`: (Optional) Template string to display in the UI when this tool is called. Supports variable interpolation.
-
-**Function**:
-This factory method creates a `StructuredTool` that passes a prompt to an LLM and returns the model's response.
-
-**Parameters**:
-- `prompt`: Text prompt to send to the LLM
-- `system_message`: (Optional) System message to prepend to the conversation at runtime
-
-**Returns**:
-- Text response from the LLM
-
-**Behavior Notes**:
-- When used in a workflow, this tool disables token streaming to prevent partial outputs
-- For conversations with multiple messages, it returns only AI messages joined by newlines
-- For a single message, it returns the raw message text
-- Empty result lists return an empty string
-
-**Example Usage**:
-```yaml
-- call: llm
-  params:
-    prompt: |
-      Summarize the following text in three bullet points:
-      {text_to_summarize}
-```
-
-**Example with System Message**:
-```yaml
-- call: llm
-  params:
-    system_message: |-
-      You are a schema expert. Always respond with "SCHEMA_EXPERT:" prefix followed by your answer.
-    prompt: |
-      What is a database schema?
-```
-
-**Example with JSON only**:
-```yaml
-- call: llm
-  json_only: true
-  params:
-    prompt: |
-      Summarize the following text in three bullet points:
-      {text_to_summarize}
-
-      Return the result as a JSON array with object with following keys:
-        - `bullet`: string - The bullet point text
-        - `importance`: int - Importance of the bullet point (1-5)
-        - `references: string[] - List of references relevant to the bullet point
-```
-
-**Example with Custom Configuration and UI Hint**:
-```yaml
-tools:
-  - import_tool: llm_workers.tools.llm_tool.build_llm_tool
-    name: llm_tool
-    config:
-      model_ref: fast
-    ui_hint: Extracting Metacritic score from search results
-```
-
-The tool can be used to create custom LLM-powered tools within your workflows, enabling tasks like summarization,
-analysis, formatting, or generating structured content based on input data.
-
-
 ## File System Tools
 
 These tools provide access to the file system. Operations outside the working directory require confirmation.
@@ -390,7 +237,149 @@ Runs a system process and returns its output.
 - Requires user confirmation by default
 
 
+## Web Fetching Tools
+
+### fetch_content
+
+```yaml
+- import_tool: llm_workers.tools.fetch.fetch_content
+```
+
+Fetches raw content from a given URL and returns it as a string.
+
+**Parameters:**
+- `url`: The URL to fetch from
+- `headers`: (Optional) Extra headers to use for the request
+- `on_no_content`: (Optional) What to do if no matching content is found ('raise_exception', 'return_error', 'return_empty')
+- `on_error`: (Optional) What to do if an error occurs ('raise_exception', 'return_error', 'return_empty')
+
+### fetch_page_markdown
+
+```yaml
+- import_tool: llm_workers.tools.fetch.fetch_page_markdown
+```
+
+Fetches web page or page element and converts it to markdown.
+
+**Parameters:**
+- `url`: The URL of the page
+- `xpath`: (Optional) The xpath to the element containing the text; if not specified the entire page will be returned
+- `headers`: (Optional) Extra headers to use for the request
+- `on_no_content`: (Optional) What to do if no matching content is found
+- `on_error`: (Optional) What to do if an error occurs
+
+### fetch_page_text
+
+```yaml
+- import_tool: llm_workers.tools.fetch.fetch_page_text
+```
+
+Fetches the text from web page or web page element.
+
+**Parameters:**
+- `url`: The URL of the page
+- `xpath`: (Optional) The xpath to the element containing the text; if not specified the entire page will be returned
+- `headers`: (Optional) Extra headers to use for the request
+- `on_no_content`: (Optional) What to do if no matching content is found
+- `on_error`: (Optional) What to do if an error occurs
+
+### fetch_page_links
+
+```yaml
+- import_tool: llm_workers.tools.fetch.fetch_page_links
+```
+
+Fetches the links from web page or web page element.
+
+**Parameters:**
+- `url`: The URL of the page
+- `xpath`: (Optional) The xpath to the element containing the links; if not specified the entire page will be searched
+- `headers`: (Optional) Extra headers to use for the request
+- `on_no_content`: (Optional) What to do if no matching content is found
+- `on_error`: (Optional) What to do if an error occurs
+
+**Returns:** List of objects with `link` and optional `text` properties
+
+
 ## Miscellaneous Tools
+
+### build_llm_tool
+
+```yaml
+- import_tool: llm_workers.tools.llm_tool.build_llm_tool
+  name: llm
+```
+
+Creates a tool that allows calling an LLM with a prompt and returning its response.
+
+**Configuration Parameters**:
+- `model_ref`: (Optional) Reference to a model configured in `~/.config/llm-workers/config.yaml` (fast/default/thinking), defaults to "default"
+- `system_message`: (Optional) System message to use for this specific LLM tool
+- `tools`: (Optional) List of tool names or inline tool definitions to make available for this specific LLM tool.
+  See `tools` definition in [Chat Section](llm-script.md#chat-section) for details.
+- `remove_past_reasoning`: (Optional) Whether to hide past LLM reasoning, defaults to false
+- `extract_json`: (Optional) Filters result to include only JSON blocks, defaults to "false"
+  Useful for models without Structured Output, like Claude. Fallbacks to the entire message if no "```json" blocks are found. Possible values:
+  - "first" – returns only the first JSON block found in the response
+  - "last" – returns only the last JSON block found in the response
+  - "all" – returns all JSON blocks found in the response as list
+  - "false" – returns the full response without filtering
+- `ui_hint`: (Optional) Template string to display in the UI when this tool is called. Supports variable interpolation.
+
+**Parameters**:
+- `prompt`: Text prompt to send to the LLM
+- `system_message`: (Optional) System message to prepend to the conversation at runtime
+
+**Returns**:
+- Text response from the LLM or JSON content extracted from the response
+
+**Example Usage**:
+```yaml
+- call: llm
+  params:
+    prompt: |
+      Summarize the following text in three bullet points:
+      ${text_to_summarize}
+```
+
+**Example with System Message**:
+```yaml
+- call: llm
+  params:
+    system_message: |-
+      You are a schema expert. Always respond with "SCHEMA_EXPERT:" prefix followed by your answer.
+    prompt: |
+      What is a database schema?
+```
+
+**Example with JSON only**:
+```yaml
+- call: llm
+  json_only: true
+  params:
+    prompt: |
+      Summarize the following text in three bullet points:
+      ${text_to_summarize}
+
+      Return the result as a JSON array with object with following keys:
+        - `bullet`: string - The bullet point text
+        - `importance`: int - Importance of the bullet point (1-5)
+        - `references: string[] - List of references relevant to the bullet point
+```
+
+**Example with Custom Configuration and UI Hint**:
+```yaml
+tools:
+  - import_tool: llm_workers.tools.llm_tool.build_llm_tool
+    name: llm_tool
+    config:
+      model_ref: fast
+    ui_hint: Extracting Metacritic score from search results
+```
+
+The tool can be used to create custom LLM-powered tools within your workflows, enabling tasks like summarization,
+analysis, formatting, or generating structured content based on input data.
+
 
 ### user_input
 
