@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 from pydantic import BaseModel
 
-import llm_workers_evaluation.tools
 from llm_workers.api import UserContext, WorkerNotification, WorkersContext
 from llm_workers.cache import prepare_cache
 from llm_workers.config import ToolsDefinitionStatement, Json
@@ -25,6 +24,9 @@ from llm_workers_evaluation.config import (
     EvaluationSuiteFile,
     EvaluationTestConfig,
 )
+from llm_workers_evaluation.tools import TEST_ITERATION_KEY, TEST_LOGS_KEY, log_tool
+from llm_workers_evaluation.tools import f_beta_score_tool
+from llm_workers_evaluation.tools import linear_score_tool
 
 logger = logging.getLogger(__name__)
 
@@ -100,9 +102,6 @@ class EvaluationTest:
         merged_tools = merge_tools(test_config.tools, parent_tools)
         tools = context.get_tools('evaluation', merged_tools)
         local_tools = {tool.name: tool for tool in tools}
-        local_tools['f_beta_score'] = llm_workers_evaluation.tools.f_beta_score_tool
-        local_tools['linear_score_tool'] = llm_workers_evaluation.tools.linear_score_tool
-        local_tools['log'] = llm_workers_evaluation.tools.log_tool
         self._worker = create_statement_from_model(test_config.do, context, local_tools)
 
         self._evaluation_context = build_evaluation_context(test_config.data, parent=suite_evaluation_context)
@@ -119,8 +118,8 @@ class EvaluationTest:
         """
         local_evaluation_context = VarEvaluationContext(
             variables={
-                llm_workers_evaluation.tools.TEST_ITERATION_KEY: iteration,
-                llm_workers_evaluation.tools.TEST_LOGS_KEY: logs_container
+                TEST_ITERATION_KEY: iteration,
+                TEST_LOGS_KEY: logs_container
             },
             parent=self._evaluation_context)
         generator = self._worker.yield_notifications_and_result(local_evaluation_context, token_tracker, config=None)
@@ -164,8 +163,8 @@ class EvaluationTest:
                 result.scores[i] = score
                 logger.info(f"Test '{self.name}' iteration {i + 1} score: {score}")
             except Exception as e:
-                logger.error(f"Test '{self.name}' iteration {i + 1} failed with error: {e}")
-                result.errors[i] = str(e)
+                logger.error(f"Test '{self.name}' iteration {i + 1} failed with error: {e}", exc_info=True)
+                result.errors[i] = repr(e)
                 result.scores[i] = 0.0
 
         # Calculate average score
@@ -251,10 +250,16 @@ def _run_evaluation_inner(
     results = EvaluationResults()
     token_tracker = CompositeTokenUsageTracker(user_context.models)
 
+    # FIXME Fugly hack
+    shared_tools = context.shared_tools
+    shared_tools[f_beta_score_tool.name] = f_beta_score_tool
+    shared_tools[linear_score_tool.name] = linear_score_tool
+    shared_tools[log_tool.name] = log_tool
+
     shared_evaluation_context = build_evaluation_context(evaluation_config.shared.data, parent=context.evaluation_context)
     tests = [
         EvaluationTest(
-            test_config.name,
+            test_name,
             test_config,
             shared_evaluation_context,
             evaluation_config.shared.tools,
@@ -285,6 +290,6 @@ def format_results(results: EvaluationResults) -> str:
     Returns:
         YAML-formatted string
     """
-    output = results.model_dump()
+    output = results.model_dump(mode='json')
 
     return yaml.dump(output, default_flow_style=False, sort_keys=True, allow_unicode=True)
