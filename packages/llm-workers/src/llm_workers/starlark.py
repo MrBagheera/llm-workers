@@ -173,6 +173,10 @@ class StarlarkBase:
             self.builtins.pop(name, None)
         # Add Starlark basics
         self.builtins['struct'] = StarlarkStruct
+        # Ensure type conversion functions are available (may be missing in some RestrictedPython versions)
+        self.builtins['list'] = list
+        self.builtins['tuple'] = tuple
+        self.builtins['dict'] = dict
         # Add own build-ins
         self.builtins['parse_json'] = _parse_json
         self.builtins['print_json'] = _print_json
