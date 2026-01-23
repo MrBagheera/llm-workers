@@ -198,6 +198,7 @@ class ForEachDefinition(BaseModel):
     for_each: JsonExpression  # Collection to iterate (list, dict, or scalar)
     do: 'BodyDefinition'      # Body to execute for each element
     store_as: Optional[str] = None
+    parallelism: int = 0      # 0 or 1 = sequential, >1 = parallel with N workers
 
 
 StatementDefinition = Annotated[

@@ -1,6 +1,10 @@
 import logging
+import queue
+import threading
 from collections.abc import Iterable
-from typing import Type, Any, Optional, Dict, TypeAlias, List, Generator
+from concurrent.futures import ThreadPoolExecutor, Future
+from dataclasses import dataclass
+from typing import Type, Any, Optional, Dict, TypeAlias, List, Generator, Callable
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
@@ -220,6 +224,33 @@ class StarlarkStatement(ExtendedRunnable[Json]):
         return result
 
 
+@dataclass
+class _CompletionSentinel:
+    """Signals all tasks are complete."""
+    pass
+
+
+@dataclass
+class _ExceptionSentinel:
+    """Signals an exception occurred in a worker task."""
+    exception: BaseException
+    index: Any  # Index/key where the exception occurred
+
+
+@dataclass
+class _IndexedNotification:
+    """A notification with its source index for ordering."""
+    index: Any
+    notification: WorkerNotification
+
+
+@dataclass
+class _IndexedResult:
+    """A result with its source index for ordering."""
+    index: int
+    result: Json
+
+
 class ForEachStatement(ExtendedRunnable[Json]):
     """
     Iterates over a collection and executes the body for each element.
@@ -229,12 +260,17 @@ class ForEachStatement(ExtendedRunnable[Json]):
     - Other (including str): Treats as single item, returns single result
 
     Available in body: `_` = current element, `key` = key (for dicts)
+
+    Parallelism:
+    - parallelism <= 1: Sequential execution (default)
+    - parallelism > 1: Parallel execution with N worker threads
     """
 
     def __init__(self, model: ForEachDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool]):
         self._collection_expr = model.for_each
         self._body_statement = create_statement_from_model(model.do, context, local_tools)
         self._store_as = model.store_as
+        self._parallelism = model.parallelism
 
     def yield_notifications_and_result(
             self,
@@ -245,38 +281,138 @@ class ForEachStatement(ExtendedRunnable[Json]):
     ) -> Generator[WorkerNotification, None, Json]:
         collection = self._collection_expr.evaluate(evaluation_context)
 
-        if isinstance(collection, dict):
-            # Dict: map over values, preserve keys
-            results = {}
-            for key, value in collection.items():
-                inner_context = EvaluationContext({"_": value, "key": key}, parent=evaluation_context, mutable=False)
-                result = yield from self._body_statement.yield_notifications_and_result(
-                    inner_context, token_tracker, config
-                )
-                results[key] = result
-            final_result = results
-
-        elif isinstance(collection, Iterable) and not isinstance(collection, str):
-            # Any iterable (except str): map over elements, return list
-            results = []
-            for item in collection:
-                inner_context = EvaluationContext({"_": item}, parent=evaluation_context, mutable=False)
-                result = yield from self._body_statement.yield_notifications_and_result(
-                    inner_context, token_tracker, config
-                )
-                results.append(result)
-            final_result = results
-
-        else:
+        # Handle scalars early (non-collection values including strings)
+        if not isinstance(collection, (dict, Iterable)) or isinstance(collection, str):
             inner_context = EvaluationContext({"_": collection}, parent=evaluation_context, mutable=False)
-            final_result = yield from self._body_statement.yield_notifications_and_result(
+            result = yield from self._body_statement.yield_notifications_and_result(
                 inner_context, token_tracker, config
             )
+            if self._store_as:
+                evaluation_context.add(self._store_as, result)
+            return result
+
+        # Step 1: Prepare iteration based on collection type
+        if isinstance(collection, dict):
+            items = list(collection.items())
+            make_context = lambda e: EvaluationContext({"_": e[1], "key": e[0]}, parent=evaluation_context, mutable=False)
+            make_result = lambda results: {items[i][0]: results[i] for i in range(len(items))}
+        else:
+            # Iterable (non-str)
+            items = list(collection)
+            make_context = lambda e: EvaluationContext({"_": e}, parent=evaluation_context, mutable=False)
+            make_result = lambda results: results
+
+        # Step 2: Execute iteration (sequential or parallel)
+        use_parallel = self._parallelism > 1 and len(items) > 1
+        if use_parallel:
+            intermediate_results = yield from self._execute_parallel(
+                items, make_context, token_tracker, config
+            )
+        else:
+            intermediate_results = yield from self._execute_sequential(
+                items, make_context, token_tracker, config
+            )
+
+        # Step 3: Convert intermediate results to final result
+        final_result = make_result(intermediate_results)
 
         if self._store_as:
             evaluation_context.add(self._store_as, final_result)
 
         return final_result
+
+    def _execute_sequential(
+            self,
+            items: List[Any],
+            make_context: Callable[[Any], EvaluationContext],
+            token_tracker: CompositeTokenUsageTracker,
+            config: Optional[RunnableConfig]
+    ) -> Generator[WorkerNotification, None, List[Json]]:
+        """Execute body sequentially for each item, returning list of results."""
+        results = []
+        for item in items:
+            inner_context = make_context(item)
+            result = yield from self._body_statement.yield_notifications_and_result(
+                inner_context, token_tracker, config
+            )
+            results.append(result)
+        return results
+
+    def _execute_parallel(
+            self,
+            items: List[Any],
+            make_context: Callable[[Any], EvaluationContext],
+            token_tracker: CompositeTokenUsageTracker,
+            config: Optional[RunnableConfig]
+    ) -> Generator[WorkerNotification, None, List[Json]]:
+        """Execute body in parallel for each item, returning list of results in original order."""
+        notification_queue: queue.Queue = queue.Queue()
+        results: Dict[int, Json] = {}
+        first_exception: Optional[_ExceptionSentinel] = None
+        stop_submitting = threading.Event()
+        tasks_completed = 0
+        total_tasks = len(items)
+
+        def worker_task(index: int, item: Any) -> None:
+            nonlocal tasks_completed, first_exception
+            try:
+                inner_context = make_context(item)
+                gen = self._body_statement.yield_notifications_and_result(
+                    inner_context, token_tracker, config
+                )
+
+                # Consume the generator, pushing notifications to the queue
+                result = None
+                try:
+                    while True:
+                        notification = next(gen)
+                        notification_queue.put(_IndexedNotification(index, notification))
+                except StopIteration as e:
+                    result = e.value
+
+                notification_queue.put(_IndexedResult(index, result))
+
+            except BaseException as e:
+                if first_exception is None:
+                    first_exception = _ExceptionSentinel(e, index)
+                    stop_submitting.set()
+                else:
+                    logger.error(f"Additional exception in parallel for_each at index {index}: {e}")
+                notification_queue.put(_ExceptionSentinel(e, index))
+
+            finally:
+                tasks_completed += 1
+                if tasks_completed >= total_tasks:
+                    notification_queue.put(_CompletionSentinel())
+
+        # Submit tasks to thread pool
+        with ThreadPoolExecutor(max_workers=self._parallelism) as executor:
+            futures: List[Future] = []
+            for idx, item in enumerate(items):
+                if stop_submitting.is_set():
+                    break
+                futures.append(executor.submit(worker_task, idx, item))
+
+            # Yield notifications from the queue until all tasks complete
+            while True:
+                msg = notification_queue.get()
+
+                if isinstance(msg, _CompletionSentinel):
+                    break
+                elif isinstance(msg, _IndexedNotification):
+                    yield msg.notification
+                elif isinstance(msg, _IndexedResult):
+                    results[msg.index] = msg.result
+                elif isinstance(msg, _ExceptionSentinel):
+                    # Continue processing to collect remaining notifications
+                    pass
+
+        # Re-raise the first exception if any occurred
+        if first_exception is not None:
+            raise first_exception.exception
+
+        # Reconstruct results in original order
+        return [results[i] for i in range(total_tasks)]
 
 
 class CustomTool(ExtendedExecutionTool):

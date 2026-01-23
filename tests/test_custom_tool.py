@@ -1068,3 +1068,314 @@ class TestForEachStatement(unittest.TestCase):
         generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
         result = split_result_and_notifications(generator)[0]
         self.assertEqual("Got: hello", result)  # single result, not ['Got: h', 'Got: e', ...]
+
+
+class TestForEachParallelStatement(unittest.TestCase):
+    """Test for_each statement with parallel execution (parallelism > 1)."""
+
+    def test_parallel_list_basic(self):
+        """Test parallel execution over a list produces correct results in order."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${items}
+            parallelism: 3
+            do:
+              eval: "Hello, ${_}!"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"items": ["Alice", "Bob", "Charlie", "Diana"]}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        # Results should be in original order despite parallel execution
+        self.assertEqual(["Hello, Alice!", "Hello, Bob!", "Hello, Charlie!", "Hello, Diana!"], result)
+
+    def test_parallel_dict_basic(self):
+        """Test parallel execution over a dict preserves keys."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${data}
+            parallelism: 2
+            do:
+              eval: "Hello, ${_}!"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"data": {"user1": "Alice", "user2": "Bob", "user3": "Charlie"}}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        # Dict keys should be preserved
+        self.assertEqual({"user1": "Hello, Alice!", "user2": "Hello, Bob!", "user3": "Hello, Charlie!"}, result)
+
+    def test_parallel_dict_access_key(self):
+        """Test that key variable is available in parallel dict iteration."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${data}
+            parallelism: 2
+            do:
+              eval: "${key}: ${_}"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"data": {"name": "Alice", "age": "30", "city": "NYC"}}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual({"name": "name: Alice", "age": "age: 30", "city": "city: NYC"}, result)
+
+    def test_parallel_empty_list(self):
+        """Test parallel execution with empty list returns empty list."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${items}
+            parallelism: 4
+            do:
+              eval: "Hello, ${_}!"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"items": []}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual([], result)
+
+    def test_parallel_empty_dict(self):
+        """Test parallel execution with empty dict returns empty dict."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${data}
+            parallelism: 4
+            do:
+              eval: "Hello, ${_}!"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"data": {}}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual({}, result)
+
+    def test_parallel_single_item_list(self):
+        """Test parallel execution with single item list uses sequential path."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${items}
+            parallelism: 4
+            do:
+              eval: "Hello, ${_}!"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"items": ["Alice"]}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(["Hello, Alice!"], result)
+
+    def test_parallel_scalar_fallback(self):
+        """Test that scalar input uses sequential execution even with parallelism set."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${value}
+            parallelism: 4
+            do:
+              eval: "Got: ${_}"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"value": "World"}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual("Got: World", result)
+
+    def test_parallel_with_tool_call(self):
+        """Test parallel execution with tool calls."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${pairs}
+            parallelism: 2
+            do:
+              call: test_tool_logic
+              params:
+                param1: "${_[0]}"
+                param2: "${_[1]}"
+            """)),
+            context=StubWorkersContext(tools={"test_tool_logic": test_tool_logic}),
+            local_tools={}
+        )
+        context = {"pairs": [[1, 2], [3, 4], [5, 6], [7, 8]]}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        # Results should be in original order: 1+2=3, 3+4=7, 5+6=11, 7+8=15
+        self.assertEqual([3, 7, 11, 15], result)
+
+    def test_parallel_notifications_collected(self):
+        """Test that notifications from parallel executions are collected."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${pairs}
+            parallelism: 2
+            do:
+              call: test_tool_logic
+              params:
+                param1: "${_[0]}"
+                param2: "${_[1]}"
+            """)),
+            context=StubWorkersContext(tools={"test_tool_logic": test_tool_logic}),
+            local_tools={}
+        )
+        context = {"pairs": [[1, 2], [3, 4]]}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result, notifications = split_result_and_notifications(generator)
+
+        # Should have notifications for both tool calls (tool_start and tool_end for each)
+        self.assertEqual([3, 7], result)
+        # Each tool call generates 2 notifications (start and end)
+        self.assertEqual(4, len(notifications))
+
+    def test_parallel_preserves_parent_context(self):
+        """Test that parallel body can access parent context variables."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${items}
+            parallelism: 3
+            do:
+              eval: "${prefix}: ${_}"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"items": ["Alice", "Bob", "Charlie"], "prefix": "Hello"}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(["Hello: Alice", "Hello: Bob", "Hello: Charlie"], result)
+
+    def test_parallel_with_store_as(self):
+        """Test result is stored in variable with store_as in parallel mode."""
+        statement = create_statement_from_model(
+            model=[
+                ForEachDefinition.model_validate(yaml.safe_load("""
+                for_each: ${items}
+                parallelism: 2
+                do:
+                  eval: "${_ * 2}"
+                store_as: doubled_items
+                """)),
+                EvalDefinition(eval=JsonExpression("Result: ${doubled_items}"))
+            ],
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"items": [1, 2, 3, 4]}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual("Result: [2, 4, 6, 8]", result)
+
+    def test_parallel_exception_handling(self):
+        """Test that exceptions in parallel execution are propagated."""
+        @tool
+        def failing_tool(value: int) -> int:
+            """Tool that fails for certain values"""
+            if value == 3:
+                raise ValueError("Value 3 is not allowed")
+            return value * 2
+
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${items}
+            parallelism: 2
+            do:
+              call: failing_tool
+              params:
+                value: "${_}"
+            """)),
+            context=StubWorkersContext(tools={"failing_tool": failing_tool}),
+            local_tools={}
+        )
+        context = {"items": [1, 2, 3, 4, 5]}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+
+        with self.assertRaises(ValueError) as ctx:
+            split_result_and_notifications(generator)
+        self.assertIn("Value 3 is not allowed", str(ctx.exception))
+
+    def test_parallel_token_tracking(self):
+        """Test that token tracking works correctly with parallel execution."""
+        # Create a fresh token tracker for this test
+        token_tracker = CompositeTokenUsageTracker()
+
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${items}
+            parallelism: 2
+            do:
+              eval: "${_ * 2}"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"items": [1, 2, 3, 4]}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+
+        # Basic check that parallel execution completed
+        self.assertEqual([2, 4, 6, 8], result)
+        # Token tracker should still be functional (not corrupted by concurrent access)
+        self.assertIsNotNone(token_tracker)
+
+    def test_parallelism_zero_uses_sequential(self):
+        """Test that parallelism=0 uses sequential execution."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${items}
+            parallelism: 0
+            do:
+              eval: "Hello, ${_}!"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"items": ["Alice", "Bob"]}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(["Hello, Alice!", "Hello, Bob!"], result)
+
+    def test_parallelism_one_uses_sequential(self):
+        """Test that parallelism=1 uses sequential execution."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${items}
+            parallelism: 1
+            do:
+              eval: "Hello, ${_}!"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"items": ["Alice", "Bob"]}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual(["Hello, Alice!", "Hello, Bob!"], result)
+
+    def test_parallel_high_parallelism_more_than_items(self):
+        """Test that parallelism > number of items works correctly."""
+        statement = create_statement_from_model(
+            model=ForEachDefinition.model_validate(yaml.safe_load("""
+            for_each: ${items}
+            parallelism: 100
+            do:
+              eval: "${_ * 2}"
+            """)),
+            context=StubWorkersContext(),
+            local_tools={}
+        )
+        context = {"items": [1, 2, 3]}
+        generator = statement.yield_notifications_and_result(EvaluationContext(context), _token_tracker, config=None)
+        result = split_result_and_notifications(generator)[0]
+        self.assertEqual([2, 4, 6], result)

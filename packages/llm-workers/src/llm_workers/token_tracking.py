@@ -1,3 +1,4 @@
+import threading
 from dataclasses import dataclass
 from typing import Dict, Any, Optional, List, TYPE_CHECKING
 
@@ -137,6 +138,9 @@ class CompositeTokenUsageTracker:
                 if model_def.pricing is not None:
                     self._model_pricing[model_def.name] = model_def.pricing
 
+        # Lock for thread-safe updates (used by parallel for_each)
+        self._lock = threading.Lock()
+
     def update_from_message(self, message: BaseMessage, model_name: str) -> None:
         """Update both total (per-model) and current (session) usage from BaseMessage metadata."""
 
@@ -147,14 +151,18 @@ class CompositeTokenUsageTracker:
         self.update_from_metadata(usage_metadata_per_model)
 
     def update_from_metadata(self, usage_metadata_per_model: Dict[str, Dict[str, Any]], update_only_current: bool = False) -> None:
-        """Update both total (per-model) and current (session) usage from usage metadata."""
-        for model_name, usage_metadata in usage_metadata_per_model.items():
-            if not update_only_current:
-                if model_name not in self._total_per_model:
-                    self._total_per_model[model_name] = SimpleTokenUsageTracker()
-                self._total_per_model[model_name].update_from_metadata(usage_metadata)
+        """Update both total (per-model) and current (session) usage from usage metadata.
 
-            self._current.update_from_metadata(usage_metadata)
+        This method is thread-safe for use in parallel execution contexts.
+        """
+        with self._lock:
+            for model_name, usage_metadata in usage_metadata_per_model.items():
+                if not update_only_current:
+                    if model_name not in self._total_per_model:
+                        self._total_per_model[model_name] = SimpleTokenUsageTracker()
+                    self._total_per_model[model_name].update_from_metadata(usage_metadata)
+
+                self._current.update_from_metadata(usage_metadata)
 
     def attach_usage_to_message(self, message: BaseMessage) -> None:
         """Attach token usage metadata to a message via additional_kwargs."""

@@ -327,6 +327,7 @@ Iterates over a collection and executes the body for each element:
 
 ```yaml
 - for_each: ${collection}
+  parallelism: 4  # Optional, enables parallel execution
   do:
     <statement(s)>  # Executed for each element
   store_as: result_var  # Optional, stores the final result
@@ -335,6 +336,9 @@ Iterates over a collection and executes the body for each element:
 **Parameters:**
 - `for_each`: Expression that evaluates to a list, dict, or scalar value
 - `do`: Statement(s) to execute for each element
+- `parallelism`: (Optional, default 0) Number of parallel workers
+  - `0` or `1`: Sequential execution (default behavior)
+  - `>1`: Parallel execution with N worker threads
 - `store_as`: (Optional) Variable name to store the result
 
 **Behavior by Input Type:**
@@ -436,6 +440,18 @@ Variables from the parent context (like `${prefix}`) remain accessible inside th
   store_as: doubled_items
 - eval: "Processed ${len(doubled_items)} items"
 ```
+
+**Parallel file processing:**
+```yaml
+- for_each: ${file_paths}
+  parallelism: 4
+  do:
+    call: read_file
+    params:
+      path: "${_}"
+```
+
+Parallel execution processes items concurrently using multiple worker threads, which can significantly speed up I/O-bound operations like file reading or API calls. Results are always returned in the original order regardless of execution order.
 
 ### Edge Cases
 
