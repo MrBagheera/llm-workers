@@ -2,9 +2,31 @@ from dataclasses import dataclass
 from typing import Dict, Any, Optional, List, TYPE_CHECKING
 
 from langchain_core.messages import BaseMessage
+from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from llm_workers.config import ModelDefinition, PricingConfig
+
+
+class ModelUsageReport(BaseModel):
+    """Token usage for a single model."""
+    total: int
+    in_: int = Field(alias='in')
+    out: int
+    reasoning: Optional[int] = None   # Only included if > 0
+    cache_read: Optional[int] = None  # Only included if > 0
+    cost: Optional[float] = None      # Only included if pricing configured
+
+    class Config:
+        populate_by_name = True
+
+
+class UsageReport(BaseModel):
+    """Token usage report for evaluation."""
+    total_tokens: int
+    total_cost: Optional[float] = None
+    currency: Optional[str] = None
+    per_model: Dict[str, ModelUsageReport]
 
 
 def _extract_usage_metadata_from_message(message: BaseMessage, default_model_name: str) -> Dict[str, Dict[str, Any]] | None:
@@ -221,3 +243,52 @@ class CompositeTokenUsageTracker:
     def is_empty(self) -> bool:
         """Check if any tokens have been tracked."""
         return all(tracker.total_tokens == 0 for tracker in self._total_per_model.values())
+
+    def build_usage_report(self) -> Optional['UsageReport']:
+        """Build structured usage report for serialization."""
+        if self.is_empty:
+            return None
+
+        from llm_workers.cost_calculation import calculate_cost
+
+        per_model = {}
+        total_tokens = 0
+        total_cost = 0.0
+        currency = None
+        has_cost = False
+
+        for model_name, tracker in self._total_per_model.items():
+            if tracker.total_tokens > 0:
+                total_tokens += tracker.total_tokens
+                model_report = ModelUsageReport(
+                    total=tracker.total_tokens,
+                    in_=tracker.input_tokens,
+                    out=tracker.output_tokens,
+                    reasoning=tracker.reasoning_tokens if tracker.reasoning_tokens > 0 else None,
+                    cache_read=tracker.cache_read_tokens if tracker.cache_read_tokens > 0 else None
+                )
+
+                # Add cost if pricing available
+                if model_name in self._model_pricing:
+                    pricing = self._model_pricing[model_name]
+                    cost = calculate_cost(tracker, pricing)
+                    if cost is not None:
+                        model_report.cost = round(cost.total_cost, 4)
+                        total_cost += cost.total_cost
+                        has_cost = True
+                        if currency is None:
+                            currency = cost.currency
+                        elif currency != cost.currency:
+                            currency = "MIXED"
+
+                per_model[model_name] = model_report
+
+        if not per_model:
+            return None
+
+        return UsageReport(
+            total_tokens=total_tokens,
+            total_cost=round(total_cost, 4) if has_cost else None,
+            currency=currency,
+            per_model=per_model
+        )

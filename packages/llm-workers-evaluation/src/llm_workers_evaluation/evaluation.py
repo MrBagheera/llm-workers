@@ -14,7 +14,7 @@ from llm_workers.expressions import (
     EvaluationContext as VarEvaluationContext,
     JsonExpression
 )
-from llm_workers.token_tracking import CompositeTokenUsageTracker
+from llm_workers.token_tracking import CompositeTokenUsageTracker, UsageReport
 from llm_workers.tools.custom_tool import create_statement_from_model
 from llm_workers.user_context import StandardUserContext
 from llm_workers.utils import LazyFormatter, load_yaml
@@ -42,6 +42,7 @@ class TestResult(BaseModel):
 class EvaluationResults(BaseModel):
     """Complete evaluation results across all suites."""
     final_score: float = 0.0
+    usage: Optional[UsageReport] = None
     tests: Dict[str, TestResult] = {}
 
 
@@ -106,7 +107,7 @@ class EvaluationTest:
 
         self._evaluation_context = build_evaluation_context(test_config.data, parent=suite_evaluation_context)
 
-    def _run(self, token_tracker: CompositeTokenUsageTracker, iteration: int, logs_container: list[Json]) -> float:
+    def _run(self, token_tracker: CompositeTokenUsageTracker, iteration: int, logs_container: List[Json]) -> float:
         """Execute one test iteration and return score.
 
         Args:
@@ -187,7 +188,7 @@ def run_evaluation(
     suite_file: str,
     iterations: Optional[int] = None,
     user_context: Optional[UserContext] = None,
-) -> Tuple[EvaluationResults, CompositeTokenUsageTracker]:
+) -> EvaluationResults:
     """Main entry point for running evaluations.
 
     Args:
@@ -221,12 +222,10 @@ def run_evaluation(
     actual_iterations = iterations if iterations is not None else suite_config.iterations
 
     # Run evaluation within context
-    results, token_tracker = context.run(
+    return context.run(
         _run_evaluation_inner,
         suite_config, context, user_context, actual_iterations
     )
-
-    return results, token_tracker
 
 
 def _run_evaluation_inner(
@@ -234,7 +233,7 @@ def _run_evaluation_inner(
     context: StandardWorkersContext,
     user_context: UserContext,
     iterations: int,
-) -> Tuple[EvaluationResults, CompositeTokenUsageTracker]:
+) -> EvaluationResults:
     """Inner evaluation function that runs within the context.
 
     Args:
@@ -278,7 +277,10 @@ def _run_evaluation_inner(
     tests_scores = [test.average_score for test in results.tests.values()]
     results.final_score = sum(tests_scores) / len(tests_scores) if tests_scores else 0.0
 
-    return results, token_tracker
+    # Build usage report
+    results.usage = token_tracker.build_usage_report()
+
+    return results
 
 
 def format_results(results: EvaluationResults) -> str:
@@ -290,6 +292,6 @@ def format_results(results: EvaluationResults) -> str:
     Returns:
         YAML-formatted string
     """
-    output = results.model_dump(mode='json')
+    output = results.model_dump(mode='json', by_alias=True, exclude_none=True)
 
-    return yaml.dump(output, default_flow_style=False, sort_keys=True, allow_unicode=True)
+    return yaml.dump(output, default_flow_style=False, sort_keys=False, allow_unicode=True)

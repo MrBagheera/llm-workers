@@ -1,11 +1,10 @@
 """Command-line entry point for llm-workers-evaluate."""
 
 import argparse
-import sys
 
 from llm_workers.utils import setup_logging
 
-from llm_workers_evaluation import run_evaluation, format_results
+from llm_workers_evaluation import run_evaluation, format_results, EvaluationResults
 
 
 def main():
@@ -43,18 +42,14 @@ def main():
         log_filename="llm-workers-evaluate.log"
     )
 
-    results, token_tracker = run_evaluation(
+    results: EvaluationResults = run_evaluation(
         args.script_file,
         args.evaluation_suite,
         iterations=args.iterations
     )
 
-    # Output YAML results to stdout
+    # Output YAML results to stdout (includes usage stats)
     print(format_results(results))
-
-    # Print token stats to stderr (like cli_lib.py)
-    if not token_tracker.is_empty:
-        print(token_tracker.format_total_usage(), file=sys.stderr)
 
 
 if __name__ == "__main__":
