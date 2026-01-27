@@ -1,6 +1,7 @@
 import ast
 import getpass
 import json
+import logging
 import os
 import platform
 from datetime import datetime
@@ -13,6 +14,8 @@ from langchain_core.tools import ToolException
 
 from llm_workers.utils import LazyFormatter
 
+
+logger = logging.getLogger(__name__)
 
 class EvaluationContext:
     """
@@ -152,9 +155,13 @@ def _parse_json(arg: str, ignore_error: bool = False) -> Any:
             return arg
         raise ValueError(f'Failed to parse JSON from: {LazyFormatter(arg)}')
 
-def _print_json(arg: Any) -> str:
+def _print_json(arg: Any, pretty = False) -> str:
     """Convert a Python object into a JSON string."""
-    return json.dumps(arg, ensure_ascii=False)
+    return json.dumps(arg, ensure_ascii=False, indent=2 if pretty else None)
+
+def _log(arg: Any) -> None:
+    """Writes log message"""
+    logger.debug("Starlark script: %r", LazyFormatter(arg, trim=False))
 
 # --- Base Class ---
 
@@ -180,6 +187,7 @@ class StarlarkBase:
         # Add own build-ins
         self.builtins['parse_json'] = _parse_json
         self.builtins['print_json'] = _print_json
+        self.builtins['log'] = _log
 
         # 2. Compile immediately (Fail fast)
         self._compile()
