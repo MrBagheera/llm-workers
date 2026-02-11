@@ -13,7 +13,7 @@ from RestrictedPython.Guards import safe_builtins, guarded_iter_unpack_sequence,
 from langchain_core.tools import ToolException
 
 from llm_workers.utils import LazyFormatter
-
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +157,24 @@ def _parse_json(arg: str, ignore_error: bool = False) -> Any:
 
 def _print_json(arg: Any, pretty = False) -> str:
     """Convert a Python object into a JSON string."""
-    return json.dumps(arg, ensure_ascii=False, indent=2 if pretty else None)
+    def convert_to_json_serializable(obj):
+        """Convert StarlarkStruct and other objects to JSON-serializable types."""
+        if isinstance(obj, StarlarkStruct):
+            return {k: convert_to_json_serializable(v) for k, v in obj.__dict__.items()}
+        elif isinstance(obj, dict):
+            return {k: convert_to_json_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [convert_to_json_serializable(item) for item in obj]
+        elif isinstance(obj, BaseModel):
+            return obj.model_dump()
+        elif isinstance(obj, (int, float, str, bool, type(None))):
+            return obj
+        else:
+            # Fallback for other objects
+            return str(obj)
+    
+    serializable_arg = convert_to_json_serializable(arg)
+    return json.dumps(serializable_arg, ensure_ascii=False, indent=2 if pretty else None)
 
 def _log(arg: Any) -> None:
     """Writes log message"""

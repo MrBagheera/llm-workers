@@ -1,6 +1,7 @@
 """Core evaluation logic for running evaluation suites against LLM scripts."""
 
 import logging
+import math
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -31,9 +32,69 @@ from llm_workers_evaluation.tools import linear_score_tool
 logger = logging.getLogger(__name__)
 
 
+class ConfidenceInterval(BaseModel):
+    """95% confidence interval bounds."""
+    min: float
+    max: float
+
+
+def get_t_critical(n: int) -> float:
+    """Get two-tailed t-critical value for 95% confidence.
+
+    Uses exact table values for n <= 31, Cornish-Fisher approximation for larger samples.
+    """
+    if n < 2:
+        raise ValueError("Sample size must be at least 2")
+
+    df = n - 1
+
+    # Exact values for 95% confidence (two-tailed) for df=1 to 30
+    t_table = {
+        1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571,
+        6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228,
+        11: 2.201, 12: 2.179, 13: 2.160, 14: 2.145, 15: 2.131,
+        16: 2.120, 17: 2.110, 18: 2.101, 19: 2.093, 20: 2.086,
+        21: 2.080, 22: 2.074, 23: 2.069, 24: 2.064, 25: 2.060,
+        26: 2.056, 27: 2.052, 28: 2.048, 29: 2.045, 30: 2.042
+    }
+
+    if df in t_table:
+        return t_table[df]
+
+    # Cornish-Fisher approximation for df > 30
+    return 1.96 + (2.376 / df)
+
+
+def calculate_confidence_interval(scores: List[float]) -> Optional[ConfidenceInterval]:
+    """Calculate 95% confidence interval for a list of scores.
+
+    Returns None if fewer than 2 scores (CI undefined).
+    """
+    n = len(scores)
+    if n < 2:
+        return None
+
+    # Calculate mean
+    mean = sum(scores) / n
+
+    # Calculate sample standard deviation
+    variance = sum((x - mean) ** 2 for x in scores) / (n - 1)
+    std_dev = math.sqrt(variance)
+
+    # Standard error
+    std_err = std_dev / math.sqrt(n)
+
+    # Margin of error
+    t_crit = get_t_critical(n)
+    margin = t_crit * std_err
+
+    return ConfidenceInterval(min=mean - margin, max=mean + margin)
+
+
 class TestResult(BaseModel):
     """Result of running a single test across multiple iterations."""
-    average_score: float = 0.0
+    mean_score: float = 0.0
+    CI_95: Optional[ConfidenceInterval] = None
     scores: Dict[int, float] = {}
     errors: Optional[Dict[int, str]] = None
     logs: Optional[Dict[int, List[Json]]] = None
@@ -41,7 +102,8 @@ class TestResult(BaseModel):
 
 class EvaluationResults(BaseModel):
     """Complete evaluation results across all suites."""
-    final_score: float = 0.0
+    mean_score: float = 0.0
+    CI_95: Optional[ConfidenceInterval] = None
     usage: Optional[UsageReport] = None
     tests: Dict[str, TestResult] = {}
 
@@ -168,11 +230,13 @@ class EvaluationTest:
                 result.errors[i] = repr(e)
                 result.scores[i] = 0.0
 
-        # Calculate average score
+        # Calculate mean score and confidence interval
         if result.scores:
-            result.average_score = sum(result.scores.values()) / len(result.scores)
+            score_values = list(result.scores.values())
+            result.mean_score = sum(score_values) / len(score_values)
+            result.CI_95 = calculate_confidence_interval(score_values)
         else:
-            result.average_score = 0.0
+            result.mean_score = 0.0
 
         # Clean up empty optional fields
         if not result.errors:
@@ -271,11 +335,20 @@ def _run_evaluation_inner(
         logger.info(f"Running evaluation test '{test.name}'")
         test_result = test.run(token_tracker, iterations)
         results.tests[test.name] = test_result
-        logger.info(f"Test '{test.name}' final score: {test_result.average_score}")
+        logger.info(f"Test '{test.name}' mean score: {test_result.mean_score}")
 
-    # Calculate overall score from suite scores
-    tests_scores = [test.average_score for test in results.tests.values()]
-    results.final_score = sum(tests_scores) / len(tests_scores) if tests_scores else 0.0
+    # Calculate overall score from per-iteration means across all tests
+    if results.tests:
+        test_results_list = list(results.tests.values())
+        iteration_means = [
+            sum(tr.scores[i] for tr in test_results_list) / len(test_results_list)
+            for i in range(iterations)
+        ]
+        results.mean_score = sum(iteration_means) / len(iteration_means)
+        results.CI_95 = calculate_confidence_interval(iteration_means)
+    else:
+        results.mean_score = 0.0
+        results.CI_95 = None
 
     # Build usage report
     results.usage = token_tracker.build_usage_report()
