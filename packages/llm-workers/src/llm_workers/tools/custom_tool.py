@@ -348,13 +348,12 @@ class ForEachStatement(ExtendedRunnable[Json]):
         """Execute body in parallel for each item, returning list of results in original order."""
         notification_queue: queue.Queue = queue.Queue()
         results: Dict[int, Json] = {}
-        first_exception: Optional[_ExceptionSentinel] = None
-        stop_submitting = threading.Event()
+        has_exception = threading.Event()
         tasks_completed = 0
         total_tasks = len(items)
 
         def worker_task(index: int, item: Any) -> None:
-            nonlocal tasks_completed, first_exception
+            nonlocal tasks_completed
             try:
                 inner_context = make_context(item)
                 gen = self._body_statement.yield_notifications_and_result(
@@ -373,12 +372,12 @@ class ForEachStatement(ExtendedRunnable[Json]):
                 notification_queue.put(_IndexedResult(index, result))
 
             except BaseException as e:
-                if first_exception is None:
-                    first_exception = _ExceptionSentinel(e, index)
-                    stop_submitting.set()
+                notification_queue.put(_ExceptionSentinel(e, index))
+                if not has_exception.is_set():
+                    has_exception.set()
+                    logger.debug(f"First exception in parallel for_each at index {index}: {e}")
                 else:
                     logger.error(f"Additional exception in parallel for_each at index {index}: {e}")
-                notification_queue.put(_ExceptionSentinel(e, index))
 
             finally:
                 tasks_completed += 1
@@ -387,11 +386,10 @@ class ForEachStatement(ExtendedRunnable[Json]):
 
         # Submit tasks to thread pool
         with ThreadPoolExecutor(max_workers=self._parallelism) as executor:
-            futures: List[Future] = []
             for idx, item in enumerate(items):
-                if stop_submitting.is_set():
+                if has_exception.is_set():
                     break
-                futures.append(executor.submit(worker_task, idx, item))
+                executor.submit(worker_task, idx, item)
 
             # Yield notifications from the queue until all tasks complete
             while True:
@@ -404,12 +402,8 @@ class ForEachStatement(ExtendedRunnable[Json]):
                 elif isinstance(msg, _IndexedResult):
                     results[msg.index] = msg.result
                 elif isinstance(msg, _ExceptionSentinel):
-                    # Continue processing to collect remaining notifications
-                    pass
-
-        # Re-raise the first exception if any occurred
-        if first_exception is not None:
-            raise first_exception.exception
+                    executor.shutdown(wait=True, cancel_futures=True)
+                    raise msg.exception
 
         # Reconstruct results in original order
         return [results[i] for i in range(total_tasks)]
