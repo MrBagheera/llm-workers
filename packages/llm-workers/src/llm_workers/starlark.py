@@ -237,7 +237,7 @@ class StarlarkBase:
 
         # remove all private variables (but keep '_' because of flow statements)
         sanitized_vars = {
-            k: _sanitize_data(v)
+            k: v if self.mode == 'eval' else _sanitize_data(v)
             for k, v in global_vars.items()
             if not k.startswith('_') or k == '_'
         }
