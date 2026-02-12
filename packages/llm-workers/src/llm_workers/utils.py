@@ -265,6 +265,16 @@ def setup_logging_from_args(
     level_overrides = getattr(args, 'level', []) or []
     return _setup_logging_impl(debug_level, verbosity, level_overrides, debug_loggers_by_debug_level, log_filename)
 
+
+class PreservedScalarString(str):
+    """Class to hold strings that should be dumped as literal blocks."""
+    pass
+
+def _str_presenter(dumper, data):
+    return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
+
+yaml.add_representer(PreservedScalarString, _str_presenter)
+
 def format_as_yaml(obj: Any, trim: bool) -> str:
     """Format given object as YAML string with optional trimming of all string fields recursively.
 
@@ -279,6 +289,8 @@ def format_as_yaml(obj: Any, trim: bool) -> str:
 
     if trim:
         raw = _trim_recursively(raw)
+    else:
+        raw = _wrap_multiline_strings(raw)
 
     return yaml.dump(raw, default_flow_style=False, sort_keys=False, allow_unicode=True)
 
@@ -306,6 +318,20 @@ def _trim_recursively(data):
             line = lines[0]
             return line[:77] + "..." if len(line) > 80 or len(lines) > 1 else line
     return data
+
+def _wrap_multiline_strings(data):
+    if isinstance(data, dict):
+        return {key: _wrap_multiline_strings(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [_wrap_multiline_strings(item) for item in data]
+    elif isinstance(data, str):
+        if '\n' in data:
+            # stripping trailing whitespaces
+            return PreservedScalarString("\n".join([line.rstrip() for line in data.splitlines()]))
+        else:
+            return data
+    else:
+        return data
 
 class LazyFormatter:
     def __init__(self, target, custom_formatter: Callable[[Any], str] = None, trim: bool = True):
