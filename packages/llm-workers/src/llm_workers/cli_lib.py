@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import logging
 import sys
 from typing import Any, Optional
 
@@ -13,9 +14,10 @@ from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.tools.custom_tool import create_statement_from_model
 from llm_workers.user_context import StandardUserContext
 from llm_workers.utils import LazyFormatter
-from llm_workers.worker_utils import ensure_env_vars_defined, split_result_and_notifications
+from llm_workers.worker_utils import ensure_env_vars_defined
 from llm_workers.workers_context import StandardWorkersContext
 
+logger = logging.getLogger(__name__)
 
 def run_llm_script(
     script_name: str,
@@ -64,10 +66,10 @@ def run_llm_script(
 
 
 def _run(cli: CliConfig, context: StandardWorkersContext, user_context: UserContext, inputs: list[Any]):
-    """Execute worker for each input and return token tracker."""
+    """Call worker for each input and return token tracker."""
     tools = context.get_tools('cli', cli.tools)
     local_tools = {tool.name: tool for tool in tools}
-    worker: ExtendedRunnable[Any] = create_statement_from_model(cli.do, context, local_tools)
+    worker: ExtendedRunnable[Any] = create_statement_from_model(cli.do, context, local_tools, logger=logger)
     evaluation_context = context.evaluation_context
     token_tracker = CompositeTokenUsageTracker(user_context.models)
     for input in inputs:

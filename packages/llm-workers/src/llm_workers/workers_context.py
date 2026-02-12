@@ -164,6 +164,7 @@ class StandardWorkersContext(WorkersContext):
             tool.metadata['original_name'] = tool.name
 
             # Add synchronous func wrapper using persistent event loop
+            # noinspection PyUnresolvedReferences
             if hasattr(tool, 'coroutine') and tool.coroutine is not None and tool.func is None:
                 tool.func = self._make_sync_wrapper(tool.coroutine)
                 logger.debug(f"Added sync wrapper to MCP tool '{tool.name}'")
@@ -283,12 +284,13 @@ class StandardWorkersContext(WorkersContext):
                 tool_config['description'] = tool_def.description
             tool = symbol(**tool_config) # use default constructor
         elif inspect.isfunction(symbol) or inspect.ismethod(symbol):
-            # For factory functions, DON'T add name/description to tool_config
-            # They will be set after the tool is created
-            if len(symbol.__annotations__) >= 2 and 'context' in symbol.__annotations__ and 'tool_config' in symbol.__annotations__:
-                tool = symbol(context = self, tool_config = tool_config)
-            else:
-                raise ValueError("Invalid tool factory signature, must be `def factory(context: WorkersContext, tool_config: dict[str, any]) -> BaseTool`")
+            args: dict[str, Any] = {"context": self, "tool_config": tool_config}
+            if tool_def.name is not None:
+                args['name'] = tool_def.name
+            if tool_def.description is not None:
+                args['description'] = tool_def.description
+            valid_args = {k: v for k, v in args.items() if k in symbol.__annotations__}
+            tool = symbol(**valid_args)
         else:
             raise ValueError(f"Invalid symbol type {type(symbol)}")
         if not isinstance(tool, BaseTool):
@@ -328,9 +330,9 @@ class StandardWorkersContext(WorkersContext):
                 origin=f"toolkit {path}")
 
         except ImportError as e:
-            raise WorkerException(f"Failed to import toolkit {import_def.import_toolkit} for {scope}: {e}")
+            raise WorkerException(f"Failed to import toolkit {import_def.import_tools} for {scope}: {e}")
         except Exception as e:
-            raise WorkerException(f"Failed to register toolkit tools from {import_def.import_toolkit} for {scope}: {e}", e)
+            raise WorkerException(f"Failed to register toolkit tools from {import_def.import_tools} for {scope}: {e}", e)
 
     def _import_mcp_tools(self, scope: str, results: Dict[str, BaseTool], path: str, import_def: ImportToolsStatement):
             if path not in self._mcp_tools_by_server:

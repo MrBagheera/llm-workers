@@ -1,19 +1,17 @@
 import json
-import json
 import logging
 import re
 from typing import Dict, Any, List, Union, Optional, Generator
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
-from pydantic import PrivateAttr, BaseModel, Field, ConfigDict
-
 from llm_workers.api import WorkersContext, WorkerNotification, ExtendedExecutionTool, ConfirmationRequest
 from llm_workers.config import ToolLLMConfig
 from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.utils import LazyFormatter
 from llm_workers.worker import Worker
+from pydantic import PrivateAttr, BaseModel, Field, ConfigDict
 
 _logger = logging.getLogger(__name__)
 
@@ -80,6 +78,7 @@ class LLMTool(ExtendedExecutionTool):
         super().__init__(**kwargs)
         self._agent = agent
         self._config = config
+        self._logger = logging.getLogger(f"{__name__}.{self.name}")
 
     def default_evaluation_context(self) -> EvaluationContext:
         return self._agent.context.evaluation_context
@@ -100,7 +99,7 @@ class LLMTool(ExtendedExecutionTool):
 
         # Apply JSON filtering if configured
         if self._config.extract_json and self._config.extract_json != "none" and self._config.extract_json is not False:
-            _logger.debug("Extracting JSON from LLM output (mode=%s):\n%s", self._config.extract_json, LazyFormatter(text))
+            self._logger.debug("Extracting JSON from LLM output (mode=%s):\n%s", self._config.extract_json, LazyFormatter(text))
             json_text = extract_json_blocks(text, self._config.extract_json)
             try:
                 return json.loads(json_text)
@@ -108,7 +107,7 @@ class LLMTool(ExtendedExecutionTool):
                 # so it may also produce single-quoted JSON outputs
                 # return ast.literal_eval(json_text.replace("true", "True").replace("false", "False"))
             except (json.JSONDecodeError, ValueError, SyntaxError):
-                _logger.warning("Failed to parse JSON from LLM output, returning as plain text:\n%s", json_text, exc_info=True)
+                self._logger.warning("Failed to parse JSON from LLM output, returning as plain text:\n%s", json_text, exc_info=True)
                 return json_text
         else:
             return text
@@ -150,14 +149,14 @@ class LLMTool(ExtendedExecutionTool):
         return self._extract_result(result)
 
 
-def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any]) -> LLMTool:
+def build_llm_tool(context: WorkersContext, tool_config: Dict[str, Any], name: str = 'llm', description: str = 'Calls LLM with given prompt, returns LLM output.') -> LLMTool:
     config = ToolLLMConfig(**tool_config)
-    agent = Worker(config, context, scope='build_llm_tool')
+    agent = Worker(config, context, scope=name)
 
     return LLMTool(
         agent=agent,
         config=config,
-        name='llm',
-        description='Calls LLM with given prompt, returns LLM output.',
+        name=name,
+        description=description,
         args_schema=LLMToolInput
     )

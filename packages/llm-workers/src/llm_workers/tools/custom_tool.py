@@ -2,8 +2,9 @@ import logging
 import queue
 import threading
 from collections.abc import Iterable
-from concurrent.futures import ThreadPoolExecutor, Future
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from logging import Logger
 from typing import Type, Any, Optional, Dict, TypeAlias, List, Generator, Callable
 
 from langchain_core.runnables import RunnableConfig
@@ -19,16 +20,16 @@ from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.utils import LazyFormatter, parse_standard_type, TRACE
 from llm_workers.worker_utils import call_tool
 
-logger = logging.getLogger(__name__)
-
+_default_logger = Logger(__name__)
 
 Statement: TypeAlias = ExtendedRunnable[Json]
 
 
 class EvalStatement(ExtendedRunnable[Json]):
-    def __init__(self, model: EvalDefinition):
+    def __init__(self, model: EvalDefinition, logger: Logger = _default_logger):
         self._eval_expr = model.eval
         self._store_as = model.store_as
+        self._logger = logger
 
     def yield_notifications_and_result(
             self,
@@ -39,6 +40,7 @@ class EvalStatement(ExtendedRunnable[Json]):
     ) -> Generator[WorkerNotification, None, Json]:
         result = self._eval_expr.evaluate(evaluation_context)
         if False:  # To make this function return generator, yield statement must exists in it's body
+            # noinspection PyUnreachableCode
             yield WorkerNotification()
         if self._store_as:
             evaluation_context.add(self._store_as, result)
@@ -48,7 +50,7 @@ class EvalStatement(ExtendedRunnable[Json]):
 # noinspection PyTypeHints
 class CallStatement(ExtendedRunnable[Json]):
 
-    def __init__(self, model: CallDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool]):
+    def __init__(self, model: CallDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool], logger: Logger = _default_logger):
         self._tool = context.get_tool(model.call, local_tools)
         self._params_expr = model.params
         if isinstance(model.catch, list):
@@ -59,6 +61,7 @@ class CallStatement(ExtendedRunnable[Json]):
             self._catch = None
         self._store_as = model.store_as
         self._ui_hint = model.ui_hint
+        self._logger = logger
 
     def yield_notifications_and_result(
         self,
@@ -69,14 +72,15 @@ class CallStatement(ExtendedRunnable[Json]):
     ) -> Generator[WorkerNotification, None, Json]:
         # Evaluate params expression
         target_params = self._params_expr.evaluate(evaluation_context) if self._params_expr else {}
-        logger.debug("Calling tool %s with args:\n%r", self._tool.name, LazyFormatter(target_params))
+        self._logger.debug("Calling tool %s with args:\n%r", self._tool.name, LazyFormatter(target_params))
         try:
             result = yield from call_tool(self._tool, target_params, evaluation_context, token_tracker, config, kwargs, ui_hint_override=self._ui_hint)
-            logger.debug("Calling tool %s resulted:\n%r", self._tool.name, LazyFormatter(result, trim=False))
+            self._logger.debug("Calling tool %s resulted:\n%r", self._tool.name, LazyFormatter(result, trim=False))
             if self._store_as:
                 evaluation_context.add(self._store_as, result)
             return result
         except BaseException as e:
+            self._logger.debug("Calling tool %s failed: %r", self._tool.name, LazyFormatter(e, trim=False))
             raise self._convert_error(e)
 
     def _convert_error(self, e: BaseException) -> BaseException:
@@ -90,11 +94,12 @@ class CallStatement(ExtendedRunnable[Json]):
 
 class FlowStatement(ExtendedRunnable[Json]):
 
-    def __init__(self, model: list[StatementDefinition], context: WorkersContext, local_tools: Dict[str, BaseTool]):
+    def __init__(self, model: list[StatementDefinition], context: WorkersContext, local_tools: Dict[str, BaseTool], logger: Logger = _default_logger):
         self._statements: List[Statement] = []
         for statement_model in model:
-            statement = create_statement_from_model(statement_model, context, local_tools)
+            statement = create_statement_from_model(statement_model, context, local_tools, logger)
             self._statements.append(statement)
+        self._logger = logger
 
     def yield_notifications_and_result(
             self,
@@ -109,7 +114,7 @@ class FlowStatement(ExtendedRunnable[Json]):
         for statement in self._statements:
             inner_context = EvaluationContext({"_": result}, parent=evaluation_context, mutable=False)
             result = yield from statement.yield_notifications_and_result(inner_context, token_tracker, config)
-            logger.log(TRACE, "Flow statement at %s yielded:\n%r", i, LazyFormatter(result, trim=False))
+            self._logger.log(TRACE, "Flow statement at %s yielded:\n%r", i, LazyFormatter(result, trim=False))
             i += 1
         return result
 
@@ -123,13 +128,14 @@ class IfStatement(ExtendedRunnable[Json]):
     Otherwise, executes the 'else' branch (if provided) or returns None.
     """
 
-    def __init__(self, model: IfDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool]):
+    def __init__(self, model: IfDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool], logger: Logger = _default_logger):
         self._condition_expr = model.if_
-        self._then_statement = create_statement_from_model(model.then, context, local_tools)
+        self._then_statement = create_statement_from_model(model.then, context, local_tools, logger)
         self._else_statement = None
         if model.else_ is not None:
-            self._else_statement = create_statement_from_model(model.else_, context, local_tools)
+            self._else_statement = create_statement_from_model(model.else_, context, local_tools, logger)
         self._store_as = model.store_as
+        self._logger = logger
 
     def yield_notifications_and_result(
             self,
@@ -143,17 +149,17 @@ class IfStatement(ExtendedRunnable[Json]):
 
         # Use Python truthiness
         if condition_result:
-            logger.log(TRACE, "If condition [%s] evaluated to truthy, executing 'then' branch", condition_result)
+            self._logger.log(TRACE, "If condition [%s] evaluated to truthy, executing 'then' branch", condition_result)
             result = yield from self._then_statement.yield_notifications_and_result(
                 evaluation_context, token_tracker, config
             )
         elif self._else_statement is not None:
-            logger.log(TRACE, "If condition [%s] evaluated to falsy, executing 'else' branch", condition_result)
+            self._logger.log(TRACE, "If condition [%s] evaluated to falsy, executing 'else' branch", condition_result)
             result = yield from self._else_statement.yield_notifications_and_result(
                 evaluation_context, token_tracker, config
             )
         else:
-            logger.log(TRACE, "If condition [%s] evaluated to falsy, no 'else' branch, returning None", condition_result)
+            self._logger.log(TRACE, "If condition [%s] evaluated to falsy, no 'else' branch, returning None", condition_result)
             result = None
 
         # Store result if requested
@@ -172,11 +178,12 @@ class StarlarkStatement(ExtendedRunnable[Json]):
     Result is returned via 'result' variable or 'run()' function.
     """
 
-    def __init__(self, model: StarlarkDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool]):
+    def __init__(self, model: StarlarkDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool], logger: Logger = _default_logger):
         self._script = model.starlark
         self._store_as = model.store_as
         # combine local and shared tools (local take precedence)
         self._tools = context.shared_tools | local_tools
+        self._logger = logger
 
         # Compile Starlark script once during initialization
         from llm_workers.starlark import StarlarkExec
@@ -219,6 +226,7 @@ class StarlarkStatement(ExtendedRunnable[Json]):
 
         # Dummy yield to make this a generator
         if False:
+            # noinspection PyUnreachableCode
             yield WorkerNotification()
 
         return result
@@ -266,11 +274,12 @@ class ForEachStatement(ExtendedRunnable[Json]):
     - parallelism > 1: Parallel execution with N worker threads
     """
 
-    def __init__(self, model: ForEachDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool]):
+    def __init__(self, model: ForEachDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool], logger: Logger = _default_logger):
         self._collection_expr = model.for_each
-        self._body_statement = create_statement_from_model(model.do, context, local_tools)
+        self._body_statement = create_statement_from_model(model.do, context, local_tools, logger)
         self._store_as = model.store_as
         self._parallelism = model.parallelism
+        self._logger = logger
 
     def yield_notifications_and_result(
             self,
@@ -375,9 +384,9 @@ class ForEachStatement(ExtendedRunnable[Json]):
                 notification_queue.put(_ExceptionSentinel(e, index))
                 if not has_exception.is_set():
                     has_exception.set()
-                    logger.debug(f"First exception in parallel for_each at index {index}: {e}")
+                    self._logger.debug(f"First exception in parallel for_each at index {index}: {e}")
                 else:
-                    logger.error(f"Additional exception in parallel for_each at index {index}: {e}")
+                    self._logger.error(f"Additional exception in parallel for_each at index {index}: {e}")
 
             finally:
                 tasks_completed += 1
@@ -410,10 +419,11 @@ class ForEachStatement(ExtendedRunnable[Json]):
 
 
 class CustomTool(ExtendedExecutionTool):
-    def __init__(self, context: WorkersContext, body: Statement, **kwargs):
+    def __init__(self, context: WorkersContext, body: Statement, logger: Logger = _default_logger, **kwargs):
         super().__init__(**kwargs)
         self._default_evaluation_context = context.evaluation_context
         self._body = body
+        self._logger = logger
 
     def default_evaluation_context(self) -> EvaluationContext:
         return self._default_evaluation_context
@@ -424,28 +434,29 @@ class CustomTool(ExtendedExecutionTool):
         evaluation_context: EvaluationContext,
         token_tracker: CompositeTokenUsageTracker,
         config: Optional[RunnableConfig],
-        input: dict[str, Json],
+        input: Dict[str, Json],
         **kwargs: Any
     ) -> Generator[WorkerNotification, None, Any]:
         validated_input = self.args_schema(**input)
-        # starting new evaluation context
-        evaluation_context = EvaluationContext(validated_input.model_dump(), parent=evaluation_context)
+        # starting new evaluation context (include input and logger)
+        scope_vars = {'__logger': self._logger, **validated_input.model_dump()}
+        evaluation_context = EvaluationContext(scope_vars, parent=evaluation_context)
         return self._body.yield_notifications_and_result(evaluation_context, token_tracker, config)
 
 
-def create_statement_from_model(model: StatementDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool]) -> Statement:
+def create_statement_from_model(model: StatementDefinition, context: WorkersContext, local_tools: Dict[str, BaseTool], logger: Logger = _default_logger) -> Statement:
     if isinstance(model, EvalDefinition):
-        return EvalStatement(model)
+        return EvalStatement(model, logger)
     elif isinstance(model, CallDefinition):
-        return CallStatement(model, context, local_tools)
+        return CallStatement(model, context, local_tools, logger)
     elif isinstance(model, list):
-        return FlowStatement(model, context, local_tools)
+        return FlowStatement(model, context, local_tools, logger)
     elif isinstance(model, IfDefinition):
-        return IfStatement(model, context, local_tools)
+        return IfStatement(model, context, local_tools, logger)
     elif isinstance(model, StarlarkDefinition):
-        return StarlarkStatement(model, context, local_tools)
+        return StarlarkStatement(model, context, local_tools, logger)
     elif isinstance(model, ForEachDefinition):
-        return ForEachStatement(model, context, local_tools)
+        return ForEachStatement(model, context, local_tools, logger)
     else:
         raise ValueError(f"Invalid statement model type {type(model)}")
 
@@ -468,7 +479,8 @@ def create_dynamic_schema(name: str, params: List[CustomToolParamsDefinition]) -
 def build_custom_tool(tool_def: CustomToolDefinition, context: WorkersContext) -> CustomTool:
     tools = context.get_tools(tool_def.name, tool_def.tools)
     local_tools = {tool.name: tool for tool in tools}
-    body = create_statement_from_model(tool_def.do, context, local_tools)
+    logger = logging.getLogger(f"{__name__}.{tool_def.name}")
+    body = create_statement_from_model(tool_def.do, context, local_tools, logger)
 
     return CustomTool(
         context=context,
@@ -476,5 +488,6 @@ def build_custom_tool(tool_def: CustomToolDefinition, context: WorkersContext) -
         name=tool_def.name,
         description=tool_def.description,
         args_schema=create_dynamic_schema(tool_def.name, tool_def.input),
-        return_direct=tool_def.return_direct or False
+        return_direct=tool_def.return_direct or False,
+        logger=logger
     )

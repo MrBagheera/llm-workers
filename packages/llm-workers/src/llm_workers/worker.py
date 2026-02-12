@@ -15,10 +15,6 @@ from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers.utils import LazyFormatter
 from llm_workers.worker_utils import call_tool
 
-logger = logging.getLogger(__name__)
-
-llm_calls_logger = logging.getLogger("llm_workers.llm_calls")
-
 In = List[BaseMessage | WorkerNotification | ConfirmationRequest | ConfirmationResponse]
 Out = List[BaseMessage | WorkerNotification | ConfirmationRequest]
 
@@ -32,6 +28,9 @@ class Worker(Runnable[In, Out]):
             self._system_message = SystemMessage(llm_config.system_message.evaluate(context.evaluation_context))
         self._llm = context.get_llm(llm_config.model_ref)
         self._tools: dict[str, BaseTool] = {}
+        self._logger = logging.getLogger(f"{__name__}.{scope}")
+        self._llm_calls_logger = logging.getLogger(f"llm_workers.llm_calls.{scope}")
+
 
         tools = context.get_tools(scope, self._llm_config.tools)
         for tool in tools:
@@ -202,8 +201,7 @@ class Worker(Runnable[In, Out]):
                     input[i] = message
 
     def _invoke_llm(self, stream: bool, input: List[BaseMessage], config: Optional[RunnableConfig], **kwargs: Any) -> Iterator[BaseMessage | WorkerNotification]:
-        if llm_calls_logger.isEnabledFor(logging.DEBUG):
-            llm_calls_logger.debug("Calling LLM with input:\n%r", LazyFormatter(input))
+        self._llm_calls_logger.debug("Calling LLM with input:\n%r", LazyFormatter(input))
         if stream:
             # reassembling message from chunks
             last: Optional[BaseMessage] = None
@@ -218,7 +216,7 @@ class Worker(Runnable[In, Out]):
             yield self._llm.invoke(input, config)
 
     @staticmethod
-    def extract_notifications(message_id: Optional[str], index: int, content: any) -> Iterator[WorkerNotification]:
+    def extract_notifications(message_id: Optional[str], index: int, content: Any) -> Iterator[WorkerNotification]:
         if isinstance(content, str):
             yield WorkerNotification.ai_output_chunk(message_id=message_id, index=index, text=content)
         elif isinstance(content, list):
@@ -250,9 +248,8 @@ class Worker(Runnable[In, Out]):
                     yield WorkerNotification.ai_output_chunk(message_id=message_id, index=index, text=str(text))
 
 
-    @staticmethod
-    def _log_llm_message(message: BaseMessage, log_info: str):
-        logger.debug("Got %s:\n%r", log_info, LazyFormatter(message, trim=False))
+    def _log_llm_message(self, message: BaseMessage, log_info: str):
+        self._logger.debug("Got %s:\n%r", log_info, LazyFormatter(message, trim=False))
 
     def _use_direct_results(self, tool_calls: List[ToolCall]):
         """Check if any of the tool calls are direct_result tools."""
@@ -270,7 +267,7 @@ class Worker(Runnable[In, Out]):
         for tool_call in tool_calls:
             tool_name = tool_call['name']
             if tool_name not in self._tools:
-                logger.warning("Failed to call tool %s: no such tool", tool_name, exc_info=True)
+                self._logger.warning("Failed to call tool %s: no such tool", tool_name, exc_info=True)
                 content = "Tool error: no such tool %s" % tool_name
                 response = ToolMessage(content = content, tool_call_id = tool_call['id'], name = tool_name)
                 self._log_llm_message(response, "tool call message")
@@ -279,7 +276,7 @@ class Worker(Runnable[In, Out]):
             tool: BaseTool = self._tools[tool_name]
             tool_definition: ToolDefinition = tool.metadata['tool_definition']
             args: dict[str, Any] = tool_call['args']
-            logger.info("Calling tool %s with args:\n%r", tool.name, LazyFormatter(args))
+            self._logger.info("Calling tool %s with args:\n%r", tool.name, LazyFormatter(args))
 
             if tool.return_direct and direct_tools_fail:
                 content = f"Tool error: {tool.name} must be called separately without other tools. Please call it in a separate request."
