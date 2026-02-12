@@ -1,3 +1,4 @@
+import argparse
 import fnmatch
 import importlib.resources
 import json
@@ -10,6 +11,8 @@ import sys
 from pathlib import Path
 from typing import Any
 from typing import Callable, List, Optional, Dict
+
+from typing_extensions import deprecated
 
 import yaml
 from dotenv import load_dotenv, find_dotenv
@@ -145,11 +148,91 @@ def ensure_environment_variable(environment: Dict[str,str], var_name: str, descr
 # Logging
 ####################################################
 
+TRACE = 5
+logging.addLevelName(TRACE, "TRACE")
+
 DEBUG_LOGGERS = (
     ["llm_workers.worker"],
     ["llm_workers"],
 )
 
+_LEVEL_ALIASES = {
+    "FATAL": "CRITICAL",
+    "WARN": "WARNING",
+}
+
+
+def add_common_logging_args(parser: argparse.ArgumentParser):
+    """Add common logging arguments (--debug, --verbose, --level) to an argument parser."""
+    parser.add_argument('--verbose', action='count', default=0,
+                        help="Increase stderr log level. Can be used multiple times.")
+    parser.add_argument('--debug', action='count', default=0,
+                        help="Enable debug logging to log file. Can be used multiple times.")
+    parser.add_argument('--level', action='append', default=[],
+                        help="Set log level for a module: <module>=<level>. Repeatable.")
+
+
+def _setup_logging_impl(
+        debug_level: int,
+        verbosity: int,
+        level_overrides: List[str],
+        debug_loggers_by_debug_level: list[list[str]],
+        log_filename: Optional[str]
+) -> str:
+    # file logging
+    if log_filename is None:
+        log_filename = os.path.splitext(os.path.basename(sys.argv[0]))[0] + ".log"
+    logging.basicConfig(
+        filename=log_filename,
+        filemode="w",
+        format="%(asctime)s: %(name)s - %(levelname)s - %(message)s",
+        level=logging.INFO
+    )
+    # adjust levels for individual loggers at given debug level
+    if debug_level > len(debug_loggers_by_debug_level):
+        logging.getLogger().setLevel(logging.NOTSET)
+    elif debug_level == len(debug_loggers_by_debug_level):
+        logging.getLogger().setLevel(logging.DEBUG)
+    else:
+        for logger_name in debug_loggers_by_debug_level[debug_level]:
+            logging.getLogger(logger_name).setLevel(logging.DEBUG)
+
+    # console logging
+    console_level: int = logging.ERROR
+    if verbosity == 1:
+        console_level = logging.INFO
+    elif verbosity == 2:
+        console_level = logging.DEBUG
+    elif verbosity > 2:
+        console_level = logging.NOTSET
+    console_handler = logging.StreamHandler(sys.stderr)
+    console_handler.setLevel(console_level)
+    formatter = logging.Formatter("%(name)s: %(message)s")
+    console_handler.setFormatter(formatter)
+    logging.getLogger().addHandler(console_handler)
+
+    # process --level overrides
+    for entry in level_overrides:
+        if '=' not in entry:
+            logger.warning("Ignoring --level entry without '=': %s", entry)
+            continue
+        module, level_str = entry.split('=', 1)
+        level_str = level_str.upper()
+        level_str = _LEVEL_ALIASES.get(level_str, level_str)
+        # try numeric level first
+        try:
+            level = int(level_str)
+        except ValueError:
+            level = logging.getLevelName(level_str)
+            if not isinstance(level, int):
+                logger.warning("Unknown log level '%s' in --level %s", level_str, entry)
+                continue
+        logging.getLogger(module).setLevel(level)
+
+    return os.path.abspath(log_filename)
+
+
+@deprecated("Use setup_logging_from_args instead")
 def setup_logging(
         debug_level: int,
         debug_loggers_by_debug_level: list[list[str]] = DEBUG_LOGGERS,
@@ -163,35 +246,24 @@ def setup_logging(
         verbosity: verbosity level for console logging (0 - ERROR & WARN, 1 - INFO, 2 - DEBUG)
         log_filename: (optional) name of the log file, if not specified name will be derived from script name
     """
-    # file logging
-    if log_filename is None:
-        log_filename = os.path.splitext(os.path.basename(sys.argv[0]))[0] + ".log"
-    logging.basicConfig(
-        filename=log_filename,
-        filemode="w",
-        format="%(asctime)s: %(name)s - %(levelname)s - %(message)s",
-        level=logging.INFO
-    )
-    # adjust levels for individual loggers at given debug level
-    if debug_level >= len(debug_loggers_by_debug_level):
-        logging.getLogger().setLevel(logging.DEBUG)
-    else:
-        for logger_name in debug_loggers_by_debug_level[debug_level]:
-            logging.getLogger(logger_name).setLevel(logging.DEBUG)
+    return _setup_logging_impl(debug_level, verbosity, [], debug_loggers_by_debug_level, log_filename)
 
-    # console logging
-    console_level: int = logging.ERROR
-    if verbosity == 1:
-        console_level = logging.INFO
-    elif verbosity >= 2:
-        console_level = logging.DEBUG
-    console_handler = logging.StreamHandler(sys.stderr)
-    console_handler.setLevel(console_level)
-    formatter = logging.Formatter("%(name)s: %(message)s")
-    console_handler.setFormatter(formatter)
-    logging.getLogger().addHandler(console_handler)
 
-    return os.path.abspath(log_filename)
+def setup_logging_from_args(
+        args: argparse.Namespace,
+        debug_loggers_by_debug_level: list[list[str]] = DEBUG_LOGGERS,
+        log_filename: Optional[str] = None
+) -> str:
+    """Configures logging to console and file from parsed argparse namespace.
+    Args:
+        args: parsed argparse namespace with debug, verbose, and level attributes
+        debug_loggers_by_debug_level: list of debug loggers by debug level
+        log_filename: (optional) name of the log file, if not specified name will be derived from script name
+    """
+    debug_level = getattr(args, 'debug', 0) or 0
+    verbosity = getattr(args, 'verbose', 0) or 0
+    level_overrides = getattr(args, 'level', []) or []
+    return _setup_logging_impl(debug_level, verbosity, level_overrides, debug_loggers_by_debug_level, log_filename)
 
 def format_as_yaml(obj: Any, trim: bool) -> str:
     """Format given object as YAML string with optional trimming of all string fields recursively.

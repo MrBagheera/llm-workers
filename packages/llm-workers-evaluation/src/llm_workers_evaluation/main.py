@@ -2,7 +2,7 @@
 
 import argparse
 
-from llm_workers.utils import setup_logging
+from llm_workers.utils import setup_logging_from_args, add_common_logging_args
 
 from llm_workers_evaluation import run_evaluation, format_results, EvaluationResults
 
@@ -13,14 +13,7 @@ def main():
         description="Run evaluation suites against LLM scripts and report scores."
     )
     # Optional arguments
-    parser.add_argument(
-        '--verbose', action='count', default=0,
-        help="Enable verbose output. Can be used multiple times to increase verbosity."
-    )
-    parser.add_argument(
-        '--debug', action='count', default=0,
-        help="Enable debug mode. Can be used multiple times to increase verbosity."
-    )
+    add_common_logging_args(parser)
     parser.add_argument(
         '--iterations', '-n', type=int, default=None,
         help="Number of iterations per test (overrides suite file default)."
@@ -36,9 +29,8 @@ def main():
     )
     args = parser.parse_args()
 
-    setup_logging(
-        debug_level=args.debug,
-        verbosity=args.verbose,
+    setup_logging_from_args(
+        args,
         log_filename="llm-workers-evaluate.log"
     )
 

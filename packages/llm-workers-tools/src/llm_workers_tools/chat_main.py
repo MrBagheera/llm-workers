@@ -5,7 +5,7 @@ import sys
 from logging import getLogger
 
 from llm_workers.chat_history import ChatHistory
-from llm_workers.utils import setup_logging
+from llm_workers.utils import setup_logging_from_args, add_common_logging_args
 from llm_workers_console.chat import chat_with_llm_script
 
 logger = getLogger(__name__)
@@ -18,13 +18,12 @@ def main():
     parser = argparse.ArgumentParser(
         description="Interactive chat interface for LLM scripts."
     )
-    parser.add_argument('--verbose', action='count', default=0, help="Enable verbose output. Can be used multiple times to increase verbosity.")
-    parser.add_argument('--debug', action='count', default=0, help="Enable debug mode. Can be used multiple times to increase verbosity.")
+    add_common_logging_args(parser)
     parser.add_argument('--resume', action='store_true', help="Resume from last auto-saved session (uses `.last.chat.yaml`)")
     parser.add_argument('script_file', type=str, nargs='?', help="Path to the script file. Generic assistant script will be used if omitted.", default=_default_script_file)
     args = parser.parse_args()
 
-    log_file = setup_logging(debug_level=args.debug, verbosity=args.verbose, log_filename="llm-workers.log")
+    log_file = setup_logging_from_args(args, log_filename="llm-workers.log")
     print(f"Logging to {log_file}", file=sys.stderr)
 
     if args.resume:
