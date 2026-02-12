@@ -178,6 +178,7 @@ def _print_json(arg: Any, pretty = False) -> str:
 
 def _log(arg: Any) -> None:
     """Writes log message"""
+    # TODO use scoped logger
     logger.debug("Starlark script: %r", LazyFormatter(arg, trim=False))
 
 # --- Base Class ---

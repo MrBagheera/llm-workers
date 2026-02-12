@@ -72,10 +72,10 @@ class CallStatement(ExtendedRunnable[Json]):
     ) -> Generator[WorkerNotification, None, Json]:
         # Evaluate params expression
         target_params = self._params_expr.evaluate(evaluation_context) if self._params_expr else {}
-        self._logger.debug("Calling tool %s with args:\n%r", self._tool.name, LazyFormatter(target_params))
+        self._logger.debug("Calling tool %s with args:\n%r", self._tool.name, LazyFormatter(target_params, trim=not self._logger.isEnabledFor(TRACE)))
         try:
             result = yield from call_tool(self._tool, target_params, evaluation_context, token_tracker, config, kwargs, ui_hint_override=self._ui_hint)
-            self._logger.debug("Calling tool %s resulted:\n%r", self._tool.name, LazyFormatter(result, trim=False))
+            self._logger.debug("Calling tool %s resulted:\n%r", self._tool.name, LazyFormatter(result, trim=not self._logger.isEnabledFor(TRACE)))
             if self._store_as:
                 evaluation_context.add(self._store_as, result)
             return result

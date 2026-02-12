@@ -165,6 +165,7 @@ class EvaluationTest:
         merged_tools = merge_tools(test_config.tools, parent_tools)
         tools = context.get_tools('evaluation', merged_tools)
         local_tools = {tool.name: tool for tool in tools}
+        # TODO use scoped logger
         self._worker = create_statement_from_model(test_config.do, context, local_tools)
 
         self._evaluation_context = build_evaluation_context(test_config.data, parent=suite_evaluation_context)

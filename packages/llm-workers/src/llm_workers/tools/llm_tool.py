@@ -9,7 +9,7 @@ from llm_workers.api import WorkersContext, WorkerNotification, ExtendedExecutio
 from llm_workers.config import ToolLLMConfig
 from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
-from llm_workers.utils import LazyFormatter
+from llm_workers.utils import LazyFormatter, TRACE
 from llm_workers.worker import Worker
 from pydantic import PrivateAttr, BaseModel, Field, ConfigDict
 
@@ -99,7 +99,7 @@ class LLMTool(ExtendedExecutionTool):
 
         # Apply JSON filtering if configured
         if self._config.extract_json and self._config.extract_json != "none" and self._config.extract_json is not False:
-            self._logger.debug("Extracting JSON from LLM output (mode=%s):\n%s", self._config.extract_json, LazyFormatter(text))
+            self._logger.debug("Extracting JSON from LLM output (mode=%s):\n%s", self._config.extract_json, LazyFormatter(text, trim=not self._logger.isEnabledFor(TRACE)))
             json_text = extract_json_blocks(text, self._config.extract_json)
             try:
                 return json.loads(json_text)

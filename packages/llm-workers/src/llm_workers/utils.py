@@ -189,12 +189,12 @@ def _setup_logging_impl(
         level=logging.INFO
     )
     # adjust levels for individual loggers at given debug level
-    if debug_level > len(debug_loggers_by_debug_level):
+    if debug_level - 1 > len(debug_loggers_by_debug_level):
         logging.getLogger().setLevel(logging.NOTSET)
-    elif debug_level == len(debug_loggers_by_debug_level):
+    elif debug_level - 1 == len(debug_loggers_by_debug_level):
         logging.getLogger().setLevel(logging.DEBUG)
     else:
-        for logger_name in debug_loggers_by_debug_level[debug_level]:
+        for logger_name in debug_loggers_by_debug_level[debug_level - 1]:
             logging.getLogger(logger_name).setLevel(logging.DEBUG)
 
     # console logging

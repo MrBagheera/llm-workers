@@ -12,7 +12,7 @@ from llm_workers.api import WorkersContext, ConfirmationRequest, ConfirmationRes
 from llm_workers.config import BaseLLMConfig, ToolDefinition
 from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
-from llm_workers.utils import LazyFormatter
+from llm_workers.utils import LazyFormatter, TRACE
 from llm_workers.worker_utils import call_tool
 
 In = List[BaseMessage | WorkerNotification | ConfirmationRequest | ConfirmationResponse]
@@ -29,8 +29,6 @@ class Worker(Runnable[In, Out]):
         self._llm = context.get_llm(llm_config.model_ref)
         self._tools: dict[str, BaseTool] = {}
         self._logger = logging.getLogger(f"{__name__}.{scope}")
-        self._llm_calls_logger = logging.getLogger(f"llm_workers.llm_calls.{scope}")
-
 
         tools = context.get_tools(scope, self._llm_config.tools)
         for tool in tools:
@@ -201,7 +199,13 @@ class Worker(Runnable[In, Out]):
                     input[i] = message
 
     def _invoke_llm(self, stream: bool, input: List[BaseMessage], config: Optional[RunnableConfig], **kwargs: Any) -> Iterator[BaseMessage | WorkerNotification]:
-        self._llm_calls_logger.debug("Calling LLM with input:\n%r", LazyFormatter(input))
+        if self._logger.isEnabledFor(TRACE):
+            self._logger.debug("Calling LLM with input:\n%r%r",
+               LazyFormatter(input[:-1]),
+               LazyFormatter([input[-1]], trim=False))
+        else:
+            self._logger.debug("Calling LLM with input:\n%r", LazyFormatter(input))
+
         if stream:
             # reassembling message from chunks
             last: Optional[BaseMessage] = None
@@ -249,7 +253,7 @@ class Worker(Runnable[In, Out]):
 
 
     def _log_llm_message(self, message: BaseMessage, log_info: str):
-        self._logger.debug("Got %s:\n%r", log_info, LazyFormatter(message, trim=False))
+        self._logger.debug("Got %s:\n%r", log_info, LazyFormatter(message, trim=not self._logger.isEnabledFor(TRACE)))
 
     def _use_direct_results(self, tool_calls: List[ToolCall]):
         """Check if any of the tool calls are direct_result tools."""
@@ -276,7 +280,7 @@ class Worker(Runnable[In, Out]):
             tool: BaseTool = self._tools[tool_name]
             tool_definition: ToolDefinition = tool.metadata['tool_definition']
             args: dict[str, Any] = tool_call['args']
-            self._logger.info("Calling tool %s with args:\n%r", tool.name, LazyFormatter(args))
+            self._logger.debug("Calling tool %s with args:\n%r", tool.name, LazyFormatter(args, trim=not self._logger.isEnabledFor(TRACE)))
 
             if tool.return_direct and direct_tools_fail:
                 content = f"Tool error: {tool.name} must be called separately without other tools. Please call it in a separate request."
