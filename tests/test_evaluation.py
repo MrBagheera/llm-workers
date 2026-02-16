@@ -1,20 +1,21 @@
 import unittest
 
-from llm_workers.config import EvalDefinition, CallDefinition
+from llm_workers.config import EvalDefinition
 from llm_workers.expressions import EvaluationContext, JsonExpression
 from llm_workers.token_tracking import CompositeTokenUsageTracker
 from llm_workers_evaluation.config import EvaluationTestConfig
 from llm_workers_evaluation.evaluation import (
     EvaluationTest, EvaluationResults, TestResult,
-    ConfidenceInterval, calculate_confidence_interval, get_t_critical
+    calculate_confidence_interval, get_t_critical
 )
+
 from tests.mocks import StubWorkersContext
 
 
 class TestEvaluationTest(unittest.TestCase):
     """Test EvaluationTest class functionality."""
 
-    def test_evaluation_scores_and_logs(self):
+    def test_evaluation_scores(self):
         """Test that evaluation scores and logs are correctly tracked across iterations."""
         context = StubWorkersContext()
         token_tracker = CompositeTokenUsageTracker()
@@ -24,10 +25,6 @@ class TestEvaluationTest(unittest.TestCase):
         # Scores: 0.0, 0.2, 0.4 for 3 iterations -> average = 0.2
         test_config_a = EvaluationTestConfig(
             do=[
-                CallDefinition(
-                    call='log',
-                    params=JsonExpression({"entry": "iter_${TEST_ITERATION}"})
-                ),
                 EvalDefinition(eval=JsonExpression("${TEST_ITERATION * 0.2}"))
             ]
         )
@@ -36,10 +33,6 @@ class TestEvaluationTest(unittest.TestCase):
         # Scores: 0.0, 0.3, 0.6 for 3 iterations -> average = 0.3
         test_config_b = EvaluationTestConfig(
             do=[
-                CallDefinition(
-                    call='log',
-                    params=JsonExpression({"entry": "iter_${TEST_ITERATION}"})
-                ),
                 EvalDefinition(eval=JsonExpression("${TEST_ITERATION * 0.3}"))
             ]
         )
@@ -72,20 +65,6 @@ class TestEvaluationTest(unittest.TestCase):
         self.assertEqual(result_b.scores, {0: 0.0, 1: 0.3, 2: 0.6})
         self.assertAlmostEqual(result_b.mean_score, 0.3, places=6)
 
-        # Validate logs for Test A
-        self.assertEqual(result_a.logs, {
-            0: ["iter_0"],
-            1: ["iter_1"],
-            2: ["iter_2"]
-        })
-
-        # Validate logs for Test B
-        self.assertEqual(result_b.logs, {
-            0: ["iter_0"],
-            1: ["iter_1"],
-            2: ["iter_2"]
-        })
-
         # Validate final score calculation
         results = EvaluationResults()
         results.tests['test_a'] = result_a
@@ -95,46 +74,6 @@ class TestEvaluationTest(unittest.TestCase):
         tests_scores = [test.mean_score for test in results.tests.values()]
         mean_score = sum(tests_scores) / len(tests_scores)
         self.assertAlmostEqual(mean_score, 0.25, places=6)
-
-    def test_evaluation_multiple_logs_per_iteration(self):
-        """Test that multiple log entries per iteration are correctly captured."""
-        context = StubWorkersContext()
-        token_tracker = CompositeTokenUsageTracker()
-        parent_context = EvaluationContext()
-
-        test_config = EvaluationTestConfig(
-            do=[
-                CallDefinition(
-                    call='log',
-                    params=JsonExpression({"entry": "first_${TEST_ITERATION}"})
-                ),
-                CallDefinition(
-                    call='log',
-                    params=JsonExpression({"entry": "second_${TEST_ITERATION}"})
-                ),
-                EvalDefinition(eval=JsonExpression(0.5))
-            ]
-        )
-
-        test = EvaluationTest(
-            test_name='multi_log_test',
-            test_config=test_config,
-            suite_evaluation_context=parent_context,
-            parent_tools=[],
-            context=context
-        )
-
-        result = test.run(token_tracker, iterations=2)
-
-        # Validate multiple logs per iteration
-        self.assertEqual(result.logs, {
-            0: ["first_0", "second_0"],
-            1: ["first_1", "second_1"]
-        })
-
-        # Validate scores
-        self.assertEqual(result.scores, {0: 0.5, 1: 0.5})
-        self.assertAlmostEqual(result.mean_score, 0.5, places=6)
 
     def test_evaluation_score_clamping(self):
         """Test that scores are clamped to [0.0, 1.0] range."""
@@ -200,7 +139,6 @@ class TestTestResult(unittest.TestCase):
         result = TestResult()
         self.assertEqual(result.scores, {})
         self.assertIsNone(result.errors)
-        self.assertIsNone(result.logs)
         self.assertEqual(result.mean_score, 0.0)
         self.assertIsNone(result.CI_95)
 

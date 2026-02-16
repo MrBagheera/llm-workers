@@ -25,7 +25,7 @@ from llm_workers_evaluation.config import (
     EvaluationSuiteFile,
     EvaluationTestConfig,
 )
-from llm_workers_evaluation.tools import TEST_ITERATION_KEY, TEST_LOGS_KEY, log_tool
+from llm_workers_evaluation.tools import TEST_ITERATION_KEY
 from llm_workers_evaluation.tools import f_beta_score_tool
 from llm_workers_evaluation.tools import linear_score_tool
 
@@ -97,7 +97,6 @@ class TestResult(BaseModel):
     CI_95: Optional[ConfidenceInterval] = None
     scores: Dict[int, float] = {}
     errors: Optional[Dict[int, str]] = None
-    logs: Optional[Dict[int, List[Json]]] = None
 
 
 class EvaluationResults(BaseModel):
@@ -165,12 +164,12 @@ class EvaluationTest:
         merged_tools = merge_tools(test_config.tools, parent_tools)
         tools = context.get_tools('evaluation', merged_tools)
         local_tools = {tool.name: tool for tool in tools}
-        # TODO use scoped logger
-        self._worker = create_statement_from_model(test_config.do, context, local_tools)
+        self._logger = logging.getLogger(f"{__name__}.{test_name}")
+        self._worker = create_statement_from_model(test_config.do, context, local_tools, self._logger)
 
         self._evaluation_context = build_evaluation_context(test_config.data, parent=suite_evaluation_context)
 
-    def _run(self, token_tracker: CompositeTokenUsageTracker, iteration: int, logs_container: List[Json]) -> float:
+    def _run(self, token_tracker: CompositeTokenUsageTracker, iteration: int) -> float:
         """Execute one test iteration and return score.
 
         Args:
@@ -183,9 +182,9 @@ class EvaluationTest:
         local_evaluation_context = VarEvaluationContext(
             variables={
                 TEST_ITERATION_KEY: iteration,
-                TEST_LOGS_KEY: logs_container
             },
-            parent=self._evaluation_context)
+            parent=self._evaluation_context,
+            logging_scope='evaluation')
         generator = self._worker.yield_notifications_and_result(local_evaluation_context, token_tracker, config=None)
         while True:
             try:
@@ -216,14 +215,11 @@ class EvaluationTest:
         """
         result = TestResult()
         result.errors = {}
-        result.logs = {}
 
         for i in range(iterations):
-            result.logs[i] = []
-
             try:
                 logger.info(f"Running test '{self.name}' iteration {i + 1}/{iterations}")
-                score = self._run(token_tracker, i, result.logs[i])
+                score = self._run(token_tracker, i)
                 result.scores[i] = score
                 logger.info(f"Test '{self.name}' iteration {i + 1} score: {score}")
             except Exception as e:
@@ -242,8 +238,6 @@ class EvaluationTest:
         # Clean up empty optional fields
         if not result.errors:
             result.errors = None
-        if result.logs and all(len(log_list) == 0 for log_list in result.logs.values()):
-            result.logs = None
 
         return result
 
@@ -310,17 +304,14 @@ def _run_evaluation_inner(
     Returns:
         Tuple of (EvaluationResults, CompositeTokenUsageTracker)
     """
-    # Create results first so LogTool can reference it
-    results = EvaluationResults()
-    token_tracker = CompositeTokenUsageTracker(user_context.models)
-
     # FIXME Fugly hack
     shared_tools = context.shared_tools
     shared_tools[f_beta_score_tool.name] = f_beta_score_tool
     shared_tools[linear_score_tool.name] = linear_score_tool
-    shared_tools[log_tool.name] = log_tool
 
-    shared_evaluation_context = build_evaluation_context(evaluation_config.shared.data, parent=context.evaluation_context)
+    shared_evaluation_context = build_evaluation_context(
+        evaluation_config.shared.data,
+        parent=context.evaluation_context)
     tests = [
         EvaluationTest(
             test_name,
@@ -332,6 +323,8 @@ def _run_evaluation_inner(
         for test_name, test_config in evaluation_config.tests.items()
     ]
 
+    token_tracker = CompositeTokenUsageTracker(user_context.models)
+    results = EvaluationResults()
     for test in tests:
         logger.info(f"Running evaluation test '{test.name}'")
         test_result = test.run(token_tracker, iterations)
