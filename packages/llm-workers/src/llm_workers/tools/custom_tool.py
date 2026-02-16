@@ -218,7 +218,7 @@ class StarlarkStatement(ExtendedRunnable[Json]):
             global_funcs[tool_name] = create_tool_wrapper(tool)
 
         # Execute Starlark script
-        result = self._executor.run(global_vars, global_funcs)
+        result = self._executor.run(global_vars, global_funcs, evaluation_context.logger)
 
         # Store result if requested
         if self._store_as:
@@ -438,9 +438,10 @@ class CustomTool(ExtendedExecutionTool):
         **kwargs: Any
     ) -> Generator[WorkerNotification, None, Any]:
         validated_input = self.args_schema(**input)
-        # starting new evaluation context (include input and logger)
-        scope_vars = {'__logger': self._logger, **validated_input.model_dump()}
-        evaluation_context = EvaluationContext(scope_vars, parent=evaluation_context)
+        evaluation_context = EvaluationContext(
+            validated_input.model_dump(),
+            parent=evaluation_context,
+            logging_scope=self.name)
         return self._body.yield_notifications_and_result(evaluation_context, token_tracker, config)
 
 

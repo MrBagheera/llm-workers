@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple, TypeVar, Generic, get_args, Literal, 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import core_schema
 
-from llm_workers.starlark import StarlarkEval, EvaluationContext
+from llm_workers.starlark import StarlarkEval, EvaluationContext, default_script_logger
 
 logger =  logging.getLogger(__name__)
 
@@ -70,12 +70,14 @@ class StringExpression:
 
         # Accept both dict and EvaluationContext for convenience
         script_vars: Dict[str, Any]
+        script_logger = default_script_logger
         if context is None:
             script_vars = {}
         elif isinstance(context, dict):
             script_vars = context
         else:
             script_vars = context.extract_all_variables()
+            script_logger = context.logger
 
         # --- OPTIMIZATION: Single Block Type Preservation ---
         # If the string is EXACTLY one code block with no surrounding text,
@@ -83,7 +85,7 @@ class StringExpression:
         if len(self.parts) == 1 and self.parts[0][0] == 'code':
             # noinspection PyTypeChecker
             script: StarlarkEval = self.parts[0][1]
-            return script.run(script_vars, {})
+            return script.run(script_vars, {}, script_logger)
 
         # ----------------------------------------------------
 
@@ -93,7 +95,7 @@ class StringExpression:
             if kind == 'code':
                 # noinspection PyTypeChecker
                 script: StarlarkEval = content
-                result.append(str(script.run(script_vars, {})))
+                result.append(str(script.run(script_vars, {}, script_logger)))
             else:
                 result.append(content)
 

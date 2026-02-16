@@ -1,6 +1,10 @@
+import logging
 import unittest
 
 from llm_workers.starlark import StarlarkEval, StarlarkExec
+
+
+logger = logging.getLogger(__name__)
 
 
 class TestStarlarkEval(unittest.TestCase):
@@ -9,31 +13,31 @@ class TestStarlarkEval(unittest.TestCase):
     def test_simple_arithmetic(self):
         """Test simple arithmetic expressions."""
         evaluator = StarlarkEval("1 + 2 * 3")
-        result = evaluator.run({}, {})
+        result = evaluator.run({}, {}, logger)
         self.assertEqual(result, 7)
 
     def test_string_operations(self):
         """Test string operations."""
         evaluator = StarlarkEval("'hello' + ' ' + 'world'")
-        result = evaluator.run({}, {})
+        result = evaluator.run({}, {}, logger)
         self.assertEqual(result, "hello world")
 
     def test_list_operations(self):
         """Test list operations."""
         evaluator = StarlarkEval("[1, 2, 3] + [4, 5]")
-        result = evaluator.run({}, {})
+        result = evaluator.run({}, {}, logger)
         self.assertEqual(result, [1, 2, 3, 4, 5])
 
     def test_dict_operations(self):
         """Test dictionary operations."""
         evaluator = StarlarkEval("{'a': 1, 'b': 2}")
-        result = evaluator.run({}, {})
+        result = evaluator.run({}, {}, logger)
         self.assertEqual(result, {'a': 1, 'b': 2})
 
     def test_access_global_vars(self):
         """Test accessing variables from global_vars."""
         evaluator = StarlarkEval("x + y")
-        result = evaluator.run({'x': 10, 'y': 20}, {})
+        result = evaluator.run({'x': 10, 'y': 20}, {}, logger)
         self.assertEqual(result, 30)
 
     def test_call_allowed_function(self):
@@ -42,13 +46,13 @@ class TestStarlarkEval(unittest.TestCase):
             return a + b
 
         evaluator = StarlarkEval("add(5, 3)")
-        result = evaluator.run({}, {'add': add})
+        result = evaluator.run({}, {'add': add}, logger)
         self.assertEqual(result, 8)
 
     def test_struct_creation(self):
         """Test creating and using struct in expressions."""
         evaluator = StarlarkEval("struct(x=1, y=2).x")
-        result = evaluator.run({}, {})
+        result = evaluator.run({}, {}, logger)
         self.assertEqual(result, 1)
 
     def test_reject_lambda(self):
@@ -81,7 +85,7 @@ class TestStarlarkEval(unittest.TestCase):
     def test_empty_allowed_functions(self):
         """Test that empty allowed_functions list works correctly."""
         evaluator = StarlarkEval("1 + 1")
-        result = evaluator.run({}, {})
+        result = evaluator.run({}, {}, logger)
         self.assertEqual(result, 2)
 
     def test_sanitized_data_access(self):
@@ -93,7 +97,7 @@ class TestStarlarkEval(unittest.TestCase):
 
         obj = CustomObject()
         evaluator = StarlarkEval("obj.public_value")
-        result = evaluator.run({'obj': obj}, {})
+        result = evaluator.run({'obj': obj}, {}, logger)
         self.assertEqual(result, 42)
 
     def test_block_private_attribute_access(self):
@@ -105,19 +109,19 @@ class TestStarlarkEval(unittest.TestCase):
     def test_complex_nested_expression(self):
         """Test complex nested expressions."""
         evaluator = StarlarkEval("[x * 2 for x in range(5) if x % 2 == 0]")
-        result = evaluator.run({}, {})
+        result = evaluator.run({}, {}, logger)
         self.assertEqual(result, [0, 4, 8])
 
     def test_dict_access(self):
         """Test dictionary access in expressions."""
         evaluator = StarlarkEval("data['key']")
-        result = evaluator.run({'data': {'key': 'value'}}, {})
+        result = evaluator.run({'data': {'key': 'value'}}, {}, logger)
         self.assertEqual(result, 'value')
 
     def test_list_indexing(self):
         """Test list indexing in expressions."""
         evaluator = StarlarkEval("items[2]")
-        result = evaluator.run({'items': [10, 20, 30, 40]}, {})
+        result = evaluator.run({'items': [10, 20, 30, 40]}, {}, logger)
         self.assertEqual(result, 30)
 
     # --- Alternative expression tests for DEFAULT_FUNCTIONS replacements ---
@@ -127,11 +131,11 @@ class TestStarlarkEval(unittest.TestCase):
         evaluator = StarlarkEval("my_dict.get('key', 'default_value')")
 
         # Key exists
-        result = evaluator.run({'my_dict': {'key': 'value'}}, {})
+        result = evaluator.run({'my_dict': {'key': 'value'}}, {}, logger)
         self.assertEqual(result, 'value')
 
         # Key doesn't exist
-        result = evaluator.run({'my_dict': {'other': 'value'}}, {})
+        result = evaluator.run({'my_dict': {'other': 'value'}}, {}, logger)
         self.assertEqual(result, 'default_value')
 
     def test_get_list_alternative(self):
@@ -141,22 +145,22 @@ class TestStarlarkEval(unittest.TestCase):
         )
 
         # Valid index
-        result = evaluator.run({'my_list': ['a', 'b', 'c'], 'idx': 1}, {})
+        result = evaluator.run({'my_list': ['a', 'b', 'c'], 'idx': 1}, {}, logger)
         self.assertEqual(result, 'b')
 
         # Out of bounds (too high)
-        result = evaluator.run({'my_list': ['a', 'b', 'c'], 'idx': 10}, {})
+        result = evaluator.run({'my_list': ['a', 'b', 'c'], 'idx': 10}, {}, logger)
         self.assertEqual(result, 'default')
 
         # Negative index (should use default based on condition)
-        result = evaluator.run({'my_list': ['a', 'b', 'c'], 'idx': -1}, {})
+        result = evaluator.run({'my_list': ['a', 'b', 'c'], 'idx': -1}, {}, logger)
         self.assertEqual(result, 'default')
 
     def test_merge_lists_alternative(self):
         """Test + operator as alternative to merge for lists."""
         evaluator = StarlarkEval("list1 + list2")
 
-        result = evaluator.run({'list1': [1, 2], 'list2': [3, 4]}, {})
+        result = evaluator.run({'list1': [1, 2], 'list2': [3, 4]}, {}, logger)
         self.assertEqual(result, [1, 2, 3, 4])
 
     def test_merge_dicts_alternative_unpacking(self):
@@ -166,7 +170,7 @@ class TestStarlarkEval(unittest.TestCase):
         result = evaluator.run({
             'dict1': {'a': 1, 'b': 2},
             'dict2': {'b': 3, 'c': 4}
-        }, {})
+        }, {}, logger)
         # dict2 values should override dict1 for duplicate keys
         self.assertEqual(result, {'a': 1, 'b': 3, 'c': 4})
 
@@ -174,7 +178,7 @@ class TestStarlarkEval(unittest.TestCase):
         """Test + operator as alternative to merge for strings."""
         evaluator = StarlarkEval("str1 + str2")
 
-        result = evaluator.run({'str1': 'hello', 'str2': 'world'}, {})
+        result = evaluator.run({'str1': 'hello', 'str2': 'world'}, {}, logger)
         self.assertEqual(result, 'helloworld')
 
     def test_flatten_alternative_comprehension(self):
@@ -185,7 +189,7 @@ class TestStarlarkEval(unittest.TestCase):
 
         result = evaluator.run({
             'list_of_lists': [[1, 2], [3, 4], [5]]
-        }, {})
+        }, {}, logger)
         self.assertEqual(result, [1, 2, 3, 4, 5])
 
 
@@ -200,7 +204,7 @@ y = 20
 result = x + y
 """
         executor = StarlarkExec(script)
-        result = executor.run({}, {})
+        result = executor.run({}, {}, logger)
         self.assertEqual(result, 30)
 
     def test_script_with_run_function(self):
@@ -210,7 +214,7 @@ def run():
     return 42
 """
         executor = StarlarkExec(script)
-        result = executor.run({}, {})
+        result = executor.run({}, {}, logger)
         self.assertEqual(result, 42)
 
     def test_error_when_no_result_or_run(self):
@@ -218,7 +222,7 @@ def run():
         script = "x = 10"
         executor = StarlarkExec(script)
         with self.assertRaises(RuntimeError) as cm:
-            executor.run({}, {})
+            executor.run({}, {}, logger)
         self.assertIn("result", str(cm.exception).lower())
         self.assertIn("run", str(cm.exception).lower())
 
@@ -228,7 +232,7 @@ def run():
 result = a + b + c
 """
         executor = StarlarkExec(script)
-        result = executor.run({'a': 1, 'b': 2, 'c': 3}, {})
+        result = executor.run({'a': 1, 'b': 2, 'c': 3}, {}, logger)
         self.assertEqual(result, 6)
 
     def test_call_allowed_functions(self):
@@ -240,7 +244,7 @@ result = a + b + c
 result = multiply(6, 7)
 """
         executor = StarlarkExec(script)
-        result = executor.run({}, {'multiply': multiply})
+        result = executor.run({}, {'multiply': multiply}, logger)
         self.assertEqual(result, 42)
 
         script = """
@@ -248,7 +252,7 @@ result = secret_func()
 """
         executor = StarlarkExec(script)
         with self.assertRaises(Exception):
-            executor.run({}, {'secret_func': secret_func})
+            executor.run({}, {'secret_func': secret_func}, logger)
 
     def test_if_statements(self):
         """Test if/elif/else statements."""
@@ -263,7 +267,7 @@ def run():
         return "small"
 """
         executor = StarlarkExec(script)
-        result = executor.run({}, {})
+        result = executor.run({}, {}, logger)
         self.assertEqual(result, "medium")
 
     def test_for_loops(self):
@@ -276,7 +280,7 @@ def run():
     return total
 """
         executor = StarlarkExec(script)
-        result = executor.run({}, {})
+        result = executor.run({}, {}, logger)
         self.assertEqual(result, 10)
 
     def test_list_comprehensions(self):
@@ -285,7 +289,7 @@ def run():
 result = [x * x for x in range(5)]
 """
         executor = StarlarkExec(script)
-        result = executor.run({}, {})
+        result = executor.run({}, {}, logger)
         self.assertEqual(result, [0, 1, 4, 9, 16])
 
     def test_dict_comprehensions(self):
@@ -294,7 +298,7 @@ result = [x * x for x in range(5)]
 result = {x: x * 2 for x in range(3)}
 """
         executor = StarlarkExec(script)
-        result = executor.run({}, {})
+        result = executor.run({}, {}, logger)
         self.assertEqual(result, {0: 0, 1: 2, 2: 4})
 
     def test_multiple_functions(self):
@@ -310,7 +314,7 @@ def run():
     return add(2, 3) + multiply(4, 5)
 """
         executor = StarlarkExec(script)
-        result = executor.run({}, {})
+        result = executor.run({}, {}, logger)
         self.assertEqual(result, 25)
 
     def test_function_with_parameters(self):
@@ -322,7 +326,7 @@ def calculate(x, y, z):
 result = calculate(3, 4, 5)
 """
         executor = StarlarkExec(script)
-        result = executor.run({}, {})
+        result = executor.run({}, {}, logger)
         self.assertEqual(result, 17)
 
     def test_struct_creation_and_usage(self):
@@ -333,7 +337,7 @@ def run():
     return person.name
 """
         executor = StarlarkExec(script)
-        result = executor.run({}, {})
+        result = executor.run({}, {}, logger)
         self.assertEqual(result, "Alice")
 
     def test_reject_while_loop(self):
@@ -427,7 +431,7 @@ result = outer()
 result = 1 + 1
 """
         executor = StarlarkExec(script)
-        result = executor.run({}, {})
+        result = executor.run({}, {}, logger)
         self.assertEqual(result, 2)
 
     def test_sanitized_data_access(self):
@@ -442,7 +446,7 @@ result = 1 + 1
 result = data.value
 """
         executor = StarlarkExec(script)
-        result = executor.run({'data': obj}, {})
+        result = executor.run({'data': obj}, {}, logger)
         self.assertEqual(result, 100)
 
     def test_block_private_attribute_access(self):
@@ -476,7 +480,7 @@ def run():
     return sum_list(fib)
 """
         executor = StarlarkExec(script)
-        result = executor.run({}, {})
+        result = executor.run({}, {}, logger)
         # fibonacci(7) = [0, 1, 1, 2, 3, 5, 8], sum = 20
         self.assertEqual(result, 20)
 
@@ -489,7 +493,7 @@ def run():
 result = 42
 """
         executor = StarlarkExec(script)
-        result = executor.run({}, {})
+        result = executor.run({}, {}, logger)
         self.assertEqual(result, 42)
 
     def test_function_calling_allowed_function(self):
@@ -504,7 +508,7 @@ def process(val):
 result = process(3)
 """
         executor = StarlarkExec(script)
-        result = executor.run({}, {'external': external})
+        result = executor.run({}, {'external': external}, logger)
         self.assertEqual(result, 35)
 
 

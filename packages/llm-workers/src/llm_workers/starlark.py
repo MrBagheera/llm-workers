@@ -5,6 +5,7 @@ import logging
 import os
 import platform
 from datetime import datetime
+from logging import Logger
 from types import CodeType
 from typing import Dict, Any, Optional, Callable, Literal, List
 
@@ -15,17 +16,27 @@ from langchain_core.tools import ToolException
 from llm_workers.utils import LazyFormatter
 from pydantic import BaseModel
 
-logger = logging.getLogger(__name__)
+default_script_logger = logging.getLogger("llm-script")
 
 class EvaluationContext:
     """
     Context for evaluating expressions.
     Holds variable bindings.
     """
-    def __init__(self, variables: Dict[str, Any] = None, parent: 'EvaluationContext' = None, mutable: bool = True):
+    def __init__(self,
+            variables: Dict[str, Any] = None,
+            parent: 'EvaluationContext' = None,
+            logging_scope: str = None,
+            mutable: bool = True):
         self.parent = parent
         self.variables = variables or {}
         self.mutable = mutable
+        if logging_scope:
+            self.logger = logging.getLogger(f"llm-script.{logging_scope}")
+        elif parent:
+            self.logger = parent.logger
+        else:
+            self.logger = default_script_logger
 
     def get(self, name: str) -> Any:
         if name in self.variables:
@@ -176,11 +187,6 @@ def _print_json(arg: Any, pretty = False) -> str:
     serializable_arg = convert_to_json_serializable(arg)
     return json.dumps(serializable_arg, ensure_ascii=False, indent=2 if pretty else None)
 
-def _log(arg: Any) -> None:
-    """Writes log message"""
-    # TODO use scoped logger
-    logger.debug("Starlark script: %r", LazyFormatter(arg, trim=False))
-
 # --- Base Class ---
 
 class StarlarkBase:
@@ -205,7 +211,6 @@ class StarlarkBase:
         # Add own build-ins
         self.builtins['parse_json'] = _parse_json
         self.builtins['print_json'] = _print_json
-        self.builtins['log'] = _log
 
         # 2. Compile immediately (Fail fast)
         self._compile()
@@ -233,7 +238,7 @@ class StarlarkBase:
         # compile_restricted needs the source string, not AST for eval mode
         self.bytecode = compile_restricted(self.code_string, filename='<string>', mode=self.mode)
 
-    def _prepare_scope(self, global_vars: Dict[str, Any], global_funcs: Dict[str, Callable]) -> Dict[str, Any]:
+    def _prepare_scope(self, global_vars: Dict[str, Any], global_funcs: Dict[str, Callable], logger: Logger) -> Dict[str, Any]:
         """Merges inputs into a safe execution scope."""
 
         # remove all private variables (but keep '_' because of flow statements)
@@ -242,6 +247,10 @@ class StarlarkBase:
             for k, v in global_vars.items()
             if not k.startswith('_') or k == '_'
         }
+
+        def log(msg: str, *args):
+            logger.debug(msg, *args)
+            return None
 
         scope = {
             '__builtins__': self.builtins,
@@ -252,6 +261,7 @@ class StarlarkBase:
             '_unpack_sequence_': guarded_unpack_sequence,
             '_write_': lambda obj: obj, # Basic write guard
             '_print_': lambda *args, **kwargs: None, # Disable print
+            'log': log,
         }
         scope.update(sanitized_vars)
         scope.update(global_funcs)
@@ -264,8 +274,8 @@ class StarlarkEval(StarlarkBase):
     def __init__(self, expression: str):
         super().__init__(expression, mode='eval')
 
-    def run(self, global_vars: Dict[str, Any], global_funcs: Dict[str, Callable]) -> Any:
-        scope = self._prepare_scope(global_vars, global_funcs)
+    def run(self, global_vars: Dict[str, Any], global_funcs: Dict[str, Callable], logger: Logger) -> Any:
+        scope = self._prepare_scope(global_vars, global_funcs, logger)
         try:
             return eval(self.bytecode, scope)
         except Exception as e:
@@ -277,8 +287,8 @@ class StarlarkExec(StarlarkBase):
     def __init__(self, script: str):
         super().__init__(script, mode='exec')
 
-    def run(self, global_vars: Dict[str, Any], global_funcs: Dict[str, Callable]) -> Any:
-        scope = self._prepare_scope(global_vars, global_funcs)
+    def run(self, global_vars: Dict[str, Any], global_funcs: Dict[str, Callable], logger: Logger) -> Any:
+        scope = self._prepare_scope(global_vars, global_funcs, logger)
 
         # Execute the script
         exec(self.bytecode, scope)

@@ -152,7 +152,7 @@ TRACE = 5
 logging.addLevelName(TRACE, "TRACE")
 
 DEBUG_LOGGERS = (
-    ["llm_workers.worker"],
+    ["llm-script", "llm_workers.worker"],
     ["llm_workers"],
 )
 
@@ -191,11 +191,14 @@ def _setup_logging_impl(
     # adjust levels for individual loggers at given debug level
     if debug_level - 1 > len(debug_loggers_by_debug_level):
         logging.getLogger().setLevel(logging.NOTSET)
+        logger.info("Set root log level to ALL")
     elif debug_level - 1 == len(debug_loggers_by_debug_level):
         logging.getLogger().setLevel(logging.DEBUG)
+        logger.info("Set root log level to DEBUG")
     else:
         for logger_name in debug_loggers_by_debug_level[debug_level - 1]:
             logging.getLogger(logger_name).setLevel(logging.DEBUG)
+            logger.info("Set log level for module %s to DEBUG", logger_name)
 
     # console logging
     console_level: int = logging.ERROR
@@ -210,6 +213,7 @@ def _setup_logging_impl(
     formatter = logging.Formatter("%(name)s: %(message)s")
     console_handler.setFormatter(formatter)
     logging.getLogger().addHandler(console_handler)
+    logger.info("Set console log level to %s", logging.getLevelName(console_level))
 
     # process --level overrides
     for entry in level_overrides:
@@ -228,6 +232,7 @@ def _setup_logging_impl(
                 logger.warning("Unknown log level '%s' in --level %s", level_str, entry)
                 continue
         logging.getLogger(module).setLevel(level)
+        logger.info("Set log level for module %s to %s", module, level_str)
 
     return os.path.abspath(log_filename)
 

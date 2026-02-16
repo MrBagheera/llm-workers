@@ -73,7 +73,10 @@ def _run(cli: CliConfig, context: StandardWorkersContext, user_context: UserCont
     evaluation_context = context.evaluation_context
     token_tracker = CompositeTokenUsageTracker(user_context.models)
     for input in inputs:
-        evaluation_context = EvaluationContext({'input': input}, parent=evaluation_context)
+        evaluation_context = EvaluationContext(
+            variables={'input': input},
+            parent=evaluation_context,
+            logging_scope='cli')
         print(f'Processing input: {input}', file=sys.stderr, flush=True)
         generator = worker.yield_notifications_and_result(evaluation_context, token_tracker, config=None)
         while True:
