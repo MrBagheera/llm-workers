@@ -114,7 +114,6 @@ class FlowStatement(ExtendedRunnable[Json]):
         for statement in self._statements:
             inner_context = EvaluationContext({"_": result}, parent=evaluation_context, mutable=False)
             result = yield from statement.yield_notifications_and_result(inner_context, token_tracker, config)
-            self._logger.log(TRACE, "Flow statement at %s yielded:\n%r", i, LazyFormatter(result, trim=False))
             i += 1
         return result
 
@@ -149,17 +148,14 @@ class IfStatement(ExtendedRunnable[Json]):
 
         # Use Python truthiness
         if condition_result:
-            self._logger.log(TRACE, "If condition [%s] evaluated to truthy, executing 'then' branch", condition_result)
             result = yield from self._then_statement.yield_notifications_and_result(
                 evaluation_context, token_tracker, config
             )
         elif self._else_statement is not None:
-            self._logger.log(TRACE, "If condition [%s] evaluated to falsy, executing 'else' branch", condition_result)
             result = yield from self._else_statement.yield_notifications_and_result(
                 evaluation_context, token_tracker, config
             )
         else:
-            self._logger.log(TRACE, "If condition [%s] evaluated to falsy, no 'else' branch, returning None", condition_result)
             result = None
 
         # Store result if requested
