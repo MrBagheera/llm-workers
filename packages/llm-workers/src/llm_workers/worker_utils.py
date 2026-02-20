@@ -181,7 +181,7 @@ def validate_tool_results(logging_id: str, tool_results: Generator[WorkerNotific
         try:
             chunk = next(tool_results)
             if not isinstance(chunk, WorkerNotification):
-                logger.warning("%s produced multiple results, skipping %r", logging_id, LazyFormatter(chunk))
+                logger.warning("%s produced multiple results, skipping %s", logging_id, LazyFormatter(chunk, trim=3))
             yield chunk
         except StopIteration as e:
             return e.value
@@ -195,7 +195,7 @@ def extract_tool_results(logging_id: str, tool_results: Generator[WorkerNotifica
         try:
             chunk = next(tool_results)
             if not isinstance(chunk, WorkerNotification):
-                logger.warning("%s produced multiple results, skipping %r", logging_id, LazyFormatter(chunk))
+                logger.warning("%s produced multiple results, skipping %s", logging_id, LazyFormatter(chunk, trim=3))
         except StopIteration as e:
             return e.value
 
@@ -241,7 +241,7 @@ def split_result_and_notifications(generator: Generator[WorkerNotification, None
         try:
             chunk = next(generator)
             if not isinstance(chunk, WorkerNotification):
-                raise ValueError(f"Statement yielded non-notification chunk: {LazyFormatter(chunk)}")
+                raise ValueError(f"Statement yielded non-notification chunk: {LazyFormatter(chunk, trim=3)}")
             notifications.append(chunk)
         except StopIteration as e:
             return e.value, notifications

@@ -190,7 +190,7 @@ class EvaluationTest:
             try:
                 chunk = next(generator)
                 if not isinstance(chunk, WorkerNotification):
-                    raise ValueError(f"Statement yielded non-notification chunk: {LazyFormatter(chunk)}")
+                    raise ValueError(f"Statement yielded non-notification chunk: {LazyFormatter(chunk, trim=3)}")
                 if chunk.text:
                     print(chunk.text, file=sys.stderr, flush=True)
             except StopIteration as e:

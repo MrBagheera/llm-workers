@@ -183,7 +183,7 @@ class ChatSession:
                 self._console_controller.clear()
                 self._chat_context.file_monitor.check_changes() # reset
                 set_max_start_tool_msg_length(self._console.width - 20)
-                logger.debug("Running new prompt for #%s:\n%r", self._iteration, LazyFormatter(message))
+                logger.debug("Running new prompt for #%s:\n%s", self._iteration, LazyFormatter(message))
                 try:
                     confirmation_response: Optional[ConfirmationResponse] = None
                     while True:

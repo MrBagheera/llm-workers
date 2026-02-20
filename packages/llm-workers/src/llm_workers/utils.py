@@ -9,7 +9,7 @@ import platform
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Union
 from typing import Callable, List, Optional, Dict
 
 from typing_extensions import deprecated
@@ -148,6 +148,8 @@ def ensure_environment_variable(environment: Dict[str,str], var_name: str, descr
 # Logging
 ####################################################
 
+ALL = 1
+logging.addLevelName(ALL, "ALL")
 TRACE = 5
 logging.addLevelName(TRACE, "TRACE")
 
@@ -280,22 +282,28 @@ def _str_presenter(dumper, data):
 
 yaml.add_representer(PreservedScalarString, _str_presenter)
 
-def format_as_yaml(obj: Any, trim: bool) -> str:
+def format_as_yaml(obj: Any, trim: Union[bool, int]) -> str:
     """Format given object as YAML string with optional trimming of all string fields recursively.
 
     Args:
         obj: object to format
-        trim: If True, trims string fields longer than 80 characters and truncates multiline strings to the first line.
+        trim: Controls trimming of string fields:
+            - True: trims to first line, truncating at 80 characters.
+            - False: no trimming; multiline strings rendered as YAML literal blocks.
+            - int N: trims to first N visual lines (soft-wrapped at 80 chars), appending
+              '[N lines / X characters trimmed]' when content is cut.
 
     Returns:
         A YAML-formatted string representation of the messages
     """
     raw = _to_json_compatible(obj)
 
-    if trim:
-        raw = _trim_recursively(raw)
-    else:
+    if trim is True:
+        raw = _trim_recursively(raw, max_lines=1)
+    elif trim is False:
         raw = _wrap_multiline_strings(raw)
+    else:
+        raw = _trim_recursively(raw, max_lines=trim)
 
     return yaml.dump(raw, default_flow_style=False, sort_keys=False, allow_unicode=True)
 
@@ -312,16 +320,46 @@ def _to_json_compatible(obj):
         return _to_json_compatible(vars(obj))
     return repr(obj)
 
-def _trim_recursively(data):
+def _trim_recursively(data, max_lines: int):
     if isinstance(data, dict):
-        return {key: _trim_recursively(value) for key, value in data.items()}
+        return {key: _trim_recursively(value, max_lines) for key, value in data.items()}
     elif isinstance(data, list):
-        return [_trim_recursively(item) for item in data]
+        return [_trim_recursively(item, max_lines) for item in data]
     elif isinstance(data, str):
         lines = data.splitlines()
         if len(lines) > 0:
-            line = lines[0]
-            return line[:77] + "..." if len(line) > 80 or len(lines) > 1 else line
+            shown_lines = []
+            remaining_chars_in_last_line = 0
+            for i, line in enumerate(lines):
+                chars_limit = (max_lines - len(shown_lines)) * 80
+                l = len(line)
+                if l >= chars_limit:
+                    line = line[:chars_limit]
+                    shown_lines.append(line)
+                    remaining_chars_in_last_line = l - chars_limit
+                    break
+                chars_limit -= l
+                shown_lines.append(line)
+                if len(shown_lines) == max_lines:
+                    break
+            after_shown = lines[len(shown_lines):]
+            if len(after_shown) > 0 or remaining_chars_in_last_line > 0:
+                trimmed_lines = len(after_shown)
+                if trimmed_lines == 0:
+                    message = f"[{remaining_chars_in_last_line} characters trimmed]"
+                elif remaining_chars_in_last_line == 0:
+                    message = f"[{trimmed_lines} lines trimmed]"
+                else:
+                    message = f"[{remaining_chars_in_last_line} characters and {trimmed_lines} lines trimmed]"
+                if remaining_chars_in_last_line > 0:
+                    shown_lines[-1] += f"...{message}"
+                else:
+                    shown_lines.append(message)
+                return PreservedScalarString("\n".join(shown_lines))
+            # string within trim limits; wrap multiline as literal block, leave single-line as-is
+            if '\n' in data:
+                return PreservedScalarString(data)
+            return data
     return data
 
 def _wrap_multiline_strings(data):
@@ -339,12 +377,16 @@ def _wrap_multiline_strings(data):
         return data
 
 class LazyFormatter:
-    def __init__(self, target, custom_formatter: Callable[[Any], str] = None, trim: bool = True):
+    def __init__(self, target, custom_formatter: Callable[[Any], str] = None,
+                 trim: Union[bool, int] = True, logger: Optional[logging.Logger] = None):
         self.target = target
         self.custom_formatter = custom_formatter
-        self.trim = trim
         self.repr = None
         self.str = None
+        if logger is not None and logger.getEffectiveLevel() <= ALL:
+            self.trim = False
+        else:
+            self.trim = trim
 
     def __str__(self):
         if self.str is None:
@@ -352,7 +394,7 @@ class LazyFormatter:
                 self.str = self.custom_formatter(self.target)
                 self.repr = self.str
             else:
-                self.str = str(self.target)
+                self.str = format_as_yaml(self.target, self.trim)
         return self.str
 
     def __repr__(self):
@@ -361,7 +403,7 @@ class LazyFormatter:
                 self.str = self.custom_formatter(self.target)
                 self.repr = self.str
             else:
-                self.repr = format_as_yaml(self.target, self.trim)
+                self.repr = format_as_yaml(self.target, trim = False)
         return self.repr
 
 

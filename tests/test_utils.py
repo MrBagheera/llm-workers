@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import tempfile
 import unittest
@@ -6,7 +7,7 @@ from pathlib import Path
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from llm_workers.utils import format_as_yaml, parse_standard_type, _split_type_parameters, matches_patterns, load_yaml
+from llm_workers.utils import format_as_yaml, parse_standard_type, _split_type_parameters, matches_patterns, load_yaml, LazyFormatter
 from llm_workers.worker_utils import format_tool_args
 
 
@@ -30,7 +31,7 @@ class TestFormatMessageAsYaml(unittest.TestCase):
         self.assertIn("type: ai", result)
 
     def test_trim_long_content(self):
-        # Test with a long message that needs trimming
+        # Test with a long message that needs trimming (single line > 80 chars)
         end_marker = "<end_marker>"
         long_content = "This is a very long message " * 20 + end_marker
         message = HumanMessage(content=long_content)
@@ -39,11 +40,12 @@ class TestFormatMessageAsYaml(unittest.TestCase):
         untrimmed = format_as_yaml(message, trim=False)
         self.assertIn(end_marker, untrimmed)
 
-        # With trimming
+        # With trimming: first 80 chars shown, rest reported as trimmed
         trimmed = format_as_yaml(message, trim=True)
         self.assertNotIn(end_marker, trimmed)
         self.assertIn("This is a very long message", trimmed)
         self.assertIn("...", trimmed)
+        self.assertIn("characters trimmed", trimmed)
 
     def test_trim_multiline_content(self):
         # Test with multiline content
@@ -56,11 +58,13 @@ class TestFormatMessageAsYaml(unittest.TestCase):
         self.assertIn("Second line", untrimmed)
         self.assertIn("Fourth line", untrimmed)
 
-        # With trimming
+        # With trim=True (max 1 visual line): only first line shown
         trimmed = format_as_yaml(message, trim=True)
         self.assertIn("First line", trimmed)
         self.assertNotIn("Second line", trimmed)
         self.assertNotIn("Fourth line", trimmed)
+        self.assertIn("lines", trimmed)
+        self.assertNotIn("characters trimmed", trimmed)
 
     def test_nested_content_structure(self):
         # Test with a message containing nested data
@@ -99,6 +103,141 @@ class TestFormatMessageAsYaml(unittest.TestCase):
         self.assertIn("...", trimmed)
         self.assertIn("First", trimmed)
         self.assertNotIn("Fourth", trimmed)
+
+
+class TestTrimInt(unittest.TestCase):
+    """Tests for format_as_yaml with trim=int (N visual lines, soft-wrapped at 80 chars)."""
+
+    def _content(self, result: str) -> str:
+        """Extract the 'content:' value from YAML output for inspection."""
+        for line in result.splitlines():
+            if line.strip().startswith("content:"):
+                return result  # multiline literal block — return whole thing
+        return result
+
+    def test_trim_int_short_string_no_trim(self):
+        # A string shorter than N*80 chars should be returned unchanged
+        message = HumanMessage(content="Short message")
+        result = format_as_yaml(message, trim=3)
+        self.assertIn("Short message", result)
+        self.assertNotIn("trimmed", result)
+
+    def test_trim_int_multiline_within_limit(self):
+        # Three short lines with trim=3: all fit, nothing trimmed
+        content = "Line one\nLine two\nLine three"
+        message = HumanMessage(content=content)
+        result = format_as_yaml(message, trim=3)
+        self.assertIn("Line one", result)
+        self.assertIn("Line two", result)
+        self.assertIn("Line three", result)
+        self.assertNotIn("trimmed", result)
+
+    def test_trim_int_multiline_exceeds_limit(self):
+        # Five short lines with trim=2: lines 3-5 should be trimmed
+        content = "Line one\nLine two\nLine three\nLine four\nLine five"
+        message = HumanMessage(content=content)
+        result = format_as_yaml(message, trim=2)
+        self.assertIn("Line one", result)
+        self.assertIn("Line two", result)
+        self.assertNotIn("Line three", result)
+        self.assertNotIn("Line five", result)
+        self.assertIn("lines", result)
+        self.assertNotIn("characters trimmed", result)
+
+    def test_trim_int_message_reports_visual_lines(self):
+        # Each short line (<= 80 chars) counts as 1 visual line
+        # 4 lines, trim=2 → 2 visual lines trimmed (lines 3 and 4)
+        content = "A\nB\nC\nD"
+        message = HumanMessage(content=content)
+        result = format_as_yaml(message, trim=2)
+        self.assertIn("[2 lines trimmed]", result)
+
+    def test_trim_int_long_line_counts_as_multiple_visual_lines(self):
+        # A 160-char line = 2 visual lines; trim=1 should trim part of it
+        long_line = "x" * 160
+        message = HumanMessage(content=long_line)
+        result = format_as_yaml(message, trim=1)
+        # Single actual line partially trimmed: 0 full lines omitted, 80 chars trimmed
+        self.assertIn("...", result)
+        self.assertIn("[80 characters trimmed]", result)
+
+    def test_trim_int_partial_last_line_trimmed(self):
+        # Single long line: last-line chars trimmed even though no full lines follow
+        content = "x" * 100  # trim=1 → first 80 chars shown, 20 chars trimmed
+        message = HumanMessage(content=content)
+        result = format_as_yaml(message, trim=1)
+        self.assertIn("...", result)
+        self.assertIn("[20 characters trimmed]", result)
+        self.assertNotIn("x" * 100, result)  # full string not present
+
+    def test_trim_int_char_budget_spanning_lines(self):
+        # trim=2 (budget 160 chars): line1=100 chars uses 100, line2=100 chars → only 60 shown
+        line1 = "a" * 100
+        line2 = "b" * 100
+        content = line1 + "\n" + line2
+        message = HumanMessage(content=content)
+        result = format_as_yaml(message, trim=2)
+        self.assertIn("a" * 80, result)   # at least the budget chars of line1 shown
+        self.assertIn("...", result)       # line2 was partially trimmed
+        self.assertIn("characters trimmed", result)
+
+    def test_trim_int_false_still_works(self):
+        # trim=False: full multiline preserved as literal block
+        content = "Line one\nLine two\nLine three"
+        message = HumanMessage(content=content)
+        result = format_as_yaml(message, trim=False)
+        self.assertIn("Line one", result)
+        self.assertIn("Line three", result)
+        self.assertNotIn("trimmed", result)
+
+
+class TestLazyFormatterLogger(unittest.TestCase):
+    """Tests for LazyFormatter with the logger parameter."""
+
+    def test_no_logger_uses_trim_value(self):
+        # Without logger, trim is used as-is
+        content = "Line one\nLine two\nLine three"
+        lf = LazyFormatter(content, trim=1)
+        result = str(lf)
+        self.assertIn("Line one", result)
+        self.assertNotIn("Line two", result)
+        self.assertIn("2 lines trimmed", result)
+
+    def test_logger_at_debug_level_preserves_trim(self):
+        # Logger at DEBUG level (not ALL) → trim is NOT overridden
+        log = logging.getLogger("test.lazy.debug")
+        log.setLevel(logging.DEBUG)
+        content = "Line one\nLine two\nLine three"
+        lf = LazyFormatter(content, trim=1, logger=log)
+        result = str(lf)
+        self.assertIn("Line one", result)
+        self.assertNotIn("Line two", result)
+
+    def test_logger_at_notset_disables_trim(self):
+        # Logger at NOTSET (ALL) level → trim overridden to False (full output)
+        log = logging.getLogger("test.lazy.all")
+        log.setLevel(logging.NOTSET)
+        # Also set root to NOTSET so getEffectiveLevel() returns 0
+        root = logging.getLogger()
+        original_root_level = root.level
+        root.setLevel(logging.NOTSET)
+        try:
+            content = "Line one\nLine two\nLine three"
+            lf = LazyFormatter(content, trim=1, logger=log)
+            self.assertEqual(lf.trim, False)
+            result = str(lf)
+            self.assertIn("Line one", result)
+            self.assertIn("Line two", result)
+            self.assertIn("Line three", result)
+            self.assertNotIn("trimmed", result)
+        finally:
+            root.setLevel(original_root_level)
+
+    def test_logger_none_uses_trim_value(self):
+        # Explicitly passing logger=None behaves same as no logger
+        content = "A\nB\nC"
+        lf = LazyFormatter(content, trim=1, logger=None)
+        self.assertEqual(lf.trim, 1)
 
 
 class TestTypeParsing(unittest.TestCase):

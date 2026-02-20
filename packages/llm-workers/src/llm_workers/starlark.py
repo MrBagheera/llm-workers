@@ -7,7 +7,7 @@ import platform
 from datetime import datetime
 from logging import Logger
 from types import CodeType
-from typing import Dict, Any, Optional, Callable, Literal, List
+from typing import Dict, Any, Optional, Callable, Literal, List, Union
 
 from RestrictedPython import compile_restricted
 from RestrictedPython.Guards import safe_builtins, guarded_iter_unpack_sequence, guarded_unpack_sequence
@@ -164,7 +164,7 @@ def _parse_json(arg: str, ignore_error: bool = False) -> Any:
     except json.JSONDecodeError:
         if ignore_error:
             return arg
-        raise ValueError(f'Failed to parse JSON from: {LazyFormatter(arg)}')
+        raise ValueError(f'Failed to parse JSON from: {LazyFormatter(arg, trim=3)}')
 
 def _print_json(arg: Any, pretty = False) -> str:
     """Convert a Python object into a JSON string."""
@@ -250,7 +250,10 @@ class StarlarkBase:
 
         def log(msg: str, *args):
             logger.debug(msg, *args)
-            return None
+
+        def format_as_yaml(arg: Any, trim: Union[int, bool] = True) -> LazyFormatter:
+            return LazyFormatter(arg, trim=trim, logger=logger)
+
 
         scope = {
             '__builtins__': self.builtins,
@@ -262,6 +265,7 @@ class StarlarkBase:
             '_write_': lambda obj: obj, # Basic write guard
             '_print_': lambda *args, **kwargs: None, # Disable print
             'log': log,
+            'as_yaml': format_as_yaml,
         }
         scope.update(sanitized_vars)
         scope.update(global_funcs)

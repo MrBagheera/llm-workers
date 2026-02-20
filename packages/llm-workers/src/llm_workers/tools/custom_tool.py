@@ -10,15 +10,15 @@ from typing import Type, Any, Optional, Dict, TypeAlias, List, Generator, Callab
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from langchain_core.tools.base import ToolException
-from pydantic import BaseModel, Field, create_model
-
 from llm_workers.api import WorkersContext, WorkerNotification, ExtendedRunnable, ExtendedExecutionTool
 from llm_workers.config import Json, CustomToolParamsDefinition, \
-    CallDefinition, EvalDefinition, StatementDefinition, IfDefinition, StarlarkDefinition, ForEachDefinition, CustomToolDefinition
+    CallDefinition, EvalDefinition, StatementDefinition, IfDefinition, StarlarkDefinition, ForEachDefinition, \
+    CustomToolDefinition
 from llm_workers.expressions import EvaluationContext
 from llm_workers.token_tracking import CompositeTokenUsageTracker
-from llm_workers.utils import LazyFormatter, parse_standard_type, TRACE
+from llm_workers.utils import LazyFormatter, parse_standard_type
 from llm_workers.worker_utils import call_tool
+from pydantic import BaseModel, Field, create_model
 
 _default_logger = Logger(__name__)
 
@@ -72,15 +72,15 @@ class CallStatement(ExtendedRunnable[Json]):
     ) -> Generator[WorkerNotification, None, Json]:
         # Evaluate params expression
         target_params = self._params_expr.evaluate(evaluation_context) if self._params_expr else {}
-        self._logger.debug("Calling tool %s with args:\n%r", self._tool.name, LazyFormatter(target_params, trim=not self._logger.isEnabledFor(TRACE)))
+        self._logger.debug("Calling tool %s with args:\n%s", self._tool.name, LazyFormatter(target_params, logger=self._logger))
         try:
             result = yield from call_tool(self._tool, target_params, evaluation_context, token_tracker, config, kwargs, ui_hint_override=self._ui_hint)
-            self._logger.debug("Calling tool %s resulted:\n%r", self._tool.name, LazyFormatter(result, trim=not self._logger.isEnabledFor(TRACE)))
+            self._logger.debug("Calling tool %s resulted:\n%s", self._tool.name, LazyFormatter(result, logger=self._logger))
             if self._store_as:
                 evaluation_context.add(self._store_as, result)
             return result
         except BaseException as e:
-            self._logger.debug("Calling tool %s failed: %r", self._tool.name, LazyFormatter(e, trim=False))
+            self._logger.debug("Calling tool %s failed: %r", self._tool.name, e)
             raise self._convert_error(e)
 
     def _convert_error(self, e: BaseException) -> BaseException:

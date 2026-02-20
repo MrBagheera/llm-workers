@@ -5,7 +5,6 @@ from typing import Optional, Any, List, Iterator
 from langchain_core.messages import BaseMessage, SystemMessage, AIMessage, ToolMessage, ToolCall
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.tools import BaseTool
-
 from llm_workers.api import WorkersContext, ConfirmationRequest, ConfirmationResponse, \
     ConfirmationRequestToolCallDescription, ConfirmationRequestParam, \
     ExtendedBaseTool, CONFIDENTIAL, WorkerNotification, WorkerException
@@ -200,9 +199,9 @@ class Worker(Runnable[In, Out]):
 
     def _invoke_llm(self, stream: bool, input: List[BaseMessage], config: Optional[RunnableConfig], **kwargs: Any) -> Iterator[BaseMessage | WorkerNotification]:
         if self._logger.isEnabledFor(TRACE):
-            self._logger.debug("Calling LLM with input:\n%r%r",
-               LazyFormatter(input[:-1]),
-               LazyFormatter([input[-1]], trim=False))
+            self._logger.debug("Calling LLM with input:\n%s%r",
+               LazyFormatter(input[:-1], trim=3),
+               LazyFormatter([input[-1]]))
         else:
             self._logger.debug("Calling LLM with input:\n%r", LazyFormatter(input))
 
@@ -253,7 +252,7 @@ class Worker(Runnable[In, Out]):
 
 
     def _log_llm_message(self, message: BaseMessage, log_info: str):
-        self._logger.debug("Got %s:\n%r", log_info, LazyFormatter(message, trim=not self._logger.isEnabledFor(TRACE)))
+        self._logger.debug("Got %s:\n%s", log_info, LazyFormatter(message, logger=self._logger))
 
     def _use_direct_results(self, tool_calls: List[ToolCall]):
         """Check if any of the tool calls are direct_result tools."""
@@ -280,7 +279,7 @@ class Worker(Runnable[In, Out]):
             tool: BaseTool = self._tools[tool_name]
             tool_definition: ToolDefinition = tool.metadata['tool_definition']
             args: dict[str, Any] = tool_call['args']
-            self._logger.debug("Calling tool %s with args:\n%r", tool.name, LazyFormatter(args, trim=not self._logger.isEnabledFor(TRACE)))
+            self._logger.debug("Calling tool %s with args:\n%s", tool.name, LazyFormatter(args, logger=self._logger))
 
             if tool.return_direct and direct_tools_fail:
                 content = f"Tool error: {tool.name} must be called separately without other tools. Please call it in a separate request."
