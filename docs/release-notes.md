@@ -6,14 +6,29 @@ nav_order: 90
 
 # Release notes
 
-## Unreleased
+## [1.1.0](https://github.com/MrBagheera/llm-workers/milestone/26?closed=1) (February 22, 2026)
 
 New features:
 - Added `llm-workers-evaluation` package with evaluation framework for testing LLM scripts ([#98](https://github.com/MrBagheera/llm-workers/issues/98))
   - New `llm-workers-evaluate` CLI tool for running evaluation suites
   - YAML-based evaluation suite configuration
-  - Score calculation with automatic averaging across iterations, tests, and suites
+  - Score calculation with automatic averaging across iterations, tests, and suites ([#101](https://github.com/MrBagheera/llm-workers/issues/101))
   - Data and tool merging from shared → suite → test levels
+  - Logging support in evaluation framework ([#102](https://github.com/MrBagheera/llm-workers/issues/102))
+  - Token usage reporting in evaluation results ([#103](https://github.com/MrBagheera/llm-workers/issues/103))
+  - Confidence interval reporting in evaluation results ([#105](https://github.com/MrBagheera/llm-workers/issues/105))
+- Added parallel execution support to `for_each` statement ([#104](https://github.com/MrBagheera/llm-workers/issues/104))
+- Simplified built-in tool usage ([#99](https://github.com/MrBagheera/llm-workers/issues/99))
+
+Improvements:
+- Comprehensive logging overhaul with scoped loggers and improved formatting ([#107](https://github.com/MrBagheera/llm-workers/issues/107), [#108](https://github.com/MrBagheera/llm-workers/issues/108), [#109](https://github.com/MrBagheera/llm-workers/issues/109))
+- Added support for Pydantic models in `print_json`
+- Returned type conversion functions (`list`, `tuple`, `dict`) to Starlark environment
+
+Bug fixes:
+- Fixed exception handling in parallel `for_each`
+- Fixed formatting of multiline strings
+- Fixed input data wrapping in `eval` statements
 
 ## [1.0.0](https://github.com/MrBagheera/llm-workers/milestone/25?closed=1) (January 20, 2026)
 
