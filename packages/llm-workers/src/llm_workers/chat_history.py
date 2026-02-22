@@ -1,11 +1,8 @@
-import logging
 from typing import Annotated, Union, Any
 
 import yaml
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, BaseMessage, AIMessageChunk, ToolMessageChunk
 from pydantic import BaseModel, Discriminator, Tag
-
-logger = logging.getLogger(__name__)
 
 def _message_discriminator(v: Any) -> str | None:
     if isinstance(v, BaseMessage):

@@ -1,14 +1,9 @@
-import logging
 import re
 from typing import Any, Dict, List, Tuple, TypeVar, Generic, get_args, Literal, Optional
 
+from llm_workers.starlark import StarlarkEval, EvaluationContext, default_script_logger
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import core_schema
-
-from llm_workers.starlark import StarlarkEval, EvaluationContext, default_script_logger
-
-logger =  logging.getLogger(__name__)
-
 
 
 class StringExpression:
