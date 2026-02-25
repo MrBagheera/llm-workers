@@ -181,6 +181,9 @@ display_settings:
   # Markdown output formatting (default: false)
   markdown_output: true
 
+  # Response streaming (default: true)
+  stream: true
+
   # File monitoring patterns (defaults shown)
   file_monitor_include: [ '*.jpg', '*.jpeg', '*.png', '*.gif', '*.tiff', '*.svg', '*.wbp' ]
   file_monitor_exclude: ['.*', '*.log']
@@ -236,6 +239,10 @@ Total Session Cost: $0.0054 USD
 #### Reasoning Display
 
 When `show_reasoning` is enabled (`true`), the chat interface will display reasoning tokens from models that support them (like Claude with thinking). This setting can also be toggled during chat sessions using the `/show_reasoning` command.
+
+#### Response Streaming
+
+When `stream` is enabled (`true`, default), the chat interface will stream LLM responses token-by-token as they are generated, providing immediate feedback. When disabled (`false`), the complete response is received before being displayed. Streaming is generally recommended for better user experience with longer responses.
 
 #### File Management
 

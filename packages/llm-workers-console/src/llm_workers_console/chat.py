@@ -190,7 +190,7 @@ class ChatSession:
                         messages: list[BaseMessage | ConfirmationResponse] = self._messages if not confirmation_response \
                             else self._messages + [confirmation_response]
                         confirmation_response = None
-                        for message in self._chat_context.worker.stream(messages, stream = True):
+                        for message in self._chat_context.worker.stream(messages, stream = user_context.user_config.display_settings.stream):
                             item = message[0]
                             if isinstance(item, WorkerNotification):
                                 self._process_notification(item)
