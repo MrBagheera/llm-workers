@@ -219,6 +219,7 @@ class EvaluationTest:
         for i in range(iterations):
             try:
                 logger.info(f"Running test '{self.name}' iteration {i + 1}/{iterations}")
+                print(f"Running test '{self.name}' iteration {i + 1}/{iterations}", file=sys.stderr, flush=True)
                 score = self._run(token_tracker, i)
                 result.scores[i] = score
                 logger.info(f"Test '{self.name}' iteration {i + 1} score: {score}")
