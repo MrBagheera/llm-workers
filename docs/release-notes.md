@@ -6,6 +6,23 @@ nav_order: 90
 
 # Release notes
 
+## [1.1.1](https://github.com/MrBagheera/llm-workers/milestone/27?closed=1) (February 25, 2026)
+
+Bug fixes and improvements:
+- Improved error handling in custom tools to properly propagate exceptions ([#110](https://github.com/MrBagheera/llm-workers/issues/110))
+  - Fixed issue where exceptions from failed evaluations were wrapped into string messages too early
+  - Ensured error conversion only occurs at the boundary between tool code and LLM interaction
+- Fixed pricing information for Opus 4.5 model
+- Fixed logging for outgoing/incoming LLM messages
+
+New features:
+- Added user setting to control streaming in chat interface
+- Added CLI arguments to environment variables via `env.CLI_ARGS`
+
+Improvements:
+- Changed Pydantic model serialization to use `exclude_none=True` for cleaner output
+- Added extra stderr output during evaluation runs for better debugging
+
 ## [1.1.0](https://github.com/MrBagheera/llm-workers/milestone/26?closed=1) (February 22, 2026)
 
 New features:
