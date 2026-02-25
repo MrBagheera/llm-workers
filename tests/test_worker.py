@@ -141,10 +141,7 @@ class TestWorker(unittest.TestCase):
         # Create tool with metadata
         tool = SimpleTool()
         tool.metadata = {'tool_definition': ToolDefinition(
-            name='simple_tool',
-            confidential=False,
-            require_confirmation=None,
-            ui_hint_template=None
+            name='simple_tool'
         )}
 
         # Setup messages
@@ -257,10 +254,7 @@ class TestWorker(unittest.TestCase):
         # Create tool with metadata
         tool = DirectTool()
         tool.metadata = {'tool_definition': ToolDefinition(
-            name='direct_tool',
-            confidential=False,
-            require_confirmation=None,
-            ui_hint_template=None
+            name='direct_tool'
         )}
 
         # Setup messages
@@ -363,18 +357,12 @@ class TestWorker(unittest.TestCase):
         # Create tools with metadata
         standard_tool = StandardTool()
         standard_tool.metadata = {'tool_definition': ToolDefinition(
-            name='standard_tool',
-            confidential=False,
-            require_confirmation=None,
-            ui_hint_template=None
+            name='standard_tool'
         )}
 
         direct_tool = DirectTool()
         direct_tool.metadata = {'tool_definition': ToolDefinition(
-            name='direct_tool',
-            confidential=False,
-            require_confirmation=None,
-            ui_hint_template=None
+            name='direct_tool'
         )}
 
         # Setup messages
@@ -516,18 +504,12 @@ class TestWorker(unittest.TestCase):
         # Create tools with metadata
         direct_tool_1 = DirectTool1()
         direct_tool_1.metadata = {'tool_definition': ToolDefinition(
-            name='direct_tool_1',
-            confidential=False,
-            require_confirmation=None,
-            ui_hint_template=None
+            name='direct_tool_1'
         )}
 
         direct_tool_2 = DirectTool2()
         direct_tool_2.metadata = {'tool_definition': ToolDefinition(
-            name='direct_tool_2',
-            confidential=False,
-            require_confirmation=None,
-            ui_hint_template=None
+            name='direct_tool_2'
         )}
 
         # Setup messages
@@ -660,9 +642,7 @@ class TestWorker(unittest.TestCase):
         confidential_tool = ConfidentialTool()
         confidential_tool.metadata = {'tool_definition': ToolDefinition(
             name='confidential_tool',
-            confidential=True,  # Mark as confidential
-            require_confirmation=None,
-            ui_hint_template=None
+            confidential=True  # Mark as confidential
         )}
 
         # Setup messages
@@ -787,9 +767,7 @@ class TestWorker(unittest.TestCase):
         tool = ConfirmationTool()
         tool.metadata = {'tool_definition': ToolDefinition(
             name='confirmation_tool',
-            confidential=False,
-            require_confirmation=True,  # Requires confirmation
-            ui_hint_template=None
+            require_confirmation=True  # Requires confirmation
         )}
 
         # Setup messages
@@ -858,9 +836,7 @@ class TestWorker(unittest.TestCase):
         tool = ConfirmationTool()
         tool.metadata = {'tool_definition': ToolDefinition(
             name='confirmation_tool',
-            confidential=False,
-            require_confirmation=True,
-            ui_hint_template=None
+            require_confirmation=True
         )}
 
         # Setup messages
@@ -947,9 +923,7 @@ class TestWorker(unittest.TestCase):
         tool = ConfirmationTool()
         tool.metadata = {'tool_definition': ToolDefinition(
             name='confirmation_tool',
-            confidential=False,
-            require_confirmation=True,
-            ui_hint_template=None
+            require_confirmation=True
         )}
 
         # Setup messages

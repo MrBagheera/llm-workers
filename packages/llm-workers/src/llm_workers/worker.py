@@ -290,7 +290,7 @@ class Worker(Runnable[In, Out]):
 
             token_tracker = kwargs.get('token_tracker', CompositeTokenUsageTracker())
             evaluation_context: EvaluationContext = kwargs.get('evaluation_context', self._context.evaluation_context)
-            tool_output: Any = yield from call_tool(tool, args, evaluation_context, token_tracker, config, kwargs)
+            tool_output: Any = yield from call_tool(tool, args, evaluation_context, token_tracker, config, kwargs, convert_tool_exceptions=True)
 
             tool_message: ToolMessage
             content: str
