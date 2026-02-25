@@ -206,7 +206,8 @@ def call_tool(
         token_tracker: CompositeTokenUsageTracker,
         config: Optional[RunnableConfig],
         kwargs: dict[str, Any],
-        ui_hint_override: Optional[StringExpression] = None
+        convert_tool_exceptions: bool = False,
+        ui_hint_override: Optional[StringExpression] = None,
 ) -> Generator[WorkerNotification, None, Any]:
     run_id = config.get("run_id", None) if config is not None else None
     child_config = config
@@ -226,11 +227,14 @@ def call_tool(
         else:
             result = tool.invoke(input, child_config, **kwargs)
     except ToolException as e:
-        logger.warning("Failed to call tool %s", tool.name, exc_info=True)
-        result = f"Tool Error: {e}"
-
-    if tool_start_text:
-        yield WorkerNotification.tool_end(run_id)
+        if convert_tool_exceptions:
+            logger.warning("Failed to call tool %s", tool.name, exc_info=True)
+            result = f"Tool Error: {e}"
+        else:
+            raise
+    finally:
+        if tool_start_text:
+            yield WorkerNotification.tool_end(run_id)
 
     return result
 

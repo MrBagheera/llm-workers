@@ -36,6 +36,7 @@ def run_llm_script(
     if user_context is None:
         user_config = StandardUserContext.load_config()
         environment = EvaluationContext.default_environment()
+        environment['CLI_ARGS'] = {k: v for k, v in vars(args).items()}
         ensure_env_vars_defined(environment, user_config.env)
         user_context = StandardUserContext(user_config, environment)
 

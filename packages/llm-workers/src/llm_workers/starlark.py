@@ -177,7 +177,7 @@ def _print_json(arg: Any, pretty = False) -> str:
         elif isinstance(obj, (list, tuple)):
             return [convert_to_json_serializable(item) for item in obj]
         elif isinstance(obj, BaseModel):
-            return obj.model_dump()
+            return obj.model_dump(exclude_none=True)
         elif isinstance(obj, (int, float, str, bool, type(None))):
             return obj
         else:

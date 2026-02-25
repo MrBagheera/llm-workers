@@ -40,7 +40,7 @@ models:
         budget_tokens: 16000
     pricing:
       currency: USD
-      input_tokens_per_million: 3.00
-      output_tokens_per_million: 15.00
-      cache_read_tokens_per_million: 0.30
-      cache_write_tokens_per_million: 3.75
+      input_tokens_per_million: 5.00
+      output_tokens_per_million: 25.00
+      cache_read_tokens_per_million: 0.50
+      cache_write_tokens_per_million: 6.25

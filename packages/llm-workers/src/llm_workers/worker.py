@@ -199,11 +199,11 @@ class Worker(Runnable[In, Out]):
 
     def _invoke_llm(self, stream: bool, input: List[BaseMessage], config: Optional[RunnableConfig], **kwargs: Any) -> Iterator[BaseMessage | WorkerNotification]:
         if self._logger.isEnabledFor(TRACE):
-            self._logger.debug("Calling LLM with input:\n%s%r",
-               LazyFormatter(input[:-1], trim=3),
-               LazyFormatter([input[-1]]))
-        else:
             self._logger.debug("Calling LLM with input:\n%r", LazyFormatter(input))
+        else:
+            self._logger.debug("Calling LLM with input:\n%s%r",
+                               LazyFormatter(input[:-1], trim=3),
+                               LazyFormatter([input[-1]]))
 
         if stream:
             # reassembling message from chunks
@@ -252,7 +252,7 @@ class Worker(Runnable[In, Out]):
 
 
     def _log_llm_message(self, message: BaseMessage, log_info: str):
-        self._logger.debug("Got %s:\n%s", log_info, LazyFormatter(message, logger=self._logger))
+        self._logger.debug("Got %s:\n%r", log_info, LazyFormatter(message))
 
     def _use_direct_results(self, tool_calls: List[ToolCall]):
         """Check if any of the tool calls are direct_result tools."""
@@ -290,7 +290,7 @@ class Worker(Runnable[In, Out]):
 
             token_tracker = kwargs.get('token_tracker', CompositeTokenUsageTracker())
             evaluation_context: EvaluationContext = kwargs.get('evaluation_context', self._context.evaluation_context)
-            tool_output: Any = yield from call_tool(tool, args, evaluation_context, token_tracker, config, kwargs)
+            tool_output: Any = yield from call_tool(tool, args, evaluation_context, token_tracker, config, kwargs, convert_tool_exceptions=True)
 
             tool_message: ToolMessage
             content: str

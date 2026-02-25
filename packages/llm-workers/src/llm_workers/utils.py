@@ -309,7 +309,7 @@ def format_as_yaml(obj: Any, trim: Union[bool, int]) -> str:
 
 def _to_json_compatible(obj):
     if isinstance(obj, BaseModel):
-        return obj.model_dump()
+        return obj.model_dump(exclude_none=True)
     if isinstance(obj, (str, int, float, bool)) or obj is None:
         return obj
     if isinstance(obj, (list, tuple, set)):
