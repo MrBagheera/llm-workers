@@ -7,9 +7,6 @@ from pydantic_core import core_schema
 
 
 class StringExpression:
-    # noinspection RegExpUnnecessaryNonCapturingGroup,RegExpRedundantEscape
-    _PATTERN = re.compile(r'(\\\$\{(?:.+?)\})|\$\{(.+?)\}')
-
     def __init__(self, value: str):
         self.raw_value = value
         self.parts: List[tuple[Literal['text'], str] | tuple[Literal['code'], StarlarkEval]] = []
@@ -20,30 +17,60 @@ class StringExpression:
     def _parse_value(self):
         """
         Parses the string into text and code parts.
+        Uses manual parsing to handle nested braces correctly.
         """
-        tokens = self._PATTERN.split(self.raw_value)
+        i = 0
         current_text = []
-
-        # Iterate through regex split results
-        for i in range(0, len(tokens), 3):
-            text_chunk = tokens[i]
-            escaped_chunk = tokens[i+1] if i+1 < len(tokens) else None
-            code_chunk = tokens[i+2] if i+2 < len(tokens) else None
-
-            if text_chunk:
-                current_text.append(text_chunk)
-
-            if escaped_chunk:
-                # Strip backslash from escaped blocks (e.g. "\${val}" -> "${val}")
-                current_text.append(escaped_chunk[1:])
-
-            if code_chunk:
+        
+        while i < len(self.raw_value):
+            # Check for escaped expression: \${...}
+            if i < len(self.raw_value) - 2 and self.raw_value[i:i+3] == r'\${':
+                # Find the closing brace for escaped expression
+                brace_depth = 1
+                j = i + 3
+                while j < len(self.raw_value) and brace_depth > 0:
+                    if self.raw_value[j] == '{':
+                        brace_depth += 1
+                    elif self.raw_value[j] == '}':
+                        brace_depth -= 1
+                    j += 1
+                
+                # Add the escaped content without the leading backslash
+                current_text.append('${')
+                current_text.append(self.raw_value[i+3:j])
+                i = j
+                continue
+            
+            # Check for expression: ${...}
+            if i < len(self.raw_value) - 1 and self.raw_value[i:i+2] == '${':
+                # Find the matching closing brace, accounting for nested braces
+                brace_depth = 1
+                j = i + 2
+                while j < len(self.raw_value) and brace_depth > 0:
+                    if self.raw_value[j] == '{':
+                        brace_depth += 1
+                    elif self.raw_value[j] == '}':
+                        brace_depth -= 1
+                    j += 1
+                
+                if brace_depth != 0:
+                    raise SyntaxError(f"Unclosed expression in: {self.raw_value}")
+                
                 # Flush existing text if any
                 if current_text:
                     self.parts.append(('text', "".join(current_text)))
                     current_text = []
+                
+                # Extract and compile the code
+                code_chunk = self.raw_value[i+2:j-1]
                 self.parts.append(('code', StarlarkEval(code_chunk)))
                 self.is_dynamic = True
+                i = j
+                continue
+            
+            # Regular character
+            current_text.append(self.raw_value[i])
+            i += 1
 
         # Flush trailing text
         if current_text:
