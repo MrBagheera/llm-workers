@@ -146,6 +146,36 @@ class TestStringExpression(unittest.TestCase):
         self.assertEqual(result, "Sum: 30")
         self.assertIsInstance(result, str)
 
+    def test_nested_braces_in_dict_literal(self):
+        """Test expressions containing dict literals with nested braces."""
+        # This should properly parse the entire expression including the dict literal
+        # Note: Python dict literals require quoted keys for string literals
+        expr = StringExpression("${localization_assistant | {'localization_dir': 'Languages'}}")
+        self.assertTrue(expr.is_dynamic)
+        
+        # Test with a simpler dict literal first
+        simple_expr = StringExpression("${{'localization_dir': 'Languages'}}")
+        result = simple_expr.evaluate({})
+        self.assertEqual(result, {'localization_dir': 'Languages'})
+        
+    def test_multiple_nested_braces(self):
+        """Test expressions with multiple levels of nested braces."""
+        # Nested dict with multiple levels
+        expr = StringExpression("${{'outer': {'inner': 'value'}}}")
+        result = expr.evaluate({})
+        self.assertEqual(result, {'outer': {'inner': 'value'}})
+        
+        # List of dicts
+        expr = StringExpression("${[{'a': 1}, {'b': 2}]}")
+        result = expr.evaluate({})
+        self.assertEqual(result, [{'a': 1}, {'b': 2}])
+        
+    def test_dict_literal_with_variable(self):
+        """Test dict literals that reference variables."""
+        expr = StringExpression("${{'dir': base_dir, 'name': 'test'}}")
+        result = expr.evaluate({'base_dir': '/home/user'})
+        self.assertEqual(result, {'dir': '/home/user', 'name': 'test'})
+
 
 class TestJsonExpression(unittest.TestCase):
 
