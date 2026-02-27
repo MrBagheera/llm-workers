@@ -421,7 +421,23 @@ class SmartLoader(yaml.SafeLoader):
         """
         Helper method that handles path resolution and
         smart parsing (JSON/YAML vs Text).
+        Supports loading from installed modules using "module:file" syntax.
         """
+        # Check if using module:file syntax
+        if isinstance(filename, str) and ':' in filename:
+            module, resource = filename.split(':', 1)
+            if len(module) > 1:  # ignore volume names on windows
+                # Loading from installed module
+                extension = os.path.splitext(resource)[1].lower()
+                # noinspection PyUnresolvedReferences
+                with importlib.resources.files(module).joinpath(resource).open("r") as f:
+                    if extension in ['.yaml', '.yml']:
+                        return yaml.load(f, Loader=SmartLoader)
+                    elif extension == '.json':
+                        return json.load(f)
+                    else:
+                        return f.read()
+        
         # validate file does not escape current directory
         if ".." in filename.split(os.path.sep):
             raise ValueError(f"Relative paths cannot escape current directory: {filename}")

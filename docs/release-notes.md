@@ -6,6 +6,11 @@ nav_order: 90
 
 # Release notes
 
+## 1.1.3 (February 27, 2026)
+
+Improvements:
+- Support including files in YAML using `module:file` syntax
+
 ## [1.1.2](https://github.com/MrBagheera/llm-workers/milestone/28?closed=1) (February 27, 2026)
 
 Bug fixes and improvements:
