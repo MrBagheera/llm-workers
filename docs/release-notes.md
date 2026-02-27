@@ -6,6 +6,13 @@ nav_order: 90
 
 # Release notes
 
+## [1.1.2](https://github.com/MrBagheera/llm-workers/milestone/28?closed=1) (February 27, 2026)
+
+Bug fixes and improvements:
+- Fixed parsing of nested curly braces in string expressions
+- Changed default console logging level to WARN for cleaner output
+- Minor warning fixes
+
 ## [1.1.1](https://github.com/MrBagheera/llm-workers/milestone/27?closed=1) (February 25, 2026)
 
 Bug fixes and improvements:
