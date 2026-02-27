@@ -61,7 +61,7 @@ def get_env_var_or_fail(name: str) -> str:
         raise OSError(f"Environment variable {name} not set")
     return var
 
-def ensure_environment_variable(environment: Dict[str,str], var_name: str, description: any = None, is_persistent: bool = True, is_secret: bool = False) -> str:
+def ensure_environment_variable(environment: Dict[str,str], var_name: str, description: Any = None, is_persistent: bool = True, is_secret: bool = False) -> str:
     """
     Ensure an environment variable is set, prompting the user if it's missing.
 
