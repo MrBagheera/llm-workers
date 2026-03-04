@@ -77,10 +77,10 @@ class TestApprovalTools(unittest.TestCase):
         self.assertEqual(validate_tool.name, "validate_approval")
         self.assertEqual(consume_tool.name, "consume_approval")
         
-        # Test UI hints are empty
-        self.assertEqual(request_tool.get_ui_hint({}), "")
-        self.assertEqual(validate_tool.get_ui_hint({}), "")
-        self.assertEqual(consume_tool.get_ui_hint({}), "")
+        # Test UI hints are False
+        self.assertEqual(request_tool.get_ui_hint({}), False)
+        self.assertEqual(validate_tool.get_ui_hint({}), False)
+        self.assertEqual(consume_tool.get_ui_hint({}), False)
         
         # Test that request tool needs confirmation
         self.assertTrue(request_tool.needs_confirmation({"prompt": "test"}))

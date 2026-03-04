@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Callable, List, Literal, TypeVar, Generic, Generator
+from typing import Any, Dict, Optional, Callable, List, Literal, TypeVar, Generic, Generator, Union
 from uuid import UUID
 
 from langchain_core.language_models import BaseChatModel
@@ -123,8 +123,15 @@ class ExtendedBaseTool(ABC):
         return None
 
     @abstractmethod
-    def get_ui_hint(self, input: dict[str, Any]) -> str:
-        pass
+    def get_ui_hint(self, input: dict[str, Any]) -> Union[str, bool, None]:
+        """Get a hint for the UI to display.
+
+        Returns:
+            str: Show this specific hint
+            bool: False to hide the tool call, True to show tool call with args
+            None: Use the default tool call hint logic
+        """
+        return None
 
 
 class WorkerNotification:

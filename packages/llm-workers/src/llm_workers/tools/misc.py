@@ -2,7 +2,7 @@ import hashlib
 import json
 import time
 from random import random
-from typing import Type, Any, Dict
+from typing import Type, Any, Dict, Union
 
 from langchain_core.tools import BaseTool
 from langchain_core.tools.base import ToolException
@@ -56,8 +56,8 @@ class UserInputTool(BaseTool, ExtendedBaseTool):
     def needs_confirmation(self, input: dict[str, Any]) -> bool:
         return False
     
-    def get_ui_hint(self, input: dict[str, Any]) -> str:
-        return "Requesting user input"
+    def get_ui_hint(self, input: dict[str, Any]) -> Union[str, bool, None]:
+        return False
     
     def _run(self, prompt: str) -> str:
         try:
@@ -100,8 +100,8 @@ class RequestApprovalTool(BaseTool, ExtendedBaseTool):
             params=[ConfirmationRequestParam(name="action", value=prompt, format="markdown")],
         )
 
-    def get_ui_hint(self, input: dict[str, Any]) -> str:
-        return ""
+    def get_ui_hint(self, input: dict[str, Any]) -> Union[str, bool, None]:
+        return False
 
     def _run(self, prompt: str) -> str:
         return generate_and_store_approval_token(prompt)
@@ -118,8 +118,8 @@ class ValidateApprovalTool(BaseTool, ExtendedBaseTool):
     description: str = "Validate approval token exists and is not consumed"
     args_schema: Type[ValidateApprovalToolSchema] = ValidateApprovalToolSchema
 
-    def get_ui_hint(self, input: dict[str, Any]) -> str:
-        return ""
+    def get_ui_hint(self, input: dict[str, Any]) -> Union[str, bool, None]:
+        return False
 
     def _run(self, approval_token: str) -> str:
         data = validate_approval_token(approval_token)
@@ -137,8 +137,8 @@ class ConsumeApprovalTool(BaseTool, ExtendedBaseTool):
     description: str = "Validate and consume approval token, making it unusable"
     args_schema: Type[ConsumeApprovalToolSchema] = ConsumeApprovalToolSchema
 
-    def get_ui_hint(self, input: dict[str, Any]) -> str:
-        return ""
+    def get_ui_hint(self, input: dict[str, Any]) -> Union[str, bool, None]:
+        return False
 
     def _run(self, approval_token: str) -> str:
         was_consumed = consume_approval_token(approval_token)

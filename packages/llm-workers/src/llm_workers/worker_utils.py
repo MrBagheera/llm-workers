@@ -87,12 +87,13 @@ def get_start_tool_message(
     # Priority 0: Override from call statement
     if ui_hint_override is not None:
         ctx = evaluation_context if evaluation_context else EvaluationContext(inputs)
-        hint = ui_hint_override.evaluate(ctx).strip()
-        if hint:
-            return hint
+        tool_hint = ui_hint_override.evaluate(ctx).strip()
+        if tool_hint:
+            return tool_hint
 
     if tool_meta:
         try:
+            print_default = True
             ui_hint = None
             ui_hint_args = []
             if 'tool_definition' in tool_meta:
@@ -100,24 +101,26 @@ def get_start_tool_message(
                 ui_hint = tool_def.ui_hint
                 ui_hint_args = tool_def.ui_hint_args
 
-            # Priority 1a: ui_hint is False
-            if ui_hint is False:
-                return None
-            # Priority 1b: ui_hint is non-empty StringExpression
-            elif isinstance(ui_hint, StringExpression):
-                hint = ui_hint.evaluate(EvaluationContext(inputs)).strip()
-                if hint:
-                    return hint
+            # Priority 1: explicit ui_hint
+            if ui_hint is not None:
+                if isinstance(ui_hint, StringExpression):
+                    tool_hint = ui_hint.evaluate(EvaluationContext(inputs)).strip()
+                    return tool_hint if tool_hint else None
+                elif ui_hint is False:
+                    return None
 
             # Priority 2: Tool-specific hint from ExtendedBaseTool
+            tool_hint = None
             if '__extension' in tool_meta:
                 extension: ExtendedBaseTool = tool_meta['__extension']
-                hint = extension.get_ui_hint(inputs).strip()
-                if hint:
-                    return hint
+                tool_hint = extension.get_ui_hint(inputs)
+                if isinstance(tool_hint, str):
+                    return tool_hint
+                elif tool_hint is False:
+                    return None
 
-            # Priority 3: Explicit True → message with args
-            if ui_hint:
+            # Priority 3: ui_hint or tool_hint explicit True → message with args
+            if ui_hint or tool_hint:
                 prefix = f"Calling {tool_name}"
                 max_args_length = MAX_START_TOOL_MSG_LENGTH - len(prefix) - 2  # account for parentheses
                 args_str = format_tool_args(inputs, ui_hint_args, max_args_length)
@@ -128,6 +131,14 @@ def get_start_tool_message(
 
     # default
     return f"Running tool {tool_name}"
+
+
+def start_tool_message_with_args(inputs: dict[str, Any], tool_name: str, ui_hint_args: list[Any] | Any) -> str:
+    prefix = f"Calling {tool_name}"
+    max_args_length = MAX_START_TOOL_MSG_LENGTH - len(prefix) - 2  # account for parentheses
+    args_str = format_tool_args(inputs, ui_hint_args, max_args_length)
+    return f"{prefix}({args_str})" if args_str else prefix
+
 
 def format_tool_args(inputs: Dict[str, Any], arg_patterns: List[str], max_length: int) -> str:
     """

@@ -18,10 +18,10 @@ class TestUserInputTool(unittest.TestCase):
         self.assertFalse(tool.needs_confirmation({"prompt": "Test prompt"}))
 
     def test_user_input_tool_ui_hint(self):
-        """Test the UI hint message."""
+        """Test no UI hint message."""
         tool = UserInputTool()
         hint = tool.get_ui_hint({"prompt": "Test prompt"})
-        self.assertEqual(hint, "Requesting user input")
+        self.assertEqual(hint, False)
 
     @patch('builtins.input')
     @patch('builtins.print')

@@ -187,7 +187,7 @@ class RunProcessTool(BaseTool, ExtendedBaseTool):
         )
 
     def get_ui_hint(self, input: dict[str, Any]) -> str:
-        return f"Running process {input['command']}"
+        return f"Running `{input['command']}`"
 
     def _run(self, command: str, args: Optional[list[str]] = None, timeout: int = 30) -> str:
         process: Optional[subprocess.Popen[str]] = None
