@@ -6,6 +6,12 @@ nav_order: 90
 
 # Release notes
 
+## 1.1.4 (March 4, 2026)
+
+Bug fixes:
+- Fixed handling of tool call UI hints for ExtendedTool-s
+- Fixed use of direct tools for LiteLLM
+
 ## 1.1.3 (February 27, 2026)
 
 Improvements:
