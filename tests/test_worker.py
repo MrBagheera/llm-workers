@@ -330,7 +330,7 @@ class TestWorker(unittest.TestCase):
 
         # Direct AIMessage with actual tool result
         self.assertIsInstance(result[6], AIMessage)
-        self.assertEqual(result[6].content, ['Direct result: test input'])
+        self.assertEqual(result[6].content, 'Direct result: test input')
 
         # Verify all expected calls were made (should be only ONE LLM call)
         fake_llm.verify_all_called()
@@ -613,10 +613,7 @@ class TestWorker(unittest.TestCase):
 
         # Merged AIMessage with list content
         self.assertIsInstance(result[9], AIMessage)
-        self.assertIsInstance(result[9].content, list)
-        self.assertEqual(len(result[9].content), 2)
-        self.assertEqual(result[9].content[0], 'Result 1: input A')
-        self.assertEqual(result[9].content[1], 'Result 2: input B')
+        self.assertEqual(result[9].content, 'Result 1: input A\nResult 2: input B')
 
         # Verify all expected calls were made (only ONE LLM call)
         fake_llm.verify_all_called()
@@ -718,7 +715,7 @@ class TestWorker(unittest.TestCase):
 
         # Confidential AIMessage with actual tool result
         self.assertIsInstance(result[6], AIMessage)
-        self.assertEqual(result[6].content, ['Secret data: password'])
+        self.assertEqual(result[6].content, 'Secret data: password')
         # Verify it's marked as confidential
         self.assertTrue(getattr(result[6], CONFIDENTIAL, False))
 

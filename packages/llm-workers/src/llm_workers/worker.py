@@ -325,7 +325,7 @@ class Worker(Runnable[In, Out]):
         if len(direct_tools_results) == 0:
             return
 
-        direct_response = AIMessage(content = direct_tools_results)
+        direct_response = AIMessage(content = "\n".join(direct_tools_results))
         if has_confidential_results:
             direct_response = direct_response.model_copy(update={CONFIDENTIAL: True}, deep=False)
         self._log_llm_message(direct_response, "direct tool message")
