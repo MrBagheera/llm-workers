@@ -12,6 +12,7 @@ dependencies = [
     "llm-workers-console",
     "llm-workers-tools",
     "llm-workers-evaluation",
+    "llm-workers-slack",
 ]
 
 [project.urls]
@@ -35,3 +36,4 @@ llm-workers = {path = "packages/llm-workers", develop = true}
 llm-workers-console = {path = "packages/llm-workers-console", develop = true}
 llm-workers-tools = {path = "packages/llm-workers-tools", develop = true}
 llm-workers-evaluation = {path = "packages/llm-workers-evaluation", develop = true}
+llm-workers-slack = {path = "packages/llm-workers-slack", develop = true}
