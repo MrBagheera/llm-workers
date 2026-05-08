@@ -105,7 +105,24 @@ class StandardWorkersContext(WorkersContext):
             loop.close()
             asyncio.set_event_loop(None)
 
+    def run_async(self, async_func: Callable[..., Any], *args, **kwargs) -> Any:
+        """
+        Like run(), but calls async_func directly on the event loop instead of wrapping it in a thread.
+        Use this when the top-level entry point is itself async (e.g. a Slack Bolt or FastAPI app).
+        """
+        loop = asyncio.new_event_loop()
+        try:
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(self._init_and_call(async_func, *args, **kwargs))
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
+
     async def _run(self, func: Callable[..., Any], *args, **kwargs):
+        """Initialize context and run func in a thread pool. Subclasses may override for testing."""
+        return await self._init_and_call(asyncio.to_thread, func, *args, **kwargs)
+
+    async def _init_and_call(self, call_fn: Callable[..., Any], *args, **kwargs):
         async with AsyncExitStack() as stack:
             self._loop = asyncio.get_running_loop() # capture for sync wrappers
 
@@ -130,7 +147,7 @@ class StandardWorkersContext(WorkersContext):
             self._create_tools('shared', self._tools, self._config.shared.tools)
 
             # and run the business code
-            return await asyncio.to_thread(func, *args, **kwargs)
+            return await call_fn(*args, **kwargs)
 
     def _build_server_configs(self) -> Dict[str, dict]:
         server_configs = {}
